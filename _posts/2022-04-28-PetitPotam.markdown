@@ -1,3 +1,8 @@
+---
+layout: post
+title:  "AD Pentesting | Domain Privesc - PetitPotam"
+---
+
 # Introduction & Attack Anatomy
 
 ![Petit-Potam-Flow-Diagram](/assets/petitpotam/Petit-Potam-Flow-Diagram.jpg)

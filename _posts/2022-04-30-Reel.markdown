@@ -1,3 +1,8 @@
+---
+layout: post
+title:  "HTB Writeup [Windows - Hard] - Reel"
+---
+
 ### Summary
 - A **windows machine** with `Anonymous FTP` allowed. *Inspecting the contents* reveals a **documents folder** one of which tells us that *RTF documents are being reviewed and converted by someone*.
 - *Using this information,* we craft a *malicious document* using **CVE-2017-0199** and send it to a certain user called `nico` via the open `SMTP` port (*We find his username by checking the metadata of the documents on FTP*).

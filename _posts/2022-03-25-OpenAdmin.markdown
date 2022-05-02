@@ -1,3 +1,8 @@
+---
+layout: post
+title:  "HTB Writeup [Linux - Easy] - OpenAdmin"
+---
+
 ### Summary
 - A **Linux machine** with port 80 that reveals a *vulnerable web application*.
 - *Exploiting the application,* we gain access as `www-data`.

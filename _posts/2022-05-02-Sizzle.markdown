@@ -1,3 +1,8 @@
+---
+layout: post
+title:  "HTB Writeup [Windows - Insane] - Sizzle"
+---
+
 ### Summary
 - A **Windows Domain Controller** machine. We find an **SMB share** containing a *writable* folder called `Public`. We place an `SCF` file there that *directs the visiting user's computer* to our listening `responder` where we capture his `NTLMv2` hash.
 - *After cracking it,* we get the password for the `amanda` user which we use to enumerate the domain using `BloodHound`.

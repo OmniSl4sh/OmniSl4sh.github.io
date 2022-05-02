@@ -1,3 +1,8 @@
+---
+layout: post
+title:  "HTB Writeup [Linux - Easy] - Curling"
+---
+
 ### Summary
 - we find **Joomla** running on HTTP port 80 and we get a **list of usernames** *from the posts on the main page.*
 - *Inspecting the home page's source code,* we find a comment about a `secret.txt` file which happens to be at the webroot.

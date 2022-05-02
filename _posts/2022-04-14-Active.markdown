@@ -1,3 +1,8 @@
+---
+layout: post
+title:  "HTB Writeup [Windows - Easy] - Active"
+---
+
 ### Summary
 - A Domain Controller Machine. We first find an SMB share called `Replication` which we can `read` using `null authentication`.
 - *Going through the share,* we find a `Groups.xml` file containing the encrypted password of the `svc_tgs` account.
