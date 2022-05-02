@@ -1,0 +1,176 @@
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>A Domain Controller Machine. We first find an SMB share called <code class="language-plaintext highlighter-rouge">Replication</code> which we can <code class="language-plaintext highlighter-rouge">read</code> using <code class="language-plaintext highlighter-rouge">null authentication</code>.</li>
+  <li><em>Going through the share,</em> we find a <code class="language-plaintext highlighter-rouge">Groups.xml</code> file containing the encrypted password of the <code class="language-plaintext highlighter-rouge">svc_tgs</code> account.</li>
+  <li>This password can be <em>easily</em> decrypted using the <code class="language-plaintext highlighter-rouge">gpp-decrypt</code> built-in tool and we can authenticate as <code class="language-plaintext highlighter-rouge">svc_tgs</code>.</li>
+  <li>We find that we can <strong>kerberoast</strong> the <strong>Domain Administrator</strong> and we get his <strong>TGS</strong> hash.</li>
+  <li>The hash is crackable with <code class="language-plaintext highlighter-rouge">John</code> and we retrieve the password to gain full access.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<p>we start off by doing a complete <code class="language-plaintext highlighter-rouge">nmap</code> with default scripts <code class="language-plaintext highlighter-rouge">-sC</code> and service detection <code class="language-plaintext highlighter-rouge">-sV</code></p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION          
+53/tcp    open  domain        Microsoft DNS 6.1.7601 (1DB15D39) (Windows Server 2008 R2 SP1)
+| dns-nsid:                 
+|_  bind.version: Microsoft DNS 6.1.7601 (1DB15D39)
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-04-14 20:57:16Z)
+135/tcp   open  msrpc         Microsoft Windows RPC                                                               
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: active.htb, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds?                  
+464/tcp   open  kpasswd5?      
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  tcpwrapped                      
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: active.htb, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped                                                                                        
+5722/tcp  open  msrpc         Microsoft Windows RPC
+9389/tcp  open  mc-nmf        .NET Message Framing
+47001/tcp open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-title: Not Found                         
+|_http-server-header: Microsoft-HTTPAPI/2.0    
+49152/tcp open  msrpc         Microsoft Windows RPC                                                               
+49153/tcp open  msrpc         Microsoft Windows RPC
+49154/tcp open  msrpc         Microsoft Windows RPC
+49155/tcp open  msrpc         Microsoft Windows RPC
+49157/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0     
+49158/tcp open  msrpc         Microsoft Windows RPC
+49165/tcp open  msrpc         Microsoft Windows RPC
+49168/tcp open  msrpc         Microsoft Windows RPC
+49169/tcp open  msrpc         Microsoft Windows RPC
+Service Info: Host: DC; OS: Windows; CPE: cpe:/o:microsoft:windows_server_2008:r2:sp1, cpe:/o:microsoft:windows
+                                                         
+Host script results:                           
+| smb2-security-mode:                             
+|   2.1:      
+|_    Message signing enabled and required
+| smb2-time:              
+|   date: 2022-04-14T20:58:13                   
+|_  start_date: 2022-04-14T20:53:18  
+</code></pre></div></div>
+<h3 id="domain-controller-identification">Domain Controller Identification</h3>
+<p>and we notice a set of open ports than indicate a domain controller:</p>
+<ul>
+  <li><strong>DNS:</strong> TCP 53</li>
+  <li><strong>Kerberos:</strong> TCP 88</li>
+  <li><strong>LDAP:</strong> TCP 389</li>
+  <li><strong>Global Catalog LDAP:</strong> TCP 3268</li>
+</ul>
+
+<p>we can also verify that by doing a DNS query for a domain’s SRV record using <code class="language-plaintext highlighter-rouge">nslookup -type=srv _ldap._tcp.dc._msdcs.active.htb</code></p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Server:         10.10.10.100
+Address:        10.10.10.100#53
+
+printsection()
+_ldap._tcp.dc._msdcs.active.htb service = 0 100 389 dc.active.htb.
+still pending.
+dighost.c:4079:query_detach(0x7f113122d000) = 1
+dighost.c:4081:_cancel_lookup()
+dighost.c:2669:query_detach(0x7f113122d000) = 0
+dighost.c:2669:destroy_query(0x7f113122d000) = 0
+dighost.c:1634:lookup_detach(0x7f113259e000) = 3
+dighost.c:2669:query_detach(0x7f113122d1c0) = 0
+dighost.c:2669:destroy_query(0x7f113122d1c0) = 0
+dighost.c:1634:lookup_detach(0x7f113259e000) = 2
+check_if_done()
+list empty
+dighost.c:4087:lookup_detach(0x7f113259e000) = 1
+clear_current_lookup()
+dighost.c:1759:lookup_detach(0x7f113259e000) = 0
+destroy_lookup
+freeing server 0x7f1131212000 belonging to 0x7f113259e000
+freeing server 0x7f1131212a00 belonging to 0x7f113259e000
+start_lookup()
+check_if_done()
+list empty
+shutting down
+dighost_shutdown()
+unlock_lookup dighost.c:4091
+</code></pre></div></div>
+
+<h3 id="smb-share-enumeration">SMB Share enumeration</h3>
+<p>first, we check <strong>SMB shares</strong> using <strong>null authenticaion</strong> with <code class="language-plaintext highlighter-rouge">crackmapexec</code>. And, we find that we have <strong>READ access</strong> to the <code class="language-plaintext highlighter-rouge">Replication</code> share.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>└─# crackmapexec smb 10.10.10.100 -u '' -p '' --shares
+SMB         10.10.10.100    445    DC               [*] Windows 6.1 Build 7601 x64 (name:DC) (domain:active.htb) (signing:True) (SMBv1:False)
+SMB         10.10.10.100    445    DC               [-] active.htb\: STATUS_ACCESS_DENIED 
+SMB         10.10.10.100    445    DC               [+] Enumerated shares
+SMB         10.10.10.100    445    DC               Share           Permissions     Remark
+SMB         10.10.10.100    445    DC               -----           -----------     ------
+SMB         10.10.10.100    445    DC               ADMIN$                          Remote Admin
+SMB         10.10.10.100    445    DC               C$                              Default share
+SMB         10.10.10.100    445    DC               IPC$                            Remote IPC
+SMB         10.10.10.100    445    DC               NETLOGON                        Logon server share 
+SMB         10.10.10.100    445    DC               Replication     READ            
+SMB         10.10.10.100    445    DC               SYSVOL                          Logon server share 
+SMB         10.10.10.100    445    DC               Users 
+</code></pre></div></div>
+<p>This is interesting. We go ahead and connect to the share using <code class="language-plaintext highlighter-rouge">smbclient</code>. <em>But before that,</em> we create a folder and call it <code class="language-plaintext highlighter-rouge">smb-replication</code> and change to it so we can download files inside it. We can download all files within using <code class="language-plaintext highlighter-rouge">mask ""</code> -&gt; <code class="language-plaintext highlighter-rouge">recurse</code> -&gt; <code class="language-plaintext highlighter-rouge">prompt</code> -&gt; <code class="language-plaintext highlighter-rouge">mget *</code>. This essentially tells <code class="language-plaintext highlighter-rouge">smbclient</code> to download all files <em>recursively</em> and <em>without prompting</em> us each time.</p>
+
+<p><img src="/assets/Active/smb-replication-share.jpg" alt="smb-replication-share" /></p>
+
+<p>doing so gets us all the files over the <code class="language-plaintext highlighter-rouge">Replication</code> share. we can now view them locally with <code class="language-plaintext highlighter-rouge">find . -type f</code></p>
+
+<p><img src="/assets/Active/repl-share-files.jpg" alt="repl-share-files" /></p>
+
+<h3 id="group-policy-preferences">Group Policy Preferences</h3>
+
+<p>The first file <code class="language-plaintext highlighter-rouge">Groups.xml</code> is a <strong>Group Policy Preferences</strong> file. This was used back in the day by system admins to create local administrator accounts on domain machines using <strong>Group Policy</strong>. <em>Looking at its contents:</em></p>
+
+<p><img src="/assets/Active/groups-xml.jpg" alt="groups-xml" /></p>
+
+<p>It reveals an encrypted password of the user <code class="language-plaintext highlighter-rouge">active.htb\svc_tgs</code>. This can easily be cracked using the <code class="language-plaintext highlighter-rouge">gpp-decrypt</code> tool that’s installed into Kali by default. Doing so reveals the password to be <code class="language-plaintext highlighter-rouge">GPPstillStandingStrong2k18</code></p>
+
+<p><img src="/assets/Active/gpp-decrypted.jpg" alt="gpp-decrypted" /></p>
+
+<p><em>Having credentials,</em> we test them out with <code class="language-plaintext highlighter-rouge">crackmapexec</code> to verify they are valid:</p>
+
+<p><img src="/assets/Active/svc-tgs-creds-valid.jpg" alt="svc-tgs-creds-valid" /></p>
+
+<p>Great! They are valid. But, we aren’t local administrator. Neither can we use <strong>WinRM</strong> because port 5985 isn’t open on this box and we don’t know if we have this privilege or not. We can however do a number of things.</p>
+
+<h3 id="options-with-a-valid-ad-user">Options with a valid AD user</h3>
+<ol>
+  <li>enumerate SMB shares with the new user</li>
+  <li>pull all AD users</li>
+  <li>do ASREPRoasting</li>
+  <li>do Kerberoasting</li>
+  <li>do BloodHound Enumeration</li>
+  <li>do Password Spraying</li>
+</ol>
+
+<p><em>we start with enumerating SMB shares as the new user:</em></p>
+
+<p><img src="/assets/Active/smb-with-svc-tgs.jpg" alt="smb-with-svc-tgs" /></p>
+
+<p>but only find the <code class="language-plaintext highlighter-rouge">user.txt</code> flag to be significant.</p>
+
+<p>we pull all AD users using <strong>impacket</strong>’s <code class="language-plaintext highlighter-rouge">GetADUsers.py</code>:</p>
+
+<p><img src="/assets/Active/get-adusers-output.jpg" alt="get-adusers-output" /></p>
+
+<p>we don’t find any other special users. The default Administrator, Guest &amp; krbtgt accounts are nothing new.</p>
+
+<p><em>Moving on to</em> <strong>ASREPRoasting</strong> <em>with</em> <code class="language-plaintext highlighter-rouge">GetNPUsers.py</code></p>
+
+<p><img src="/assets/Active/asrep-roasting.jpg" alt="asrep-roasting" /></p>
+
+<p>we get <code class="language-plaintext highlighter-rouge">No entries found</code></p>
+
+<p><em>And along to</em> <strong>Kerberoasting</strong> <em>with</em> <code class="language-plaintext highlighter-rouge">GetUserSPNs.py</code></p>
+
+<p><img src="/assets/Active/kerberoasting.jpg" alt="kerberoasting" /></p>
+
+<h3 id="kerberoasted-d">Kerberoasted :D</h3>
+
+<p>We get really <strong>LUCKY!</strong> this is the <strong>TGS</strong> hash for the <strong>Administrator</strong> account. Cracking that hash means we can get his password!</p>
+
+<p>This can be done using <code class="language-plaintext highlighter-rouge">john</code> with the format as <strong>krb5tgs</strong></p>
+
+<p><img src="/assets/Active/cracked.jpg" alt="cracked" /></p>
+
+<p>We got the administrator password: <code class="language-plaintext highlighter-rouge">Ticketmaster1968</code></p>
+
+<p>We verify we have code execution with <strong>impacket</strong>’s <code class="language-plaintext highlighter-rouge">psexec.py</code></p>
+
+<p><img src="/assets/Active/got-admin.jpg" alt="got-admin" /></p>

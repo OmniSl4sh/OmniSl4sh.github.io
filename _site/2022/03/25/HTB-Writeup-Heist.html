@@ -1,0 +1,268 @@
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>We find a website on port 80 that <strong>lets us login as a guest</strong>.</li>
+  <li><em>On the first page,</em> we find a conversation between a user and a support admin about checking an <strong>attached Cisco router configuration file</strong>.</li>
+  <li><em>Browsing the configuration file,</em> we find <strong>hashes</strong> that <em>we can easily crack</em> to get passwords.</li>
+  <li>One password works with SMB for the user on the web page. We use that to do a <strong><code class="language-plaintext highlighter-rouge">RID</code> enumeration</strong> to get <strong>all the usernames on the system</strong>.</li>
+  <li><strong>Reusing the password we found with all users,</strong> we find one more user who happens to have <strong>PowerShell remoting access.</strong></li>
+  <li><em>To privesc</em>, we use the famous <strong>PrintNightmare</strong> vulnerability since <strong>print spooler</strong> is found running.</li>
+  <li>The <em>intended</em> path is <strong>dumping the running Firefox process from memory</strong> and using the <code class="language-plaintext highlighter-rouge">strings</code> command to obtain the <strong>Administrator credentials</strong> from the dump.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<p>we first start by doing a quick nmap top 10 tcp ports: <code class="language-plaintext highlighter-rouge">nmap --top-ports --open 10.10.10.149</code></p>
+
+<p><img src="/assets/Heist/nmap-top-10-ports.jpg" alt="nmap top 10 port scan" /></p>
+
+<p>we find http and smb ports open, so we begin with HTTP after leaving a full port scan <code class="language-plaintext highlighter-rouge">nmap -p- -T4 -sC -sV 10.10.10.149</code></p>
+
+<h3 id="guest-login">Guest login</h3>
+
+<p>we immediately see the login page of a web app that gives us the options to <em>Login as guest</em></p>
+
+<p><img src="/assets/Heist/Login-Page.jpg" alt="web app login page" /></p>
+
+<ol>
+  <li>we use that feature to login and we see a page of issues. a user called <strong>hazard</strong> is talking about having problems with his <strong>cisco</strong> router. And, he <em>attached</em> a <strong>configuration file</strong> <em>the previous admin</em> has been using.</li>
+  <li>the support admin replies to him saying that he will take a look</li>
+  <li>the hazard user asks the support admin to <strong>an account for him on the windows server</strong> as he needs to access the files.</li>
+</ol>
+
+<p><img src="/assets/Heist/Issues.jpg" alt="Issues" /></p>
+
+<h3 id="cisco-router-configuration-file">Cisco Router Configuration File</h3>
+
+<p>we go ahead and click the attachment link and see <strong>3 different hashes</strong>:</p>
+
+<p><img src="/assets/Heist/Config.jpg" alt="Config" /></p>
+
+<ol>
+  <li><code class="language-plaintext highlighter-rouge">enable secret 5 $1$pdQG$o8nrSzsGXeaduXrjlvKc91</code></li>
+  <li><code class="language-plaintext highlighter-rouge">username rout3r password 7 0242114B0E143F015F5D1E161713</code></li>
+  <li><code class="language-plaintext highlighter-rouge">username admin privilege 15 password 7 02375012182C1A1D751618034F36415408</code></li>
+</ol>
+
+<h3 id="cracking-cisco-hashes">Cracking Cisco Hashes</h3>
+
+<p>cracking those hashes might give us a set of passwords to try to gain more access with. So we use <code class="language-plaintext highlighter-rouge">john</code> to crack the first one</p>
+
+<p>we find that the password is <em>stealth1agent</em></p>
+
+<p><img src="/assets/Heist/cracked.jpg" alt="cracked" /></p>
+
+<p>we want to crack the two other hashes as well. so we do a google search on <code class="language-plaintext highlighter-rouge">crack cisco configuration hash</code>. and we find websites ready to do decrypt what is called a <strong>Cisco type 7 password</strong></p>
+
+<p><img src="/assets/Heist/google-search.jpg" alt="type-7-cracker" /></p>
+
+<p>we use them to crack hashes #2 and #3 for users <code class="language-plaintext highlighter-rouge">rout3r</code> and <code class="language-plaintext highlighter-rouge">admin</code></p>
+
+<p>the results were:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">$uperP@ssword</code> for the <code class="language-plaintext highlighter-rouge">rout3r</code> user</li>
+  <li><code class="language-plaintext highlighter-rouge">Q4)sJu\Y8qz*A3?d</code> for the <code class="language-plaintext highlighter-rouge">admin</code> user</li>
+</ul>
+
+<p>this is a start :D
+<em>from the conversation on the issues page,</em> we know that <strong>the hazard user requested a user on the windows server</strong>. So, it would be relevant to try logging to the server as that user. we also have 3 different passwords to try with him. we will use the open <code class="language-plaintext highlighter-rouge">smb</code> port to try loggin in and use the mighty <code class="language-plaintext highlighter-rouge">crackmapexec</code> for that :)</p>
+
+<p>the <strong>hazard</strong> user authenticated with the password <code class="language-plaintext highlighter-rouge">stealth1agent</code> but he doesn’t seem to have administrator privileges :/</p>
+
+<p><img src="/assets/Heist/hazard-authenticated.jpg" alt="hazard-authenticated" /></p>
+
+<p>we gain some information about the host:</p>
+<ol>
+  <li>name: SupportDesk</li>
+  <li>OS: Windows 10.0 Build 17763 x64</li>
+  <li>Domain: SupportDesk</li>
+  <li>SMB Signing and SMBv1: False</li>
+</ol>
+
+<h3 id="testing-password-variations">Testing password variations</h3>
+
+<p>we try our luck with the administrator account using variations of the <code class="language-plaintext highlighter-rouge">stealth1agent</code> password as well as the other passwords we found. But we don’t have a success:</p>
+
+<p><img src="/assets/Heist/admin-trials.jpg" alt="admin-trials" /></p>
+
+<p>we get similar results when trying other probable users like admin, supportadmin, supportdesk etc.</p>
+
+<h3 id="listing-our-options">Listing our options</h3>
+
+<p>we take a step back and think about all the information we can get from having a valid user:</p>
+<ol>
+  <li>enumerate SMB shares</li>
+  <li>enumerate sessions</li>
+  <li>enumerate logged on users</li>
+  <li>enumerate local groups</li>
+  <li>enumerate local users using RID bruteforce</li>
+</ol>
+
+<p><em>when enumerating shares,</em> we don’t see something particularly exploitable</p>
+
+<p><img src="/assets/Heist/smb-shares.jpg" alt="smb-shares" /></p>
+
+<h3 id="rid-brute-forcing">RID Brute Forcing</h3>
+
+<p>we also get nothing from enumerating sessions, logged on users or localgroups. <em>However, when enumerating local users using RID bruteforce,</em> we get a nice list of users to try! :D</p>
+
+<p><img src="/assets/Heist/rid-brute.jpg" alt="rid-brute" /></p>
+
+<p>we update our <strong>userlist</strong> right away with those newly-found users:</p>
+<ol>
+  <li>support</li>
+  <li>chase</li>
+  <li>jason</li>
+</ol>
+
+<h3 id="password-reuse">Password Reuse</h3>
+
+<p>and we give it another shot with <code class="language-plaintext highlighter-rouge">crackmapexec</code> while telling it to <code class="language-plaintext highlighter-rouge">continue on success</code>. we want to know if any passwords were being reused.</p>
+
+<p><em>right now,</em> our lists are like this:</p>
+
+<p>usernames.txt</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>support
+chase
+jason
+</code></pre></div></div>
+
+<p>passwords.txt</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>stealth0agent
+stealth1agent
+stealth2agent
+stealth3agent
+stealth4agent
+stealth5agent
+stealth6agent
+stealth7agent
+stealth8agent
+stealth9agent
+$uperP@ssword
+Q4)sJu\Y8qz*A3?d
+</code></pre></div></div>
+
+<p>Our attack dropped one more user: <strong>chase!</strong></p>
+
+<p><img src="/assets/Heist/chase-owned.jpg" alt="chase-owned" /></p>
+
+<h3 id="getting-code-execution">Getting Code Execution</h3>
+
+<p><em>trying to execute commands using <code class="language-plaintext highlighter-rouge">crackmapexec</code>,</em> we don’t get command execution. It seems chase also isn’t an administrator on the machine :/</p>
+
+<p><em>however…</em></p>
+
+<p><em>our full port scan with nmap has now finished, we find another port open there: 5985,</em> this port is for <strong>Windows Remote Management (WinRM)</strong> and can be used to gain remote code execution.</p>
+
+<p><img src="/assets/Heist/full-nmap.jpg" alt="full-nmap" /></p>
+
+<p>there a tool called <code class="language-plaintext highlighter-rouge">evil-winrm</code> which we can use to see if we can connect remotely.</p>
+
+<p><img src="/assets/Heist/win-rm-as-chase.jpg" alt="win-rm-as-chase" /></p>
+
+<p>it works with <strong>chase</strong> <em>but not with hazard</em>, this is because he happens to be a member of the special group: <code class="language-plaintext highlighter-rouge">Remote Management Users</code> which allows him to use <strong>PowerShell Remoting.</strong></p>
+
+<p><img src="/assets/Heist/chase-groups.jpg" alt="chase-groups" /></p>
+
+<h3 id="lets-privesc">Let’s privesc</h3>
+
+<p><em>now on the machine,</em> we go into privilege escalation mode :D we try many things:</p>
+
+<ol>
+  <li>searching desktop, documents &amp; downloads: <code class="language-plaintext highlighter-rouge">ls -force ~\Desktop, ~\Documents, ~\Downloads</code>
+```
+Directory: C:\Users\Chase\Desktop</li>
+</ol>
+
+<p>Mode                LastWriteTime         Length Name
+—-                ————-         —— —-
+-a-hs-        4/22/2019   7:14 AM            282 desktop.ini
+-a—-        4/22/2019   9:08 AM            121 todo.txt
+-ar—        3/18/2022   2:13 PM             34 user.txt</p>
+
+<p>Directory: C:\Users\Chase\Documents</p>
+
+<p>Mode                LastWriteTime         Length Name
+—-                ————-         —— —-
+d–hsl        4/22/2019   7:14 AM                My Music
+d–hsl        4/22/2019   7:14 AM                My Pictures
+d–hsl        4/22/2019   7:14 AM                My Videos
+-a-hs-        4/22/2019   7:14 AM            402 desktop.ini</p>
+
+<p>Directory: C:\Users\Chase\Downloads</p>
+
+<p>Mode                LastWriteTime         Length Name
+—-                ————-         —— —-
+-a-hs-        4/22/2019   7:14 AM            282 desktop.ini
+-a—-        2/18/2021   4:03 PM       98779512 VMware-tools-11.2.5-17337674-x86_64.exe</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>the contents of `todo.txt` don't reveal something important:
+</code></pre></div></div>
+<p>Stuff to-do:</p>
+<ol>
+  <li>Keep checking the issues list.</li>
+  <li>Fix the router config.</li>
+</ol>
+
+<p>Done:</p>
+<ol>
+  <li>Restricted access for guest user.
+```</li>
+  <li>searching in IIS webroot: <code class="language-plaintext highlighter-rouge">ls -force c:\inetpub\wwwroot</code> we get <strong>access denied</strong></li>
+  <li>searching within hazard’s profile, we get <strong>access denied</strong></li>
+  <li>searching for <strong>Autologon Creds</strong>, with a <em>little powershell one-liner I wrote:</em>
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName', 'DefaultPassword', 'AltDefaultDomainName', 'AltDefaultUserName', 'AltDefaultPassword' | % {$Val = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name $_ ;if($Val){Write-Host -ForegroundColor Green "[+] $_`: $Val"; Clear-Variable Val}else{Write-Host "[-] $_`: Not found"}};$ErrorActionPreference='Continue'
+</code></pre></div>    </div>
+    <p>we get nothing also:</p>
+  </li>
+</ol>
+
+<p><img src="/assets/Heist/autologon-creds.jpg" alt="autologon-creds" /></p>
+
+<ol>
+  <li>checking for services, we get <strong>access denied</strong></li>
+  <li>checking for processes, we see intersting things running:
+    <ol>
+      <li>firefox –&gt; we can search for <em>stored passwords</em></li>
+      <li>php-cgi –&gt; maybe we can try to abuse this somehow</li>
+      <li>spoolsv –&gt; <strong>Print Nightmare Privesc!</strong></li>
+    </ol>
+  </li>
+</ol>
+
+<h3 id="printnightmare-would-be-too-easy">PrintNightmare would be too easy</h3>
+
+<p><em>given that print nightmare would be too easy,</em> I take a shot at the 1st option and search for stored passwords for <strong>Firefox</strong> :D
+the path should be <code class="language-plaintext highlighter-rouge">C:\Users\Chase\AppData\Roaming\Mozilla\Firefox\Profiles\</code> for chase. Which we find that it contains a password file <code class="language-plaintext highlighter-rouge">key4.db</code> but notice that <em>there was no <code class="language-plaintext highlighter-rouge">logins.json</code> to be used in pulling those credentials :/</em></p>
+
+<p><img src="/assets/Heist/no-json-logins.jpg" alt="no-json-logins" /></p>
+
+<h3 id="the-firefox-rabbit-hole">The Firefox Rabbit Hole</h3>
+
+<p>the process of hunting for those firefox passwords took way longer than you would expect :)</p>
+<ol>
+  <li>I used a tool called <code class="language-plaintext highlighter-rouge">SharpWeb.exe</code> (https://github.com/djhohnstein/SharpWeb), only to find out from its source code that <em>it only handles <code class="language-plaintext highlighter-rouge">key3.db</code> files.</em> Changing the name of the file to match that didn’t work. after all, if the number 4 refers to an improved version, that would mean that this version of the tool wouldn’t work.</li>
+  <li>I found another tool written in python, with which I had trouble transforimg to an exe using <code class="language-plaintext highlighter-rouge">pyinstaller</code>.</li>
+  <li>I found a final tool called <code class="language-plaintext highlighter-rouge">HarvestBrowserPasswords.exe</code> (https://github.com/Apr4h/HarvestBrowserPasswords) which threw the error of <em>not being able to find the <code class="language-plaintext highlighter-rouge">logins.json</code> file</em> which was the sign that this privesc path wasn’t valid.</li>
+</ol>
+
+<h3 id="trying-to-move-laterally">Trying to move <em>laterally</em></h3>
+
+<p>Afterwards, I think of pivoting to the hazard user and looking for something interesting. This would require using <code class="language-plaintext highlighter-rouge">runas.exe</code>, which needs a fully interactive tty. This is achievable in our case. Since this machine is a <strong>Windows 10.0 Build 17763 x64</strong>.</p>
+
+<p>we use the very nice reverse shell from (https://github.com/antonioCoco/ConPtyShell) for that. But we still get access denied here as well XD</p>
+
+<p><img src="/assets/Heist/run-as-failed.jpg" alt="run-as-failed" /></p>
+
+<h3 id="lets-just-use-printnightmare-xd">Let’s just use PrintNightmare XD</h3>
+
+<p>I then decide maybe I should just privesc with Print Nightmare :D</p>
+
+<p>I use John Hammond’s version of the exploit (https://github.com/JohnHammond/CVE-2021-34527) since it’s written in PowerShell <em>(to which I am biased :D</em>)</p>
+
+<p><em>After uploading the script and importing it,</em> we use it to create a local administrator and are successful :D</p>
+
+<p><img src="/assets/Heist/murder.jpg" alt="murder" /></p>
+
+<p>nevermind the names I use. It’s totally normal XD</p>
+
+<p>P.S. After checking <strong>Ippsec’s</strong> writeup, the <em>intended path</em> was to dump the memory of the <code class="language-plaintext highlighter-rouge">firefox</code> process and using the <code class="language-plaintext highlighter-rouge">strings</code> command to look into its contents where the credentials for the administrator would be found. But, oh well :/ :D</p>

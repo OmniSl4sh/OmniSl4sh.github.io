@@ -21,8 +21,8 @@
 title: OmniSl4sh's Blog
 baseurl: "" # the subpath of your site, e.g. /blog
 url: "https://omnisl4sh.github.io" # the base hostname & protocol for your site, e.g. http://example.com
-markdown: kramdown:
-  input: GFM
+markdown: kramdown
+input: GFM
 github_username: OmniSl4sh
 
 # Build settings
