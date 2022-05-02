@@ -1,0 +1,244 @@
+### Summary
+- We find a website on port 80 that **lets us login as a guest**.
+- *On the first page,* we find a conversation between a user and a support admin about checking an **attached Cisco router configuration file**.
+- *Browsing the configuration file,* we find **hashes** that *we can easily crack* to get passwords.
+- One password works with SMB for the user on the web page. We use that to do a **`RID` enumeration** to get **all the usernames on the system**.
+- **Reusing the password we found with all users,** we find one more user who happens to have **PowerShell remoting access.**
+- *To privesc*, we use the famous **PrintNightmare** vulnerability since **print spooler** is found running.
+- The *intended* path is **dumping the running Firefox process from memory** and using the `strings` command to obtain the **Administrator credentials** from the dump.
+
+---
+
+### Nmap
+we first start by doing a quick nmap top 10 tcp ports: `nmap --top-ports --open 10.10.10.149`
+
+![nmap top 10 port scan](/assets/Heist/nmap-top-10-ports.jpg)
+
+we find http and smb ports open, so we begin with HTTP after leaving a full port scan `nmap -p- -T4 -sC -sV 10.10.10.149`
+
+### Guest login
+
+we immediately see the login page of a web app that gives us the options to *Login as guest*
+
+![web app login page](/assets/Heist/Login-Page.jpg)
+
+1. we use that feature to login and we see a page of issues. a user called **hazard** is talking about having problems with his **cisco** router. And, he *attached* a **configuration file** *the previous admin* has been using.
+2. the support admin replies to him saying that he will take a look
+3. the hazard user asks the support admin to **an account for him on the windows server** as he needs to access the files.
+
+![Issues](/assets/Heist/Issues.jpg)
+
+### Cisco Router Configuration File
+
+we go ahead and click the attachment link and see **3 different hashes**:
+
+![Config](/assets/Heist/Config.jpg)
+
+1. `enable secret 5 $1$pdQG$o8nrSzsGXeaduXrjlvKc91`
+2. `username rout3r password 7 0242114B0E143F015F5D1E161713`
+3. `username admin privilege 15 password 7 02375012182C1A1D751618034F36415408`
+
+### Cracking Cisco Hashes
+
+cracking those hashes might give us a set of passwords to try to gain more access with. So we use `john` to crack the first one
+
+we find that the password is *stealth1agent*
+
+![cracked](/assets/Heist/cracked.jpg)
+
+we want to crack the two other hashes as well. so we do a google search on `crack cisco configuration hash`. and we find websites ready to do decrypt what is called a **Cisco type 7 password**
+
+![type-7-cracker](/assets/Heist/google-search.jpg)
+
+we use them to crack hashes #2 and #3 for users `rout3r` and `admin`
+
+the results were:
+- `$uperP@ssword` for the `rout3r` user
+- `Q4)sJu\Y8qz*A3?d` for the `admin` user
+
+this is a start :D
+*from the conversation on the issues page,* we know that **the hazard user requested a user on the windows server**. So, it would be relevant to try logging to the server as that user. we also have 3 different passwords to try with him. we will use the open `smb` port to try loggin in and use the mighty `crackmapexec` for that :)
+
+the **hazard** user authenticated with the password `stealth1agent` but he doesn't seem to have administrator privileges :/
+
+![hazard-authenticated](/assets/Heist/hazard-authenticated.jpg)
+
+we gain some information about the host:
+1. name: SupportDesk
+2. OS: Windows 10.0 Build 17763 x64
+3. Domain: SupportDesk
+4. SMB Signing and SMBv1: False
+
+### Testing password variations
+
+we try our luck with the administrator account using variations of the `stealth1agent` password as well as the other passwords we found. But we don't have a success:
+
+![admin-trials](/assets/Heist/admin-trials.jpg)
+
+we get similar results when trying other probable users like admin, supportadmin, supportdesk etc.
+
+### Listing our options
+
+we take a step back and think about all the information we can get from having a valid user:
+1. enumerate SMB shares
+2. enumerate sessions
+3. enumerate logged on users
+4. enumerate local groups
+5. enumerate local users using RID bruteforce
+
+*when enumerating shares,* we don't see something particularly exploitable
+
+![smb-shares](/assets/Heist/smb-shares.jpg)
+
+### RID Brute Forcing
+
+we also get nothing from enumerating sessions, logged on users or localgroups. *However, when enumerating local users using RID bruteforce,* we get a nice list of users to try! :D
+
+![rid-brute](/assets/Heist/rid-brute.jpg)
+
+we update our **userlist** right away with those newly-found users:
+1. support
+2. chase
+3. jason
+
+### Password Reuse
+
+and we give it another shot with `crackmapexec` while telling it to `continue on success`. we want to know if any passwords were being reused.
+
+*right now,* our lists are like this:
+
+usernames.txt
+```
+support
+chase
+jason
+```
+
+passwords.txt
+```
+stealth0agent
+stealth1agent
+stealth2agent
+stealth3agent
+stealth4agent
+stealth5agent
+stealth6agent
+stealth7agent
+stealth8agent
+stealth9agent
+$uperP@ssword
+Q4)sJu\Y8qz*A3?d
+```
+
+Our attack dropped one more user: **chase!**
+
+![chase-owned](/assets/Heist/chase-owned.jpg)
+
+### Getting Code Execution
+
+*trying to execute commands using `crackmapexec`,* we don't get command execution. It seems chase also isn't an administrator on the machine :/
+
+*however...*
+
+*our full port scan with nmap has now finished, we find another port open there: 5985,* this port is for **Windows Remote Management (WinRM)** and can be used to gain remote code execution.
+
+![full-nmap](/assets/Heist/full-nmap.jpg)
+
+there a tool called `evil-winrm` which we can use to see if we can connect remotely.
+
+![win-rm-as-chase](/assets/Heist/win-rm-as-chase.jpg)
+
+it works with **chase** *but not with hazard*, this is because he happens to be a member of the special group: `Remote Management Users` which allows him to use **PowerShell Remoting.**
+
+![chase-groups](/assets/Heist/chase-groups.jpg)
+
+### Let's privesc
+
+*now on the machine,* we go into privilege escalation mode :D we try many things:
+
+1. searching desktop, documents & downloads: `ls -force ~\Desktop, ~\Documents, ~\Downloads`
+```
+Directory: C:\Users\Chase\Desktop
+
+Mode                LastWriteTime         Length Name
+----                -------------         ------ ----
+-a-hs-        4/22/2019   7:14 AM            282 desktop.ini
+-a----        4/22/2019   9:08 AM            121 todo.txt
+-ar---        3/18/2022   2:13 PM             34 user.txt
+
+Directory: C:\Users\Chase\Documents
+
+Mode                LastWriteTime         Length Name
+----                -------------         ------ ----
+d--hsl        4/22/2019   7:14 AM                My Music
+d--hsl        4/22/2019   7:14 AM                My Pictures
+d--hsl        4/22/2019   7:14 AM                My Videos
+-a-hs-        4/22/2019   7:14 AM            402 desktop.ini
+
+Directory: C:\Users\Chase\Downloads
+
+Mode                LastWriteTime         Length Name
+----                -------------         ------ ----
+-a-hs-        4/22/2019   7:14 AM            282 desktop.ini
+-a----        2/18/2021   4:03 PM       98779512 VMware-tools-11.2.5-17337674-x86_64.exe
+```
+the contents of `todo.txt` don't reveal something important:
+```
+Stuff to-do:
+1. Keep checking the issues list.
+2. Fix the router config.
+
+Done:
+1. Restricted access for guest user.
+```
+2. searching in IIS webroot: `ls -force c:\inetpub\wwwroot` we get **access denied**
+3. searching within hazard's profile, we get **access denied**
+4. searching for **Autologon Creds**, with a *little powershell one-liner I wrote:*
+```
+$ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName', 'DefaultPassword', 'AltDefaultDomainName', 'AltDefaultUserName', 'AltDefaultPassword' | % {$Val = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name $_ ;if($Val){Write-Host -ForegroundColor Green "[+] $_`: $Val"; Clear-Variable Val}else{Write-Host "[-] $_`: Not found"}};$ErrorActionPreference='Continue'
+```
+we get nothing also:
+
+![autologon-creds](/assets/Heist/autologon-creds.jpg)
+
+5. checking for services, we get **access denied**
+6. checking for processes, we see intersting things running:
+	1. firefox --> we can search for *stored passwords*
+	2. php-cgi --> maybe we can try to abuse this somehow
+	3. spoolsv --> **Print Nightmare Privesc!**
+
+### PrintNightmare would be too easy
+
+*given that print nightmare would be too easy,* I take a shot at the 1st option and search for stored passwords for **Firefox** :D
+the path should be `C:\Users\Chase\AppData\Roaming\Mozilla\Firefox\Profiles\` for chase. Which we find that it contains a password file `key4.db` but notice that *there was no `logins.json` to be used in pulling those credentials :/*
+
+![no-json-logins](/assets/Heist/no-json-logins.jpg)
+
+### The Firefox Rabbit Hole
+
+the process of hunting for those firefox passwords took way longer than you would expect :)
+1. I used a tool called `SharpWeb.exe` (https://github.com/djhohnstein/SharpWeb), only to find out from its source code that *it only handles `key3.db` files.* Changing the name of the file to match that didn't work. after all, if the number 4 refers to an improved version, that would mean that this version of the tool wouldn't work.
+2. I found another tool written in python, with which I had trouble transforimg to an exe using `pyinstaller`.
+3. I found a final tool called `HarvestBrowserPasswords.exe` (https://github.com/Apr4h/HarvestBrowserPasswords) which threw the error of *not being able to find the `logins.json` file* which was the sign that this privesc path wasn't valid.
+
+### Trying to move *laterally*
+
+Afterwards, I think of pivoting to the hazard user and looking for something interesting. This would require using `runas.exe`, which needs a fully interactive tty. This is achievable in our case. Since this machine is a **Windows 10.0 Build 17763 x64**.
+
+we use the very nice reverse shell from (https://github.com/antonioCoco/ConPtyShell) for that. But we still get access denied here as well XD
+
+![run-as-failed](/assets/Heist/run-as-failed.jpg)
+
+### Let's just use PrintNightmare XD
+
+I then decide maybe I should just privesc with Print Nightmare :D
+
+I use John Hammond's version of the exploit (https://github.com/JohnHammond/CVE-2021-34527) since it's written in PowerShell *(to which I am biased :D*)
+
+*After uploading the script and importing it,* we use it to create a local administrator and are successful :D
+
+![murder](/assets/Heist/murder.jpg)
+
+nevermind the names I use. It's totally normal XD
+
+P.S. After checking **Ippsec's** writeup, the *intended path* was to dump the memory of the `firefox` process and using the `strings` command to look into its contents where the credentials for the administrator would be found. But, oh well :/ :D
