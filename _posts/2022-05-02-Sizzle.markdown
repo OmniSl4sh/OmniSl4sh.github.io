@@ -353,3 +353,11 @@ we will use the `-Credential` paramer with `Start-Process` to create the Network
 4. **Kerberoasted** *without ever touching the victim's disk*
 
 ![bonus-kill](/assets/Sizzle/bonus-kill.jpg)
+
+### Joke Section: Pwning the box with `ZeroLogon` XD
+
+You could do all of the above.
+
+OR...
+
+![zero-logon-XD](/assets/Sizzle/zero-logon-XD.jpg)
