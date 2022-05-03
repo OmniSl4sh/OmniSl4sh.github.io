@@ -13,9 +13,9 @@ title:  "HTB Writeup [Windows - Insane] - Sizzle"
 - Looking back at the output of `BloodHound` showed a *kerberoastable* user called `mrlky` that has dangerous rights abusable for a `DCSync` attack.
 - We decide to use `Rubeus.exe` to do the job but can't execute it due to **Applocker** restrictions.
 - We bypass by moving it to the Windows `temp` folder and are faced with another error requiring us to authenticate to the network.
-- We add the `amanda`'s credentials as flags to the `Rubeus` tool and manage to kerberoast `mrkly`.
+- We add `amanda`'s credentials as flags to the `Rubeus` tool and manage to kerberoast `mrkly`.
 - We crack his `TGS` hash and are able to get the password. We then proceed to `DCSync` and obtain the `NTLM hash` for the `administrator` account and `PTH` to gain complete access.
-- Bonus: Bypassing **PowerShell Contrained Language Mode**, dodging **Applocker**, **authenticating** to the network and **Kerberoasting** all in a **one-liner** and *without touching disk*.
+- Bonus: Bypassing **PowerShell Constrained Language Mode**, dodging **Applocker**, **authenticating** to the network and **Kerberoasting** all in a **one-liner** and *without touching disk*.
 - Joke Section: Pwning the box with **ZeroLogon** XD
 
 ---
@@ -330,7 +330,7 @@ and follow up with `psexec.py` for a quick **Pass-The-Hash** attack to get code 
 
 ![got-system](/assets/Sizzle/got-system.jpg)
 
-### Bonus: PowerShell Contrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D
+### Bonus: PowerShell Constrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D
 After I initially got the WinRM shell, It kept asking for my PEM pass phrase after each command.
 
 I wanted to get a `nishang` shell but couldn't do the `IEX` command (`Invoke-Expression`). This was because of **PowerShell's Contrained Language Mode**.
