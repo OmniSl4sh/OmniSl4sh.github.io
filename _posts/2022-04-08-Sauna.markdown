@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "HTB Writeup [Windows - Easy] - Sauna"
+title:  "HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)"
 ---
 
 ### Summary
