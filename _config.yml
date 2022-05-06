@@ -25,6 +25,7 @@ markdown: kramdown
 github_username: OmniSl4sh
 
 # Build settings
+#theme: minima
 theme: jekyll-theme-tactile
 
 # Exclude from processing.

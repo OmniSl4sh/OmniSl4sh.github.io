@@ -44,18 +44,27 @@
   <body>
     <div id="container">
       <div class="inner">
-
         <header>
-          <h1>HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)</h1>
-          <h2></h2>
+          <h1><a href="https://omnisl4sh.github.io/">OmniSl4sh's Blog</a></h1>
+          <!--<h2></h2>-->
         </header>
-        <section id="downloads" class="clearfix">
+        <!--<<section id="downloads" class="clearfix">
           
-	
+  
         </section>
-        <hr>
+        hr>-->
         <section id="main_content">
-          <h3 id="summary">Summary</h3>
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-04-08T00:00:00+02:00" itemprop="datePublished">Apr 8, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h3 id="summary">Summary</h3>
 <ul>
   <li>We find a <strong>domain controller</strong> with <strong>IIS</strong> running on port 80.</li>
   <li>It turns out to be the <strong>company website</strong> and we create a <strong>list of usernames</strong> from the <strong>‘Meet the Team’ page</strong>.</li>
@@ -300,6 +309,9 @@ INFO: Done in 00M 28S
 <p><em>With the</em> <code class="language-plaintext highlighter-rouge">administrator</code>‘<em>s hash,</em> we can easily get a shell on the box using <code class="language-plaintext highlighter-rouge">evil-winrm</code>’s <code class="language-plaintext highlighter-rouge">-H</code> flag to run what’s called a <code class="language-plaintext highlighter-rouge">pass-the-hash</code> attack.</p>
 
 <p><img src="/assets/Sauna/got-admin.jpg" alt="got-admin" /></p>
+
+  </div><a class="u-url" href="/2022/04/08/Sauna.html" hidden></a>
+</article>
 
         </section>
 

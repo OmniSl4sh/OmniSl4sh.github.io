@@ -44,18 +44,27 @@
   <body>
     <div id="container">
       <div class="inner">
-
         <header>
-          <h1>HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)</h1>
-          <h2></h2>
+          <h1><a href="https://omnisl4sh.github.io/">OmniSl4sh's Blog</a></h1>
+          <!--<h2></h2>-->
         </header>
-        <section id="downloads" class="clearfix">
+        <!--<<section id="downloads" class="clearfix">
           
-	
+  
         </section>
-        <hr>
+        hr>-->
         <section id="main_content">
-          <h3 id="summary">Summary</h3>
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-04-18T00:00:00+02:00" itemprop="datePublished">Apr 18, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Domain Controller</strong> machine. We first find <strong>SMB anonymous read access</strong> to a share containing a list of folders which can be used as usernames.</li>
   <li>We perform an <strong>ASREPRoast attack</strong> using the created wordlist to get credentials for the <code class="language-plaintext highlighter-rouge">support</code> user.</li>
@@ -330,6 +339,9 @@ expose %abuse% z:
 <p><em>having the domain administrator’s hash,</em> we can easily remote in using <strong>PowerShell Remoting</strong> and we’re admin on the box :D</p>
 
 <p><img src="/assets/Blackfield/got-admin.jpg" alt="got-admin" /></p>
+
+  </div><a class="u-url" href="/2022/04/18/Blackfield.html" hidden></a>
+</article>
 
         </section>
 

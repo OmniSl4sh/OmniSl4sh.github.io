@@ -44,18 +44,27 @@
   <body>
     <div id="container">
       <div class="inner">
-
         <header>
-          <h1>HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</h1>
-          <h2></h2>
+          <h1><a href="https://omnisl4sh.github.io/">OmniSl4sh's Blog</a></h1>
+          <!--<h2></h2>-->
         </header>
-        <section id="downloads" class="clearfix">
+        <!--<<section id="downloads" class="clearfix">
           
-	
+  
         </section>
-        <hr>
+        hr>-->
         <section id="main_content">
-          <h3 id="summary">Summary</h3>
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-05-02T00:00:00+02:00" itemprop="datePublished">May 2, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine. We find an <strong>SMB share</strong> containing a <em>writable</em> folder called <code class="language-plaintext highlighter-rouge">Public</code>. We place an <code class="language-plaintext highlighter-rouge">SCF</code> file there that <em>directs the visiting user’s computer</em> to our listening <code class="language-plaintext highlighter-rouge">responder</code> where we capture his <code class="language-plaintext highlighter-rouge">NTLMv2</code> hash.</li>
   <li><em>After cracking it,</em> we get the password for the <code class="language-plaintext highlighter-rouge">amanda</code> user which we use to enumerate the domain using <code class="language-plaintext highlighter-rouge">BloodHound</code>.</li>
@@ -427,6 +436,9 @@ Command=ToggleDesktop
 <p>OR…</p>
 
 <p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>
+
+  </div><a class="u-url" href="/2022/05/02/Sizzle.html" hidden></a>
+</article>
 
         </section>
 

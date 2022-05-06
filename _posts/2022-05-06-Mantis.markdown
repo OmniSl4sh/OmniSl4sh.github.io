@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: post
 title:  "HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)"
 ---
 

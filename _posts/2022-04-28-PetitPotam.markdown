@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: post
 title:  "AD Pentesting | Domain Privesc - PetitPotam"
 ---
 
