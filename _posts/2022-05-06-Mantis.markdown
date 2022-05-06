@@ -125,33 +125,33 @@ We try enumerating **SMB** with *different authentication methods* using `crackm
 2. Anonymous
 3. Guest
 
-![smb-enum](/assets/mantis/smb-enum.jpg)
+![smb-enum](/assets/Mantis/smb-enum.jpg)
 
 without success.
 
 ### LDAP Enumeration
 Using `ldapsearch`, we don't get much information either :/
 
-![ldapsearch-output](/assets/mantis/ldapsearch-output.jpg)
+![ldapsearch-output](/assets/Mantis/ldapsearch-output.jpg)
 
 ### Kerberos Enumeration
 Enumerating kerberos with `kerbrute` gave us one user: `james`
 
-![kerbrute-userenum](/assets/mantis/kerbrute-userenum.jpg)
+![kerbrute-userenum](/assets/Mantis/kerbrute-userenum.jpg)
 
 ### ASREPRoasting James
 `james` wasn't asreproastable.
 
-![james-not-asreproastable](/assets/mantis/james-not-asreproastable.jpg)
+![james-not-asreproastable](/assets/Mantis/james-not-asreproastable.jpg)
 
 ### Port 8080
 Checking out port 8080 showed a **CMS** called **Orchard CMS**  as detected by `wappalyzer`.
 
-![orchard-cms](/assets/mantis/orchard-cms.jpg)
+![orchard-cms](/assets/Mantis/orchard-cms.jpg)
 
 *Testing for weak credentials* with both the `admin` and `james` users failed :/
 
-![orchard-test-default-creds](/assets/mantis/orchard-test-default-creds.jpg)
+![orchard-test-default-creds](/assets/Mantis/orchard-test-default-creds.jpg)
 
 ### Port 1337
 This port was interesting because of its number.
@@ -162,23 +162,23 @@ This port was interesting because of its number.
 
 I tried the **MetaSploit** module and it showed those results:
 
-![iis-tilde-vuln](/assets/mantis/iis-tilde-vuln.jpg)
+![iis-tilde-vuln](/assets/Mantis/iis-tilde-vuln.jpg)
 
 The `secure*~` file/directory seemed interesting enough. So, I went ahead for directory bruteforcing using `gobuster` and the `directory-list-lowercase-2.3-medium.txt` wordlist.
 
 Note: I used the lowercase wordlist since we're bruteforcing **Windows** which isn't case sensitive like **Linux.**
 
-![gobuster-output-1337](/assets/mantis/gobuster-output-1337.jpg)
+![gobuster-output-1337](/assets/Mantis/gobuster-output-1337.jpg)
 
 The full name for the directory was `secure_notes`. It had the below contents:
 
-![1337-secure-notes-contents](/assets/mantis/1337-secure-notes-contents.jpg)
+![1337-secure-notes-contents](/assets/Mantis/1337-secure-notes-contents.jpg)
 
 The `web.config` file didn't exist.
 
 But both the name and contents of `dev_notes_NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx.txt.txt` were interesting:
 
-![dev_notes_top](/assets/mantis/dev_notes_top.jpg)
+![dev_notes_top](/assets/Mantis/dev_notes_top.jpg)
 
 We could tell:
 1. The username is `admin`
@@ -193,35 +193,35 @@ and...
 
 Using it revealed that the text was **base64-encoded** after being converted into **hexadecimal**:
 
-![cyber-chef-magic-wand-1](/assets/mantis/cyber-chef-magic-wand-1.jpg)
+![cyber-chef-magic-wand-1](/assets/Mantis/cyber-chef-magic-wand-1.jpg)
 
-![cyber-chef-magic-wand-2](/assets/mantis/cyber-chef-magic-wand-2.jpg)
+![cyber-chef-magic-wand-2](/assets/Mantis/cyber-chef-magic-wand-2.jpg)
 
-![cyber-chef-awesomeness](/assets/mantis/cyber-chef-awesomeness.jpg)
+![cyber-chef-awesomeness](/assets/Mantis/cyber-chef-awesomeness.jpg)
 
 The password turned out to be `m$$ql_S@_P@ssW0rd!`
 
 ### Interacting with MSSQL and DB Enumeration
 *Using another awesome* **Impacket** *python script:* `mssqlclient.py`, we are able to interact with the **MSSQL DB** command prompt from our Linux machine:
 
-![mssql-client-py-help](/assets/mantis/mssql-client-py-help.jpg)
+![mssql-client-py-help](/assets/Mantis/mssql-client-py-help.jpg)
 
-![mssql-client-py-connected](/assets/mantis/mssql-client-py-connected.jpg)
+![mssql-client-py-connected](/assets/Mantis/mssql-client-py-connected.jpg)
 
 We're going to enumerate the tables in the `orcharddb` database first using: `SELECT * FROM orcharddb.INFORMATION_SCHEMA.TABLES`
 
-![orcharddb-tables](/assets/mantis/orcharddb-tables.jpg)
+![orcharddb-tables](/assets/Mantis/orcharddb-tables.jpg)
 
 The table `blog_Orchard_Users_UserPartRecord` seemed interesting. So, we did a select on it: `select * from blog_Orchard_Users_UserPartRecord`
 
-![james-password-db-cleartext](/assets/mantis/james-password-db-cleartext.jpg)
+![james-password-db-cleartext](/assets/Mantis/james-password-db-cleartext.jpg)
 
 and we're greeted with a clear-text password for james :D
 
 ### Post-Cred Checks
 *Having tested the creds from the* `james` *user,* and found them valid and we went on to more enumeration/attacks.
 
-![james-creds-validated-cme](/assets/mantis/james-creds-validated-cme.jpg)
+![james-creds-validated-cme](/assets/Mantis/james-creds-validated-cme.jpg)
 
 1. New **SMB** Access
 2. **GPP**
@@ -237,15 +237,15 @@ Note: *we won't be trying* **PowerShell Remoting** *since the* **WinRM** *port w
 
 - [x] 1. New **SMB** Access had the standard `READ` access on `SYSVOL` and `NETLOGON` shares.
 
-![james-smb-access](/assets/mantis/james-smb-access.jpg)
+![james-smb-access](/assets/Mantis/james-smb-access.jpg)
 
 - [x] 2. **GPP**
 
-![gpp-enumeration](/assets/mantis/gpp-enumeration.jpg)
+![gpp-enumeration](/assets/Mantis/gpp-enumeration.jpg)
 
 - [x] 3. Full AD user enumeration + Password Pattern Recognition > Password Policy Enumeration > Password Spraying
 
-![full-ad-userlist](/assets/mantis/full-ad-userlist.jpg)
+![full-ad-userlist](/assets/Mantis/full-ad-userlist.jpg)
 
 Going by the same pattern for the `james` user on his password `J@m3s_P@ssW0rd!`, the password for the `Administrator` should be something like:
 - `Adm1n_P@ssw0rd!`
@@ -259,35 +259,35 @@ Going by the same pattern for the `james` user on his password `J@m3s_P@ssW0rd!`
 
 *But before trying anything,* we're going to enumerate the **Password Policy**:
 
-![cme-pass-pol](/assets/mantis/cme-pass-pol.jpg)
+![cme-pass-pol](/assets/Mantis/cme-pass-pol.jpg)
 
 Seems alright to bruteforce the `Administrator` :D
 
-![admin-brute-force](/assets/mantis/admin-brute-force.jpg)
+![admin-brute-force](/assets/Mantis/admin-brute-force.jpg)
 
 But no luck there I guess XD
 
 - [x] 4. Full AD **ASREPRoast**
 
-![full-ad-asreproast](/assets/mantis/full-ad-asreproast.jpg)
+![full-ad-asreproast](/assets/Mantis/full-ad-asreproast.jpg)
 
 - [x] 5. **Kerberoast**
 
-![kerberoast](/assets/mantis/kerberoast.jpg)
+![kerberoast](/assets/Mantis/kerberoast.jpg)
 
 - [x] 6. **Bloodhound**
 
 All collection methods:
 
-![bloodhound-py](/assets/mantis/bloodhound-py.jpg)
+![bloodhound-py](/assets/Mantis/bloodhound-py.jpg)
 
 Neo4j DB Initialization + BloodHound (--no-sandbox)
 
-![bloodhound-initialization](/assets/mantis/bloodhound-initialization.jpg)
+![bloodhound-initialization](/assets/Mantis/bloodhound-initialization.jpg)
 
 We find nothing special there apart from **RDP Privilege** to the DC:
 
-![james-can-rdp-the-dc](/assets/mantis/james-can-rdp-the-dc.jpg)
+![james-can-rdp-the-dc](/assets/Mantis/james-can-rdp-the-dc.jpg)
 
 ### MS14-068 a.k.a Pykek (The Kill :D)
 **MS14-068** is a vulnerability that affects most Domain Controllers before Server 2016.
@@ -305,7 +305,7 @@ In short, it gives us the ability to forge our own kerberos ticket allowing us t
 
 *With a handy* **Impacket** *script called* `lookupsid.py`, we can easily get that.
 
-![james-sid-calculation](/assets/mantis/james-sid-calculation.jpg)
+![james-sid-calculation](/assets/Mantis/james-sid-calculation.jpg)
 
 *Because like the picture above,* a user's SID is formed of `<DOMAIN_SID>-<USER_RID>`
 
@@ -313,12 +313,12 @@ We're going to run the exploit with the needed parameters.
 
 `python2.7 ./ms14-068.py -u james@htb.local -s S-1-5-21-4220043660-4019079961-2895681657-1103 -d mantis.htb.local -p 'J@m3s_P@ssW0rd!'`
 
-![got-forged-ticket](/assets/mantis/got-forged-ticket.jpg)
+![got-forged-ticket](/assets/Mantis/got-forged-ticket.jpg)
 
 Looks like a success! :D
 
 we're going to export this ticket to our shell environment's `KRB5CCNAME` variable and use `psexec.py` to own this DC :D
 
-![pykek-for-the-win](/assets/mantis/pykek-for-the-win.jpg)
+![pykek-for-the-win](/assets/Mantis/pykek-for-the-win.jpg)
 
 Sweeeet :D
