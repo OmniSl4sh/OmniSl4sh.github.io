@@ -1,5 +1,5 @@
 ---
-layout: post
+layout: default
 title:  "HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)"
 ---
 

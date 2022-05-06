@@ -1,5 +1,5 @@
 ---
-layout: post
+layout: default
 title:  "HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)"
 ---
 

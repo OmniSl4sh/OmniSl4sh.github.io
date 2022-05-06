@@ -1,5 +1,5 @@
 ---
-layout: post
+layout: default
 title:  "HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)"
 ---
 

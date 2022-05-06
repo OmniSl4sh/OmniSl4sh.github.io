@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8) | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Summary A Windows Domain Controller machine. We find a hidden credentials file when directory bruteforcing IIS on a custom port. The file gives us information about the MSSQL database (the username and DB name) in plain text while the password is present in the file name as a base-64 encoded hex string. Using the credentials found, we gain access to the MSSQL database which contains the password for a user called james who is an AD user. With james’s credentials, we’re able to exploit Kerberos with a known CVE (MS14-068) a.k.a Pykek to forge a Domain Admin ticket. Using the ticket with kerberos authentication, we can execute commands on the box as a Domain Administrator to gain full access." />
+<meta property="og:description" content="Summary A Windows Domain Controller machine. We find a hidden credentials file when directory bruteforcing IIS on a custom port. The file gives us information about the MSSQL database (the username and DB name) in plain text while the password is present in the file name as a base-64 encoded hex string. Using the credentials found, we gain access to the MSSQL database which contains the password for a user called james who is an AD user. With james’s credentials, we’re able to exploit Kerberos with a known CVE (MS14-068) a.k.a Pykek to forge a Domain Admin ticket. Using the ticket with kerberos authentication, we can execute commands on the box as a Domain Administrator to gain full access." />
+<link rel="canonical" href="http://localhost:4000/2022/05/06/Mantis.html" />
+<meta property="og:url" content="http://localhost:4000/2022/05/06/Mantis.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-05-06T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-05-06T00:00:00+02:00","datePublished":"2022-05-06T00:00:00+02:00","description":"Summary A Windows Domain Controller machine. We find a hidden credentials file when directory bruteforcing IIS on a custom port. The file gives us information about the MSSQL database (the username and DB name) in plain text while the password is present in the file name as a base-64 encoded hex string. Using the credentials found, we gain access to the MSSQL database which contains the password for a user called james who is an AD user. With james’s credentials, we’re able to exploit Kerberos with a known CVE (MS14-068) a.k.a Pykek to forge a Domain Admin ticket. Using the ticket with kerberos authentication, we can execute commands on the box as a Domain Administrator to gain full access.","headline":"HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/05/06/Mantis.html"},"url":"http://localhost:4000/2022/05/06/Mantis.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+
+        <header>
+          <h1>HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</h1>
+          <h2></h2>
+        </header>
+        <section id="downloads" class="clearfix">
+          
+	
+        </section>
+        <hr>
+        <section id="main_content">
+          <h3 id="summary">Summary</h3>
+<ul>
+  <li>A <strong>Windows Domain Controller</strong> machine. We find a <em>hidden credentials file</em> when directory bruteforcing <strong>IIS</strong> on a <em>custom</em> port.</li>
+  <li>The file gives us information about the <strong>MSSQL database</strong> (the username and DB name) in plain text while the password is present in the file name as a <em>base-64 encoded hex</em> string.</li>
+  <li><em>Using the credentials found,</em> we gain access to the <strong>MSSQL database</strong> which contains the password for a user called <code class="language-plaintext highlighter-rouge">james</code> who is an AD user.</li>
+  <li><em>With</em> <code class="language-plaintext highlighter-rouge">james</code>’s <em>credentials,</em> we’re able to exploit <strong>Kerberos</strong> with a known <strong>CVE (MS14-068) a.k.a Pykek</strong> to <em>forge</em> a <strong>Domain Admin</strong> ticket.</li>
+  <li><em>Using the ticket with kerberos authentication,</em> we can execute commands on the box as a <strong>Domain Administrator</strong> to gain <strong>full access</strong>.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE      VERSION
+53/tcp    open  domain       Microsoft DNS 6.1.7601 (1DB15CD4) (Windows Server 2008 R2 SP1)
+| dns-nsid: 
+|_  bind.version: Microsoft DNS 6.1.7601 (1DB15CD4)
+88/tcp    open  kerberos-sec Microsoft Windows Kerberos (server time: 2022-05-03 18:53:51Z)
+135/tcp   open  msrpc        Microsoft Windows RPC
+139/tcp   open  netbios-ssn  Microsoft Windows netbios-ssn
+389/tcp   open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds Windows Server 2008 R2 Standard 7601 Service Pack 1 microsoft-ds (workgroup: HTB)
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  tcpwrapped
+1337/tcp  open  http         Microsoft IIS httpd 7.5
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/7.5
+|_http-title: IIS7
+1433/tcp  open  ms-sql-s     Microsoft SQL Server 2014 12.00.2000.00; RTM
+| ssl-cert: Subject: commonName=SSL_Self_Signed_Fallback
+| Not valid before: 2022-05-03T18:51:03
+|_Not valid after:  2052-05-03T18:51:03
+|_ssl-date: 2022-05-03T18:55:01+00:00; 0s from scanner time.
+| ms-sql-ntlm-info: 
+|   Target_Name: HTB
+|   NetBIOS_Domain_Name: HTB
+|   NetBIOS_Computer_Name: MANTIS
+|   DNS_Domain_Name: htb.local
+|   DNS_Computer_Name: mantis.htb.local
+|   DNS_Tree_Name: htb.local
+|_  Product_Version: 6.1.7601
+3268/tcp  open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped
+5722/tcp  open  msrpc        Microsoft Windows RPC
+8080/tcp  open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-IIS/7.5
+|_http-title: Tossed Salad - Blog
+|_http-open-proxy: Proxy might be redirecting requests
+9389/tcp  open  mc-nmf       .NET Message Framing
+47001/tcp open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-title: Not Found
+|_http-server-header: Microsoft-HTTPAPI/2.0
+49152/tcp open  msrpc        Microsoft Windows RPC
+49153/tcp open  msrpc        Microsoft Windows RPC
+49154/tcp open  msrpc        Microsoft Windows RPC
+49155/tcp open  msrpc        Microsoft Windows RPC
+49157/tcp open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
+49158/tcp open  msrpc        Microsoft Windows RPC
+49168/tcp open  msrpc        Microsoft Windows RPC
+49180/tcp open  msrpc        Microsoft Windows RPC
+49184/tcp open  msrpc        Microsoft Windows RPC
+50255/tcp open  ms-sql-s     Microsoft SQL Server 2014 12.00.2000
+|_ssl-date: 2022-05-03T18:55:01+00:00; 0s from scanner time.
+| ms-sql-ntlm-info: 
+|   Target_Name: HTB
+|   NetBIOS_Domain_Name: HTB
+|   NetBIOS_Computer_Name: MANTIS
+|   DNS_Domain_Name: htb.local
+|   DNS_Computer_Name: mantis.htb.local
+|   DNS_Tree_Name: htb.local
+|_  Product_Version: 6.1.7601
+| ssl-cert: Subject: commonName=SSL_Self_Signed_Fallback
+| Not valid before: 2022-05-03T18:51:03
+|_Not valid after:  2052-05-03T18:51:03
+Service Info: Host: MANTIS; OS: Windows; CPE: cpe:/o:microsoft:windows_server_2008:r2:sp1, cpe:/o:microsoft:windows
+
+Host script results:
+|_clock-skew: mean: 34m16s, deviation: 1h30m43s, median: 0s
+| ms-sql-info: 
+|   10.10.10.52:1433: 
+|     Version: 
+|       name: Microsoft SQL Server 2014 RTM
+|       number: 12.00.2000.00
+|       Product: Microsoft SQL Server 2014
+|       Service pack level: RTM
+|       Post-SP patches applied: false
+|_    TCP port: 1433
+| smb2-security-mode: 
+|   2.1: 
+|_    Message signing enabled and required
+| smb2-time: 
+|   date: 2022-05-03T18:54:52
+|_  start_date: 2022-05-03T18:49:33
+| smb-os-discovery: 
+|   OS: Windows Server 2008 R2 Standard 7601 Service Pack 1 (Windows Server 2008 R2 Standard 6.1)
+|   OS CPE: cpe:/o:microsoft:windows_server_2008::sp1
+|   Computer name: mantis
+|   NetBIOS computer name: MANTIS\x00
+|   Domain name: htb.local
+|   Forest name: htb.local
+|   FQDN: mantis.htb.local
+|_  System time: 2022-05-03T14:54:51-04:00
+| smb-security-mode: 
+|   account_used: &lt;blank&gt;
+|   authentication_level: user
+|   challenge_response: supported
+|_  message_signing: required
+</code></pre></div></div>
+
+<ul>
+  <li>A full port scan shows us a set ports indicative of a <strong>Domain Controller</strong> (DNS, Kerberos, LDAP, SMB, LDAP GC).</li>
+  <li>We notice the computer name is <code class="language-plaintext highlighter-rouge">Mantis</code></li>
+  <li>The domain name to be <code class="language-plaintext highlighter-rouge">htb.local</code></li>
+  <li>from the <code class="language-plaintext highlighter-rouge">nmap</code> <code class="language-plaintext highlighter-rouge">smb-os-discovery</code> script, the operating system of the machine is <strong>Windows Server 2008 R2</strong>.</li>
+  <li>We also see <strong>MSSQL</strong> on its standard port: 1443</li>
+  <li>We take note that <strong>IIS 7.5</strong> is running on both port 1337 (<em>which is interesting</em>) and on port 8080.</li>
+</ul>
+
+<h3 id="smb-enumeration">SMB Enumeration</h3>
+<p>We try enumerating <strong>SMB</strong> with <em>different authentication methods</em> using <code class="language-plaintext highlighter-rouge">crackmapexec</code>:</p>
+<ol>
+  <li>Null</li>
+  <li>Anonymous</li>
+  <li>Guest</li>
+</ol>
+
+<p><img src="/assets/mantis/smb-enum.jpg" alt="smb-enum" /></p>
+
+<p>without success.</p>
+
+<h3 id="ldap-enumeration">LDAP Enumeration</h3>
+<p>Using <code class="language-plaintext highlighter-rouge">ldapsearch</code>, we don’t get much information either :/</p>
+
+<p><img src="/assets/mantis/ldapsearch-output.jpg" alt="ldapsearch-output" /></p>
+
+<h3 id="kerberos-enumeration">Kerberos Enumeration</h3>
+<p>Enumerating kerberos with <code class="language-plaintext highlighter-rouge">kerbrute</code> gave us one user: <code class="language-plaintext highlighter-rouge">james</code></p>
+
+<p><img src="/assets/mantis/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
+
+<h3 id="asreproasting-james">ASREPRoasting James</h3>
+<p><code class="language-plaintext highlighter-rouge">james</code> wasn’t asreproastable.</p>
+
+<p><img src="/assets/mantis/james-not-asreproastable.jpg" alt="james-not-asreproastable" /></p>
+
+<h3 id="port-8080">Port 8080</h3>
+<p>Checking out port 8080 showed a <strong>CMS</strong> called <strong>Orchard CMS</strong>  as detected by <code class="language-plaintext highlighter-rouge">wappalyzer</code>.</p>
+
+<p><img src="/assets/mantis/orchard-cms.jpg" alt="orchard-cms" /></p>
+
+<p><em>Testing for weak credentials</em> with both the <code class="language-plaintext highlighter-rouge">admin</code> and <code class="language-plaintext highlighter-rouge">james</code> users failed :/</p>
+
+<p><img src="/assets/mantis/orchard-test-default-creds.jpg" alt="orchard-test-default-creds" /></p>
+
+<h3 id="port-1337">Port 1337</h3>
+<p>This port was interesting because of its number.</p>
+
+<p><em>And, since it was</em> <strong>IIS 7.5</strong>, I wanted to test out a certain vulnerability called the <strong>IIS Tilde Vulnerability</strong>.</p>
+
+<p><em>Briefly,</em> it can <em>disclose the first 6 characters of file/folder names</em> on this version of <strong>IIS.</strong></p>
+
+<p>I tried the <strong>MetaSploit</strong> module and it showed those results:</p>
+
+<p><img src="/assets/mantis/iis-tilde-vuln.jpg" alt="iis-tilde-vuln" /></p>
+
+<p>The <code class="language-plaintext highlighter-rouge">secure*~</code> file/directory seemed interesting enough. So, I went ahead for directory bruteforcing using <code class="language-plaintext highlighter-rouge">gobuster</code> and the <code class="language-plaintext highlighter-rouge">directory-list-lowercase-2.3-medium.txt</code> wordlist.</p>
+
+<p>Note: I used the lowercase wordlist since we’re bruteforcing <strong>Windows</strong> which isn’t case sensitive like <strong>Linux.</strong></p>
+
+<p><img src="/assets/mantis/gobuster-output-1337.jpg" alt="gobuster-output-1337" /></p>
+
+<p>The full name for the directory was <code class="language-plaintext highlighter-rouge">secure_notes</code>. It had the below contents:</p>
+
+<p><img src="/assets/mantis/1337-secure-notes-contents.jpg" alt="1337-secure-notes-contents" /></p>
+
+<p>The <code class="language-plaintext highlighter-rouge">web.config</code> file didn’t exist.</p>
+
+<p>But both the name and contents of <code class="language-plaintext highlighter-rouge">dev_notes_NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx.txt.txt</code> were interesting:</p>
+
+<p><img src="/assets/mantis/dev_notes_top.jpg" alt="dev_notes_top" /></p>
+
+<p>We could tell:</p>
+<ol>
+  <li>The username is <code class="language-plaintext highlighter-rouge">admin</code></li>
+  <li>The DB name is <code class="language-plaintext highlighter-rouge">orcharddb</code></li>
+</ol>
+
+<p>and…</p>
+
+<p><em>By taking a closer look at the file name,</em> the string <code class="language-plaintext highlighter-rouge">NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx</code> could be the <em>missing piece of the puzzle</em>: the password for the <code class="language-plaintext highlighter-rouge">orcharddb</code>’s <code class="language-plaintext highlighter-rouge">admin</code> user.</p>
+
+<h3 id="cyberchef-knew-the-recipe-d">CyberChef knew the recipe :D</h3>
+<p><code class="language-plaintext highlighter-rouge">CyberChef</code> is an amazing tool that is intelligent enough to discover if a string of text has undergone encryption/encoding.</p>
+
+<p>Using it revealed that the text was <strong>base64-encoded</strong> after being converted into <strong>hexadecimal</strong>:</p>
+
+<p><img src="/assets/mantis/cyber-chef-magic-wand-1.jpg" alt="cyber-chef-magic-wand-1" /></p>
+
+<p><img src="/assets/mantis/cyber-chef-magic-wand-2.jpg" alt="cyber-chef-magic-wand-2" /></p>
+
+<p><img src="/assets/mantis/cyber-chef-awesomeness.jpg" alt="cyber-chef-awesomeness" /></p>
+
+<p>The password turned out to be <code class="language-plaintext highlighter-rouge">m$$ql_S@_P@ssW0rd!</code></p>
+
+<h3 id="interacting-with-mssql-and-db-enumeration">Interacting with MSSQL and DB Enumeration</h3>
+<p><em>Using another awesome</em> <strong>Impacket</strong> <em>python script:</em> <code class="language-plaintext highlighter-rouge">mssqlclient.py</code>, we are able to interact with the <strong>MSSQL DB</strong> command prompt from our Linux machine:</p>
+
+<p><img src="/assets/mantis/mssql-client-py-help.jpg" alt="mssql-client-py-help" /></p>
+
+<p><img src="/assets/mantis/mssql-client-py-connected.jpg" alt="mssql-client-py-connected" /></p>
+
+<p>We’re going to enumerate the tables in the <code class="language-plaintext highlighter-rouge">orcharddb</code> database first using: <code class="language-plaintext highlighter-rouge">SELECT * FROM orcharddb.INFORMATION_SCHEMA.TABLES</code></p>
+
+<p><img src="/assets/mantis/orcharddb-tables.jpg" alt="orcharddb-tables" /></p>
+
+<p>The table <code class="language-plaintext highlighter-rouge">blog_Orchard_Users_UserPartRecord</code> seemed interesting. So, we did a select on it: <code class="language-plaintext highlighter-rouge">select * from blog_Orchard_Users_UserPartRecord</code></p>
+
+<p><img src="/assets/mantis/james-password-db-cleartext.jpg" alt="james-password-db-cleartext" /></p>
+
+<p>and we’re greeted with a clear-text password for james :D</p>
+
+<h3 id="post-cred-checks">Post-Cred Checks</h3>
+<p><em>Having tested the creds from the</em> <code class="language-plaintext highlighter-rouge">james</code> <em>user,</em> and found them valid and we went on to more enumeration/attacks.</p>
+
+<p><img src="/assets/mantis/james-creds-validated-cme.jpg" alt="james-creds-validated-cme" /></p>
+
+<ol>
+  <li>New <strong>SMB</strong> Access</li>
+  <li><strong>GPP</strong></li>
+  <li>Full AD user enumeration + Password Pattern Recognition &gt; Password Policy Enumeration &gt; Password Spraying</li>
+  <li>Full AD <strong>ASREPRoast</strong></li>
+  <li><strong>Kerberoast</strong></li>
+  <li><strong>BloodHound</strong></li>
+  <li><strong>MS14-068</strong></li>
+</ol>
+
+<p>Note: <em>we won’t be trying</em> <strong>PowerShell Remoting</strong> <em>since the</em> <strong>WinRM</strong> <em>port wasn’t open in our full nmap.</em></p>
+
+<p><em>We’re going to try everything that doesn’t require</em> <strong>code execution</strong> <em>on the box.</em></p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />1. New <strong>SMB</strong> Access had the standard <code class="language-plaintext highlighter-rouge">READ</code> access on <code class="language-plaintext highlighter-rouge">SYSVOL</code> and <code class="language-plaintext highlighter-rouge">NETLOGON</code> shares.</li>
+</ul>
+
+<p><img src="/assets/mantis/james-smb-access.jpg" alt="james-smb-access" /></p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />2. <strong>GPP</strong></li>
+</ul>
+
+<p><img src="/assets/mantis/gpp-enumeration.jpg" alt="gpp-enumeration" /></p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />3. Full AD user enumeration + Password Pattern Recognition &gt; Password Policy Enumeration &gt; Password Spraying</li>
+</ul>
+
+<p><img src="/assets/mantis/full-ad-userlist.jpg" alt="full-ad-userlist" /></p>
+
+<p>Going by the same pattern for the <code class="language-plaintext highlighter-rouge">james</code> user on his password <code class="language-plaintext highlighter-rouge">J@m3s_P@ssW0rd!</code>, the password for the <code class="language-plaintext highlighter-rouge">Administrator</code> should be something like:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Adm1n_P@ssw0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">@dm1n_P@ssw0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">Adm!n_P@ssw0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">@dm!n_P@ssw0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">Adm1n_P@$$w0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">@dm1n_P@$$w0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">Adm!n_P@$$w0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">@dm!n_P@$$w0rd!</code></li>
+</ul>
+
+<p><em>But before trying anything,</em> we’re going to enumerate the <strong>Password Policy</strong>:</p>
+
+<p><img src="/assets/mantis/cme-pass-pol.jpg" alt="cme-pass-pol" /></p>
+
+<p>Seems alright to bruteforce the <code class="language-plaintext highlighter-rouge">Administrator</code> :D</p>
+
+<p><img src="/assets/mantis/admin-brute-force.jpg" alt="admin-brute-force" /></p>
+
+<p>But no luck there I guess XD</p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />4. Full AD <strong>ASREPRoast</strong></li>
+</ul>
+
+<p><img src="/assets/mantis/full-ad-asreproast.jpg" alt="full-ad-asreproast" /></p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />5. <strong>Kerberoast</strong></li>
+</ul>
+
+<p><img src="/assets/mantis/kerberoast.jpg" alt="kerberoast" /></p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />6. <strong>Bloodhound</strong></li>
+</ul>
+
+<p>All collection methods:</p>
+
+<p><img src="/assets/mantis/bloodhound-py.jpg" alt="bloodhound-py" /></p>
+
+<p>Neo4j DB Initialization + BloodHound (–no-sandbox)</p>
+
+<p><img src="/assets/mantis/bloodhound-initialization.jpg" alt="bloodhound-initialization" /></p>
+
+<p>We find nothing special there apart from <strong>RDP Privilege</strong> to the DC:</p>
+
+<p><img src="/assets/mantis/james-can-rdp-the-dc.jpg" alt="james-can-rdp-the-dc" /></p>
+
+<h3 id="ms14-068-aka-pykek-the-kill-d">MS14-068 a.k.a Pykek (The Kill :D)</h3>
+<p><strong>MS14-068</strong> is a vulnerability that affects most Domain Controllers before Server 2016.</p>
+
+<p>In short, it gives us the ability to forge our own kerberos ticket allowing us to have group memberships in whatever high-privilege groups we want (<em>ex: Domain Admins, Enterprise Admins etc.</em>)</p>
+
+<ul>
+  <li>A full article on it here (https://adsecurity.org/?p=541)</li>
+  <li>The Microsoft Reference that details the affected versions there (https://docs.microsoft.com/en-us/security-updates/securitybulletins/2014/ms14-068)</li>
+</ul>
+
+<p><em>Looking at the GitHub PoC</em> (https://github.com/SecWiki/windows-kernel-exploits/tree/master/MS14-068/pykek), It only needs:</p>
+<ol>
+  <li>A valid AD user</li>
+  <li>His SID</li>
+</ol>
+
+<p><code class="language-plaintext highlighter-rouge">james</code> is a valid AD user, we just need to get his <strong>SID</strong>.</p>
+
+<p><em>With a handy</em> <strong>Impacket</strong> <em>script called</em> <code class="language-plaintext highlighter-rouge">lookupsid.py</code>, we can easily get that.</p>
+
+<p><img src="/assets/mantis/james-sid-calculation.jpg" alt="james-sid-calculation" /></p>
+
+<p><em>Because like the picture above,</em> a user’s SID is formed of <code class="language-plaintext highlighter-rouge">&lt;DOMAIN_SID&gt;-&lt;USER_RID&gt;</code></p>
+
+<p>We’re going to run the exploit with the needed parameters.</p>
+
+<p><code class="language-plaintext highlighter-rouge">python2.7 ./ms14-068.py -u james@htb.local -s S-1-5-21-4220043660-4019079961-2895681657-1103 -d mantis.htb.local -p 'J@m3s_P@ssW0rd!'</code></p>
+
+<p><img src="/assets/mantis/got-forged-ticket.jpg" alt="got-forged-ticket" /></p>
+
+<p>Looks like a success! :D</p>
+
+<p>we’re going to export this ticket to our shell environment’s <code class="language-plaintext highlighter-rouge">KRB5CCNAME</code> variable and use <code class="language-plaintext highlighter-rouge">psexec.py</code> to own this DC :D</p>
+
+<p><img src="/assets/mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
+
+<p>Sweeeet :D</p>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>

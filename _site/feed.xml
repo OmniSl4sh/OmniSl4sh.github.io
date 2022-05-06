@@ -1,4 +1,349 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-05-02T22:33:51+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle</title><link href="http://localhost:4000/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/02/Sizzle</id><content type="html" xml:base="http://localhost:4000/2022/05/02/Sizzle.html"><![CDATA[<h3 id="summary">Summary</h3>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-05-06T10:53:46+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="http://localhost:4000/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/06/Mantis</id><content type="html" xml:base="http://localhost:4000/2022/05/06/Mantis.html"><![CDATA[<h3 id="summary">Summary</h3>
+<ul>
+  <li>A <strong>Windows Domain Controller</strong> machine. We find a <em>hidden credentials file</em> when directory bruteforcing <strong>IIS</strong> on a <em>custom</em> port.</li>
+  <li>The file gives us information about the <strong>MSSQL database</strong> (the username and DB name) in plain text while the password is present in the file name as a <em>base-64 encoded hex</em> string.</li>
+  <li><em>Using the credentials found,</em> we gain access to the <strong>MSSQL database</strong> which contains the password for a user called <code class="language-plaintext highlighter-rouge">james</code> who is an AD user.</li>
+  <li><em>With</em> <code class="language-plaintext highlighter-rouge">james</code>’s <em>credentials,</em> we’re able to exploit <strong>Kerberos</strong> with a known <strong>CVE (MS14-068) a.k.a Pykek</strong> to <em>forge</em> a <strong>Domain Admin</strong> ticket.</li>
+  <li><em>Using the ticket with kerberos authentication,</em> we can execute commands on the box as a <strong>Domain Administrator</strong> to gain <strong>full access</strong>.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE      VERSION
+53/tcp    open  domain       Microsoft DNS 6.1.7601 (1DB15CD4) (Windows Server 2008 R2 SP1)
+| dns-nsid: 
+|_  bind.version: Microsoft DNS 6.1.7601 (1DB15CD4)
+88/tcp    open  kerberos-sec Microsoft Windows Kerberos (server time: 2022-05-03 18:53:51Z)
+135/tcp   open  msrpc        Microsoft Windows RPC
+139/tcp   open  netbios-ssn  Microsoft Windows netbios-ssn
+389/tcp   open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds Windows Server 2008 R2 Standard 7601 Service Pack 1 microsoft-ds (workgroup: HTB)
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  tcpwrapped
+1337/tcp  open  http         Microsoft IIS httpd 7.5
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/7.5
+|_http-title: IIS7
+1433/tcp  open  ms-sql-s     Microsoft SQL Server 2014 12.00.2000.00; RTM
+| ssl-cert: Subject: commonName=SSL_Self_Signed_Fallback
+| Not valid before: 2022-05-03T18:51:03
+|_Not valid after:  2052-05-03T18:51:03
+|_ssl-date: 2022-05-03T18:55:01+00:00; 0s from scanner time.
+| ms-sql-ntlm-info: 
+|   Target_Name: HTB
+|   NetBIOS_Domain_Name: HTB
+|   NetBIOS_Computer_Name: MANTIS
+|   DNS_Domain_Name: htb.local
+|   DNS_Computer_Name: mantis.htb.local
+|   DNS_Tree_Name: htb.local
+|_  Product_Version: 6.1.7601
+3268/tcp  open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped
+5722/tcp  open  msrpc        Microsoft Windows RPC
+8080/tcp  open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-IIS/7.5
+|_http-title: Tossed Salad - Blog
+|_http-open-proxy: Proxy might be redirecting requests
+9389/tcp  open  mc-nmf       .NET Message Framing
+47001/tcp open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-title: Not Found
+|_http-server-header: Microsoft-HTTPAPI/2.0
+49152/tcp open  msrpc        Microsoft Windows RPC
+49153/tcp open  msrpc        Microsoft Windows RPC
+49154/tcp open  msrpc        Microsoft Windows RPC
+49155/tcp open  msrpc        Microsoft Windows RPC
+49157/tcp open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
+49158/tcp open  msrpc        Microsoft Windows RPC
+49168/tcp open  msrpc        Microsoft Windows RPC
+49180/tcp open  msrpc        Microsoft Windows RPC
+49184/tcp open  msrpc        Microsoft Windows RPC
+50255/tcp open  ms-sql-s     Microsoft SQL Server 2014 12.00.2000
+|_ssl-date: 2022-05-03T18:55:01+00:00; 0s from scanner time.
+| ms-sql-ntlm-info: 
+|   Target_Name: HTB
+|   NetBIOS_Domain_Name: HTB
+|   NetBIOS_Computer_Name: MANTIS
+|   DNS_Domain_Name: htb.local
+|   DNS_Computer_Name: mantis.htb.local
+|   DNS_Tree_Name: htb.local
+|_  Product_Version: 6.1.7601
+| ssl-cert: Subject: commonName=SSL_Self_Signed_Fallback
+| Not valid before: 2022-05-03T18:51:03
+|_Not valid after:  2052-05-03T18:51:03
+Service Info: Host: MANTIS; OS: Windows; CPE: cpe:/o:microsoft:windows_server_2008:r2:sp1, cpe:/o:microsoft:windows
+
+Host script results:
+|_clock-skew: mean: 34m16s, deviation: 1h30m43s, median: 0s
+| ms-sql-info: 
+|   10.10.10.52:1433: 
+|     Version: 
+|       name: Microsoft SQL Server 2014 RTM
+|       number: 12.00.2000.00
+|       Product: Microsoft SQL Server 2014
+|       Service pack level: RTM
+|       Post-SP patches applied: false
+|_    TCP port: 1433
+| smb2-security-mode: 
+|   2.1: 
+|_    Message signing enabled and required
+| smb2-time: 
+|   date: 2022-05-03T18:54:52
+|_  start_date: 2022-05-03T18:49:33
+| smb-os-discovery: 
+|   OS: Windows Server 2008 R2 Standard 7601 Service Pack 1 (Windows Server 2008 R2 Standard 6.1)
+|   OS CPE: cpe:/o:microsoft:windows_server_2008::sp1
+|   Computer name: mantis
+|   NetBIOS computer name: MANTIS\x00
+|   Domain name: htb.local
+|   Forest name: htb.local
+|   FQDN: mantis.htb.local
+|_  System time: 2022-05-03T14:54:51-04:00
+| smb-security-mode: 
+|   account_used: &lt;blank&gt;
+|   authentication_level: user
+|   challenge_response: supported
+|_  message_signing: required
+</code></pre></div></div>
+
+<ul>
+  <li>A full port scan shows us a set ports indicative of a <strong>Domain Controller</strong> (DNS, Kerberos, LDAP, SMB, LDAP GC).</li>
+  <li>We notice the computer name is <code class="language-plaintext highlighter-rouge">Mantis</code></li>
+  <li>The domain name to be <code class="language-plaintext highlighter-rouge">htb.local</code></li>
+  <li>from the <code class="language-plaintext highlighter-rouge">nmap</code> <code class="language-plaintext highlighter-rouge">smb-os-discovery</code> script, the operating system of the machine is <strong>Windows Server 2008 R2</strong>.</li>
+  <li>We also see <strong>MSSQL</strong> on its standard port: 1443</li>
+  <li>We take note that <strong>IIS 7.5</strong> is running on both port 1337 (<em>which is interesting</em>) and on port 8080.</li>
+</ul>
+
+<h3 id="smb-enumeration">SMB Enumeration</h3>
+<p>We try enumerating <strong>SMB</strong> with <em>different authentication methods</em> using <code class="language-plaintext highlighter-rouge">crackmapexec</code>:</p>
+<ol>
+  <li>Null</li>
+  <li>Anonymous</li>
+  <li>Guest</li>
+</ol>
+
+<p><img src="/assets/mantis/smb-enum.jpg" alt="smb-enum" /></p>
+
+<p>without success.</p>
+
+<h3 id="ldap-enumeration">LDAP Enumeration</h3>
+<p>Using <code class="language-plaintext highlighter-rouge">ldapsearch</code>, we don’t get much information either :/</p>
+
+<p><img src="/assets/mantis/ldapsearch-output.jpg" alt="ldapsearch-output" /></p>
+
+<h3 id="kerberos-enumeration">Kerberos Enumeration</h3>
+<p>Enumerating kerberos with <code class="language-plaintext highlighter-rouge">kerbrute</code> gave us one user: <code class="language-plaintext highlighter-rouge">james</code></p>
+
+<p><img src="/assets/mantis/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
+
+<h3 id="asreproasting-james">ASREPRoasting James</h3>
+<p><code class="language-plaintext highlighter-rouge">james</code> wasn’t asreproastable.</p>
+
+<p><img src="/assets/mantis/james-not-asreproastable.jpg" alt="james-not-asreproastable" /></p>
+
+<h3 id="port-8080">Port 8080</h3>
+<p>Checking out port 8080 showed a <strong>CMS</strong> called <strong>Orchard CMS</strong>  as detected by <code class="language-plaintext highlighter-rouge">wappalyzer</code>.</p>
+
+<p><img src="/assets/mantis/orchard-cms.jpg" alt="orchard-cms" /></p>
+
+<p><em>Testing for weak credentials</em> with both the <code class="language-plaintext highlighter-rouge">admin</code> and <code class="language-plaintext highlighter-rouge">james</code> users failed :/</p>
+
+<p><img src="/assets/mantis/orchard-test-default-creds.jpg" alt="orchard-test-default-creds" /></p>
+
+<h3 id="port-1337">Port 1337</h3>
+<p>This port was interesting because of its number.</p>
+
+<p><em>And, since it was</em> <strong>IIS 7.5</strong>, I wanted to test out a certain vulnerability called the <strong>IIS Tilde Vulnerability</strong>.</p>
+
+<p><em>Briefly,</em> it can <em>disclose the first 6 characters of file/folder names</em> on this version of <strong>IIS.</strong></p>
+
+<p>I tried the <strong>MetaSploit</strong> module and it showed those results:</p>
+
+<p><img src="/assets/mantis/iis-tilde-vuln.jpg" alt="iis-tilde-vuln" /></p>
+
+<p>The <code class="language-plaintext highlighter-rouge">secure*~</code> file/directory seemed interesting enough. So, I went ahead for directory bruteforcing using <code class="language-plaintext highlighter-rouge">gobuster</code> and the <code class="language-plaintext highlighter-rouge">directory-list-lowercase-2.3-medium.txt</code> wordlist.</p>
+
+<p>Note: I used the lowercase wordlist since we’re bruteforcing <strong>Windows</strong> which isn’t case sensitive like <strong>Linux.</strong></p>
+
+<p><img src="/assets/mantis/gobuster-output-1337.jpg" alt="gobuster-output-1337" /></p>
+
+<p>The full name for the directory was <code class="language-plaintext highlighter-rouge">secure_notes</code>. It had the below contents:</p>
+
+<p><img src="/assets/mantis/1337-secure-notes-contents.jpg" alt="1337-secure-notes-contents" /></p>
+
+<p>The <code class="language-plaintext highlighter-rouge">web.config</code> file didn’t exist.</p>
+
+<p>But both the name and contents of <code class="language-plaintext highlighter-rouge">dev_notes_NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx.txt.txt</code> were interesting:</p>
+
+<p><img src="/assets/mantis/dev_notes_top.jpg" alt="dev_notes_top" /></p>
+
+<p>We could tell:</p>
+<ol>
+  <li>The username is <code class="language-plaintext highlighter-rouge">admin</code></li>
+  <li>The DB name is <code class="language-plaintext highlighter-rouge">orcharddb</code></li>
+</ol>
+
+<p>and…</p>
+
+<p><em>By taking a closer look at the file name,</em> the string <code class="language-plaintext highlighter-rouge">NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx</code> could be the <em>missing piece of the puzzle</em>: the password for the <code class="language-plaintext highlighter-rouge">orcharddb</code>’s <code class="language-plaintext highlighter-rouge">admin</code> user.</p>
+
+<h3 id="cyberchef-knew-the-recipe-d">CyberChef knew the recipe :D</h3>
+<p><code class="language-plaintext highlighter-rouge">CyberChef</code> is an amazing tool that is intelligent enough to discover if a string of text has undergone encryption/encoding.</p>
+
+<p>Using it revealed that the text was <strong>base64-encoded</strong> after being converted into <strong>hexadecimal</strong>:</p>
+
+<p><img src="/assets/mantis/cyber-chef-magic-wand-1.jpg" alt="cyber-chef-magic-wand-1" /></p>
+
+<p><img src="/assets/mantis/cyber-chef-magic-wand-2.jpg" alt="cyber-chef-magic-wand-2" /></p>
+
+<p><img src="/assets/mantis/cyber-chef-awesomeness.jpg" alt="cyber-chef-awesomeness" /></p>
+
+<p>The password turned out to be <code class="language-plaintext highlighter-rouge">m$$ql_S@_P@ssW0rd!</code></p>
+
+<h3 id="interacting-with-mssql-and-db-enumeration">Interacting with MSSQL and DB Enumeration</h3>
+<p><em>Using another awesome</em> <strong>Impacket</strong> <em>python script:</em> <code class="language-plaintext highlighter-rouge">mssqlclient.py</code>, we are able to interact with the <strong>MSSQL DB</strong> command prompt from our Linux machine:</p>
+
+<p><img src="/assets/mantis/mssql-client-py-help.jpg" alt="mssql-client-py-help" /></p>
+
+<p><img src="/assets/mantis/mssql-client-py-connected.jpg" alt="mssql-client-py-connected" /></p>
+
+<p>We’re going to enumerate the tables in the <code class="language-plaintext highlighter-rouge">orcharddb</code> database first using: <code class="language-plaintext highlighter-rouge">SELECT * FROM orcharddb.INFORMATION_SCHEMA.TABLES</code></p>
+
+<p><img src="/assets/mantis/orcharddb-tables.jpg" alt="orcharddb-tables" /></p>
+
+<p>The table <code class="language-plaintext highlighter-rouge">blog_Orchard_Users_UserPartRecord</code> seemed interesting. So, we did a select on it: <code class="language-plaintext highlighter-rouge">select * from blog_Orchard_Users_UserPartRecord</code></p>
+
+<p><img src="/assets/mantis/james-password-db-cleartext.jpg" alt="james-password-db-cleartext" /></p>
+
+<p>and we’re greeted with a clear-text password for james :D</p>
+
+<h3 id="post-cred-checks">Post-Cred Checks</h3>
+<p><em>Having tested the creds from the</em> <code class="language-plaintext highlighter-rouge">james</code> <em>user,</em> and found them valid and we went on to more enumeration/attacks.</p>
+
+<p><img src="/assets/mantis/james-creds-validated-cme.jpg" alt="james-creds-validated-cme" /></p>
+
+<ol>
+  <li>New <strong>SMB</strong> Access</li>
+  <li><strong>GPP</strong></li>
+  <li>Full AD user enumeration + Password Pattern Recognition &gt; Password Policy Enumeration &gt; Password Spraying</li>
+  <li>Full AD <strong>ASREPRoast</strong></li>
+  <li><strong>Kerberoast</strong></li>
+  <li><strong>BloodHound</strong></li>
+  <li><strong>MS14-068</strong></li>
+</ol>
+
+<p>Note: <em>we won’t be trying</em> <strong>PowerShell Remoting</strong> <em>since the</em> <strong>WinRM</strong> <em>port wasn’t open in our full nmap.</em></p>
+
+<p><em>We’re going to try everything that doesn’t require</em> <strong>code execution</strong> <em>on the box.</em></p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />1. New <strong>SMB</strong> Access had the standard <code class="language-plaintext highlighter-rouge">READ</code> access on <code class="language-plaintext highlighter-rouge">SYSVOL</code> and <code class="language-plaintext highlighter-rouge">NETLOGON</code> shares.</li>
+</ul>
+
+<p><img src="/assets/mantis/james-smb-access.jpg" alt="james-smb-access" /></p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />2. <strong>GPP</strong></li>
+</ul>
+
+<p><img src="/assets/mantis/gpp-enumeration.jpg" alt="gpp-enumeration" /></p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />3. Full AD user enumeration + Password Pattern Recognition &gt; Password Policy Enumeration &gt; Password Spraying</li>
+</ul>
+
+<p><img src="/assets/mantis/full-ad-userlist.jpg" alt="full-ad-userlist" /></p>
+
+<p>Going by the same pattern for the <code class="language-plaintext highlighter-rouge">james</code> user on his password <code class="language-plaintext highlighter-rouge">J@m3s_P@ssW0rd!</code>, the password for the <code class="language-plaintext highlighter-rouge">Administrator</code> should be something like:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Adm1n_P@ssw0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">@dm1n_P@ssw0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">Adm!n_P@ssw0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">@dm!n_P@ssw0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">Adm1n_P@$$w0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">@dm1n_P@$$w0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">Adm!n_P@$$w0rd!</code></li>
+  <li><code class="language-plaintext highlighter-rouge">@dm!n_P@$$w0rd!</code></li>
+</ul>
+
+<p><em>But before trying anything,</em> we’re going to enumerate the <strong>Password Policy</strong>:</p>
+
+<p><img src="/assets/mantis/cme-pass-pol.jpg" alt="cme-pass-pol" /></p>
+
+<p>Seems alright to bruteforce the <code class="language-plaintext highlighter-rouge">Administrator</code> :D</p>
+
+<p><img src="/assets/mantis/admin-brute-force.jpg" alt="admin-brute-force" /></p>
+
+<p>But no luck there I guess XD</p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />4. Full AD <strong>ASREPRoast</strong></li>
+</ul>
+
+<p><img src="/assets/mantis/full-ad-asreproast.jpg" alt="full-ad-asreproast" /></p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />5. <strong>Kerberoast</strong></li>
+</ul>
+
+<p><img src="/assets/mantis/kerberoast.jpg" alt="kerberoast" /></p>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />6. <strong>Bloodhound</strong></li>
+</ul>
+
+<p>All collection methods:</p>
+
+<p><img src="/assets/mantis/bloodhound-py.jpg" alt="bloodhound-py" /></p>
+
+<p>Neo4j DB Initialization + BloodHound (–no-sandbox)</p>
+
+<p><img src="/assets/mantis/bloodhound-initialization.jpg" alt="bloodhound-initialization" /></p>
+
+<p>We find nothing special there apart from <strong>RDP Privilege</strong> to the DC:</p>
+
+<p><img src="/assets/mantis/james-can-rdp-the-dc.jpg" alt="james-can-rdp-the-dc" /></p>
+
+<h3 id="ms14-068-aka-pykek-the-kill-d">MS14-068 a.k.a Pykek (The Kill :D)</h3>
+<p><strong>MS14-068</strong> is a vulnerability that affects most Domain Controllers before Server 2016.</p>
+
+<p>In short, it gives us the ability to forge our own kerberos ticket allowing us to have group memberships in whatever high-privilege groups we want (<em>ex: Domain Admins, Enterprise Admins etc.</em>)</p>
+
+<ul>
+  <li>A full article on it here (https://adsecurity.org/?p=541)</li>
+  <li>The Microsoft Reference that details the affected versions there (https://docs.microsoft.com/en-us/security-updates/securitybulletins/2014/ms14-068)</li>
+</ul>
+
+<p><em>Looking at the GitHub PoC</em> (https://github.com/SecWiki/windows-kernel-exploits/tree/master/MS14-068/pykek), It only needs:</p>
+<ol>
+  <li>A valid AD user</li>
+  <li>His SID</li>
+</ol>
+
+<p><code class="language-plaintext highlighter-rouge">james</code> is a valid AD user, we just need to get his <strong>SID</strong>.</p>
+
+<p><em>With a handy</em> <strong>Impacket</strong> <em>script called</em> <code class="language-plaintext highlighter-rouge">lookupsid.py</code>, we can easily get that.</p>
+
+<p><img src="/assets/mantis/james-sid-calculation.jpg" alt="james-sid-calculation" /></p>
+
+<p><em>Because like the picture above,</em> a user’s SID is formed of <code class="language-plaintext highlighter-rouge">&lt;DOMAIN_SID&gt;-&lt;USER_RID&gt;</code></p>
+
+<p>We’re going to run the exploit with the needed parameters.</p>
+
+<p><code class="language-plaintext highlighter-rouge">python2.7 ./ms14-068.py -u james@htb.local -s S-1-5-21-4220043660-4019079961-2895681657-1103 -d mantis.htb.local -p 'J@m3s_P@ssW0rd!'</code></p>
+
+<p><img src="/assets/mantis/got-forged-ticket.jpg" alt="got-forged-ticket" /></p>
+
+<p>Looks like a success! :D</p>
+
+<p>we’re going to export this ticket to our shell environment’s <code class="language-plaintext highlighter-rouge">KRB5CCNAME</code> variable and use <code class="language-plaintext highlighter-rouge">psexec.py</code> to own this DC :D</p>
+
+<p><img src="/assets/mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
+
+<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Windows Domain Controller machine. We find a hidden credentials file when directory bruteforcing IIS on a custom port. The file gives us information about the MSSQL database (the username and DB name) in plain text while the password is present in the file name as a base-64 encoded hex string. Using the credentials found, we gain access to the MSSQL database which contains the password for a user called james who is an AD user. With james’s credentials, we’re able to exploit Kerberos with a known CVE (MS14-068) a.k.a Pykek to forge a Domain Admin ticket. Using the ticket with kerberos authentication, we can execute commands on the box as a Domain Administrator to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="http://localhost:4000/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/02/Sizzle</id><content type="html" xml:base="http://localhost:4000/2022/05/02/Sizzle.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine. We find an <strong>SMB share</strong> containing a <em>writable</em> folder called <code class="language-plaintext highlighter-rouge">Public</code>. We place an <code class="language-plaintext highlighter-rouge">SCF</code> file there that <em>directs the visiting user’s computer</em> to our listening <code class="language-plaintext highlighter-rouge">responder</code> where we capture his <code class="language-plaintext highlighter-rouge">NTLMv2</code> hash.</li>
   <li><em>After cracking it,</em> we get the password for the <code class="language-plaintext highlighter-rouge">amanda</code> user which we use to enumerate the domain using <code class="language-plaintext highlighter-rouge">BloodHound</code>.</li>
@@ -9,9 +354,9 @@
   <li>Looking back at the output of <code class="language-plaintext highlighter-rouge">BloodHound</code> showed a <em>kerberoastable</em> user called <code class="language-plaintext highlighter-rouge">mrlky</code> that has dangerous rights abusable for a <code class="language-plaintext highlighter-rouge">DCSync</code> attack.</li>
   <li>We decide to use <code class="language-plaintext highlighter-rouge">Rubeus.exe</code> to do the job but can’t execute it due to <strong>Applocker</strong> restrictions.</li>
   <li>We bypass by moving it to the Windows <code class="language-plaintext highlighter-rouge">temp</code> folder and are faced with another error requiring us to authenticate to the network.</li>
-  <li>We add the <code class="language-plaintext highlighter-rouge">amanda</code>’s credentials as flags to the <code class="language-plaintext highlighter-rouge">Rubeus</code> tool and manage to kerberoast <code class="language-plaintext highlighter-rouge">mrkly</code>.</li>
+  <li>We add <code class="language-plaintext highlighter-rouge">amanda</code>’s credentials as flags to the <code class="language-plaintext highlighter-rouge">Rubeus</code> tool and manage to kerberoast <code class="language-plaintext highlighter-rouge">mrkly</code>.</li>
   <li>We crack his <code class="language-plaintext highlighter-rouge">TGS</code> hash and are able to get the password. We then proceed to <code class="language-plaintext highlighter-rouge">DCSync</code> and obtain the <code class="language-plaintext highlighter-rouge">NTLM hash</code> for the <code class="language-plaintext highlighter-rouge">administrator</code> account and <code class="language-plaintext highlighter-rouge">PTH</code> to gain complete access.</li>
-  <li>Bonus: Bypassing <strong>PowerShell Contrained Language Mode</strong>, dodging <strong>Applocker</strong>, <strong>authenticating</strong> to the network and <strong>Kerberoasting</strong> all in a <strong>one-liner</strong> and <em>without touching disk</em>.</li>
+  <li>Bonus: Bypassing <strong>PowerShell Constrained Language Mode</strong>, dodging <strong>Applocker</strong>, <strong>authenticating</strong> to the network and <strong>Kerberoasting</strong> all in a <strong>one-liner</strong> and <em>without touching disk</em>.</li>
   <li>Joke Section: Pwning the box with <strong>ZeroLogon</strong> XD</li>
 </ul>
 
@@ -330,7 +675,7 @@ Command=ToggleDesktop
 
 <p><img src="/assets/Sizzle/got-system.jpg" alt="got-system" /></p>
 
-<h3 id="bonus-powershell-contrained-language-mode-bypassing-it-along-with-applocker-and-kerberoasting-without-touching-disk-all-in-a-powershell-one-liner-d">Bonus: PowerShell Contrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D</h3>
+<h3 id="bonus-powershell-constrained-language-mode-bypassing-it-along-with-applocker-and-kerberoasting-without-touching-disk-all-in-a-powershell-one-liner-d">Bonus: PowerShell Constrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D</h3>
 <p>After I initially got the WinRM shell, It kept asking for my PEM pass phrase after each command.</p>
 
 <p>I wanted to get a <code class="language-plaintext highlighter-rouge">nishang</code> shell but couldn’t do the <code class="language-plaintext highlighter-rouge">IEX</code> command (<code class="language-plaintext highlighter-rouge">Invoke-Expression</code>). This was because of <strong>PowerShell’s Contrained Language Mode</strong>.</p>
@@ -369,7 +714,7 @@ Command=ToggleDesktop
 
 <p>OR…</p>
 
-<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Windows Domain Controller machine. We find an SMB share containing a writable folder called Public. We place an SCF file there that directs the visiting user’s computer to our listening responder where we capture his NTLMv2 hash. After cracking it, we get the password for the amanda user which we use to enumerate the domain using BloodHound. Noticing that our user has PowerShell Remoting capabilities, we try to gain access but are faced with a strange authentication error. Upon inspecting the functionality of the Evil-Winrm tool, we find that we can use a certificate for logging in. We create a Certificate Signing Request using openssl and get it signed from the ADCS Web Interface found on the domain controller. Using evil-winrm‘s ability to authenticate using SSL certificates, we successfully achieve code execution. Looking back at the output of BloodHound showed a kerberoastable user called mrlky that has dangerous rights abusable for a DCSync attack. We decide to use Rubeus.exe to do the job but can’t execute it due to Applocker restrictions. We bypass by moving it to the Windows temp folder and are faced with another error requiring us to authenticate to the network. We add the amanda’s credentials as flags to the Rubeus tool and manage to kerberoast mrkly. We crack his TGS hash and are able to get the password. We then proceed to DCSync and obtain the NTLM hash for the administrator account and PTH to gain complete access. Bonus: Bypassing PowerShell Contrained Language Mode, dodging Applocker, authenticating to the network and Kerberoasting all in a one-liner and without touching disk. Joke Section: Pwning the box with ZeroLogon XD]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Reel</title><link href="http://localhost:4000/2022/04/30/Reel.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Reel" /><published>2022-04-30T00:00:00+02:00</published><updated>2022-04-30T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/30/Reel</id><content type="html" xml:base="http://localhost:4000/2022/04/30/Reel.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Windows Domain Controller machine. We find an SMB share containing a writable folder called Public. We place an SCF file there that directs the visiting user’s computer to our listening responder where we capture his NTLMv2 hash. After cracking it, we get the password for the amanda user which we use to enumerate the domain using BloodHound. Noticing that our user has PowerShell Remoting capabilities, we try to gain access but are faced with a strange authentication error. Upon inspecting the functionality of the Evil-Winrm tool, we find that we can use a certificate for logging in. We create a Certificate Signing Request using openssl and get it signed from the ADCS Web Interface found on the domain controller. Using evil-winrm‘s ability to authenticate using SSL certificates, we successfully achieve code execution. Looking back at the output of BloodHound showed a kerberoastable user called mrlky that has dangerous rights abusable for a DCSync attack. We decide to use Rubeus.exe to do the job but can’t execute it due to Applocker restrictions. We bypass by moving it to the Windows temp folder and are faced with another error requiring us to authenticate to the network. We add amanda’s credentials as flags to the Rubeus tool and manage to kerberoast mrkly. We crack his TGS hash and are able to get the password. We then proceed to DCSync and obtain the NTLM hash for the administrator account and PTH to gain complete access. Bonus: Bypassing PowerShell Constrained Language Mode, dodging Applocker, authenticating to the network and Kerberoasting all in a one-liner and without touching disk. Joke Section: Pwning the box with ZeroLogon XD]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)</title><link href="http://localhost:4000/2022/04/30/Reel.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)" /><published>2022-04-30T00:00:00+02:00</published><updated>2022-04-30T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/30/Reel</id><content type="html" xml:base="http://localhost:4000/2022/04/30/Reel.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>windows machine</strong> with <code class="language-plaintext highlighter-rouge">Anonymous FTP</code> allowed. <em>Inspecting the contents</em> reveals a <strong>documents folder</strong> one of which tells us that <em>RTF documents are being reviewed and converted by someone</em>.</li>
   <li><em>Using this information,</em> we craft a <em>malicious document</em> using <strong>CVE-2017-0199</strong> and send it to a certain user called <code class="language-plaintext highlighter-rouge">nico</code> via the open <code class="language-plaintext highlighter-rouge">SMTP</code> port (<em>We find his username by checking the metadata of the documents on FTP</em>).</li>
@@ -891,7 +1236,7 @@ Luckily enough, with some simple mitigation steps, this can be resolved.</p>
   <li><strong>GhostPack</strong> for the <strong>Rubeus</strong> tool</li>
   <li><strong>Harshit Rajpal</strong> for the amazing article explaining the attack (https://www.hackingarticles.in/domain-escalation-petitpotam-ntlm-relay-to-adcs-endpoints/)</li>
   <li><strong>Microsoft Support</strong> for the mitigation guide (https://support.microsoft.com/en-gb/topic/kb5005413-mitigating-ntlm-relay-attacks-on-active-directory-certificate-services-ad-cs-3612b773-4043-4aa9-b23d-b87910cd3429)</li>
-</ol>]]></content><author><name></name></author><summary type="html"><![CDATA[Introduction &amp; Attack Anatomy]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Resolute</title><link href="http://localhost:4000/2022/04/25/Resolute.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Resolute" /><published>2022-04-25T00:00:00+02:00</published><updated>2022-04-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/25/Resolute</id><content type="html" xml:base="http://localhost:4000/2022/04/25/Resolute.html"><![CDATA[<h3 id="summary">Summary</h3>
+</ol>]]></content><author><name></name></author><summary type="html"><![CDATA[Introduction &amp; Attack Anatomy]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)</title><link href="http://localhost:4000/2022/04/25/Resolute.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)" /><published>2022-04-25T00:00:00+02:00</published><updated>2022-04-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/25/Resolute</id><content type="html" xml:base="http://localhost:4000/2022/04/25/Resolute.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Domain controller</strong> box. We first retrieve information about all users using <code class="language-plaintext highlighter-rouge">rpcclient</code> and find <strong>a password in the description field</strong> of one user which doesn’t work.</li>
   <li>We <em>reuse</em> that password and <strong>spray all domain users</strong> and we get <strong>access to another user who has PowerShell remoting privileges</strong>.</li>
@@ -1100,7 +1445,7 @@ sc.exe start dns
   <li>Also, copying the <code class="language-plaintext highlighter-rouge">msfvenom</code> generated locally on the machine dll didn’t work because the antivirus kept eating it up xD</li>
 </ul>
 
-<p><img src="/assets/Resolute/evil-dll-eaten.jpg" alt="evil-dll-eaten" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain controller box. We first retrieve information about all users using rpcclient and find a password in the description field of one user which doesn’t work. We reuse that password and spray all domain users and we get access to another user who has PowerShell remoting privileges. Browsing the file system, we find a PowerShell transcript file with credentials for another user in a hidden folder. The other user is a member of the DNSAdmins AD Group which can gain system privilges on the machine by means of DLL Injection.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Blackfield</title><link href="http://localhost:4000/2022/04/18/Blackfield.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Blackfield" /><published>2022-04-18T00:00:00+02:00</published><updated>2022-04-18T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/18/Blackfield</id><content type="html" xml:base="http://localhost:4000/2022/04/18/Blackfield.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p><img src="/assets/Resolute/evil-dll-eaten.jpg" alt="evil-dll-eaten" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain controller box. We first retrieve information about all users using rpcclient and find a password in the description field of one user which doesn’t work. We reuse that password and spray all domain users and we get access to another user who has PowerShell remoting privileges. Browsing the file system, we find a PowerShell transcript file with credentials for another user in a hidden folder. The other user is a member of the DNSAdmins AD Group which can gain system privilges on the machine by means of DLL Injection.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)</title><link href="http://localhost:4000/2022/04/18/Blackfield.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)" /><published>2022-04-18T00:00:00+02:00</published><updated>2022-04-18T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/18/Blackfield</id><content type="html" xml:base="http://localhost:4000/2022/04/18/Blackfield.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Domain Controller</strong> machine. We first find <strong>SMB anonymous read access</strong> to a share containing a list of folders which can be used as usernames.</li>
   <li>We perform an <strong>ASREPRoast attack</strong> using the created wordlist to get credentials for the <code class="language-plaintext highlighter-rouge">support</code> user.</li>
@@ -1374,7 +1719,7 @@ expose %abuse% z:
 
 <p><em>having the domain administrator’s hash,</em> we can easily remote in using <strong>PowerShell Remoting</strong> and we’re admin on the box :D</p>
 
-<p><img src="/assets/Blackfield/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller machine. We first find SMB anonymous read access to a share containing a list of folders which can be used as usernames. We perform an ASREPRoast attack using the created wordlist to get credentials for the support user. Using BloodHound to enumerate the domain, we find that this user can reset the password for another account audit2020 After resetting audit2020‘s password, we gain access to the forensic SMB share which has a memory dump of lsass.exe Using Mimikatz to extract hashes from the dump, we gain access to the svc_backup user. svc_backup is a member of the Backup Operators group which have the privilege of backing up most files on the domain controller. We abuse this privilege to back up the NTDS.dit file and the system registry hive which we use to dump all the NTLM hashes of the domain. With the Domain Administrators NTLM hash, we can Pass-the-Hash to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Active</title><link href="http://localhost:4000/2022/04/14/Active.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Active" /><published>2022-04-14T00:00:00+02:00</published><updated>2022-04-14T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/14/Active</id><content type="html" xml:base="http://localhost:4000/2022/04/14/Active.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p><img src="/assets/Blackfield/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller machine. We first find SMB anonymous read access to a share containing a list of folders which can be used as usernames. We perform an ASREPRoast attack using the created wordlist to get credentials for the support user. Using BloodHound to enumerate the domain, we find that this user can reset the password for another account audit2020 After resetting audit2020‘s password, we gain access to the forensic SMB share which has a memory dump of lsass.exe Using Mimikatz to extract hashes from the dump, we gain access to the svc_backup user. svc_backup is a member of the Backup Operators group which have the privilege of backing up most files on the domain controller. We abuse this privilege to back up the NTDS.dit file and the system registry hive which we use to dump all the NTLM hashes of the domain. With the Domain Administrators NTLM hash, we can Pass-the-Hash to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)</title><link href="http://localhost:4000/2022/04/14/Active.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)" /><published>2022-04-14T00:00:00+02:00</published><updated>2022-04-14T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/14/Active</id><content type="html" xml:base="http://localhost:4000/2022/04/14/Active.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A Domain Controller Machine. We first find an SMB share called <code class="language-plaintext highlighter-rouge">Replication</code> which we can <code class="language-plaintext highlighter-rouge">read</code> using <code class="language-plaintext highlighter-rouge">null authentication</code>.</li>
   <li><em>Going through the share,</em> we find a <code class="language-plaintext highlighter-rouge">Groups.xml</code> file containing the encrypted password of the <code class="language-plaintext highlighter-rouge">svc_tgs</code> account.</li>
@@ -1549,7 +1894,7 @@ SMB         10.10.10.100    445    DC               Users
 
 <p>We verify we have code execution with <strong>impacket</strong>’s <code class="language-plaintext highlighter-rouge">psexec.py</code></p>
 
-<p><img src="/assets/Active/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller Machine. We first find an SMB share called Replication which we can read using null authentication. Going through the share, we find a Groups.xml file containing the encrypted password of the svc_tgs account. This password can be easily decrypted using the gpp-decrypt built-in tool and we can authenticate as svc_tgs. We find that we can kerberoast the Domain Administrator and we get his TGS hash. The hash is crackable with John and we retrieve the password to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Forest</title><link href="http://localhost:4000/2022/04/08/Forest.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Forest" /><published>2022-04-08T00:00:00+02:00</published><updated>2022-04-08T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/08/Forest</id><content type="html" xml:base="http://localhost:4000/2022/04/08/Forest.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p><img src="/assets/Active/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller Machine. We first find an SMB share called Replication which we can read using null authentication. Going through the share, we find a Groups.xml file containing the encrypted password of the svc_tgs account. This password can be easily decrypted using the gpp-decrypt built-in tool and we can authenticate as svc_tgs. We find that we can kerberoast the Domain Administrator and we get his TGS hash. The hash is crackable with John and we retrieve the password to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Forest (AD Pentesting Track #1)</title><link href="http://localhost:4000/2022/04/08/Forest.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Forest (AD Pentesting Track #1)" /><published>2022-04-08T00:00:00+02:00</published><updated>2022-04-08T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/08/Forest</id><content type="html" xml:base="http://localhost:4000/2022/04/08/Forest.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A Domain Controller machine. <strong>Anonymous LDAP</strong> is enabled which we use to get <strong>a full list of AD users</strong>.</li>
   <li><em>After performing an</em> <strong>ASREPRoast attack</strong>, we end up with a user that has <strong>PowerShell Remoting Access</strong>.</li>
@@ -1887,7 +2232,7 @@ Add-DomainObjectAcl -TargetIdentity "dc=htb,dc=local" -PrincipalIdentity 'HTB.lo
 
 <p><em>Using the administrator NTLM hash,</em> we can use <code class="language-plaintext highlighter-rouge">evil-winrm</code> to remote inside and we’re done with the box :D</p>
 
-<p><img src="/assets/Forest/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller machine. Anonymous LDAP is enabled which we use to get a full list of AD users. After performing an ASREPRoast attack, we end up with a user that has PowerShell Remoting Access. Using BloodHound for Domain Enumeration, we find that the user is member of the Account Operators group which gives him the privilege of adding users to AD groups other than Domain Admins etc. We add our user to a group called ‘Exchange Windows Permissions’ which has a write DACL over the domain. Abusing this privilege lets us give ourselves the DCSync right over the domain using PowerView which lets us grab all its NTLM hashes We use the Domain Administrator’s hash in a simple Pass-the-Hash attack to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Sauna</title><link href="http://localhost:4000/2022/04/08/Sauna.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Sauna" /><published>2022-04-08T00:00:00+02:00</published><updated>2022-04-08T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/08/Sauna</id><content type="html" xml:base="http://localhost:4000/2022/04/08/Sauna.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p><img src="/assets/Forest/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller machine. Anonymous LDAP is enabled which we use to get a full list of AD users. After performing an ASREPRoast attack, we end up with a user that has PowerShell Remoting Access. Using BloodHound for Domain Enumeration, we find that the user is member of the Account Operators group which gives him the privilege of adding users to AD groups other than Domain Admins etc. We add our user to a group called ‘Exchange Windows Permissions’ which has a write DACL over the domain. Abusing this privilege lets us give ourselves the DCSync right over the domain using PowerView which lets us grab all its NTLM hashes We use the Domain Administrator’s hash in a simple Pass-the-Hash attack to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)</title><link href="http://localhost:4000/2022/04/08/Sauna.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)" /><published>2022-04-08T00:00:00+02:00</published><updated>2022-04-08T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/08/Sauna</id><content type="html" xml:base="http://localhost:4000/2022/04/08/Sauna.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>We find a <strong>domain controller</strong> with <strong>IIS</strong> running on port 80.</li>
   <li>It turns out to be the <strong>company website</strong> and we create a <strong>list of usernames</strong> from the <strong>‘Meet the Team’ page</strong>.</li>
@@ -2633,271 +2978,4 @@ output = "/etc/shadow"
 
 <p>We then <code class="language-plaintext highlighter-rouge">su</code> as the <code class="language-plaintext highlighter-rouge">root</code> user and get our root shell! :D</p>
 
-<p><img src="/assets/curling/gotcha.jpg" alt="gotcha" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary we find Joomla running on HTTP port 80 and we get a list of usernames from the posts on the main page. Inspecting the home page’s source code, we find a comment about a secret.txt file which happens to be at the webroot. The contents of the file reveal a base64-encoded password which we use to gain administrative access to Joomla using the floris user. We abuse the Joomla Administrator’s ability to edit PHP files to place a reverse shell and gain access as the www-data user. We find a readable hexdump called password_backup in floris’s home folder which we reverse to a binary and decompress to gain the password for the floris user. Detecting unusal activity on the box with pspy reveals a cron job running as root and executing a curl command that reads its configuration from a file we can modify. Abusing curl for privileged read/write access lets us get a shell as root by forging our own /etc/shadow file.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Heist</title><link href="http://localhost:4000/2022/03/25/Heist.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Heist" /><published>2022-03-25T00:00:00+02:00</published><updated>2022-03-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/03/25/Heist</id><content type="html" xml:base="http://localhost:4000/2022/03/25/Heist.html"><![CDATA[<h3 id="summary">Summary</h3>
-<ul>
-  <li>We find a website on port 80 that <strong>lets us login as a guest</strong>.</li>
-  <li><em>On the first page,</em> we find a conversation between a user and a support admin about checking an <strong>attached Cisco router configuration file</strong>.</li>
-  <li><em>Browsing the configuration file,</em> we find <strong>hashes</strong> that <em>we can easily crack</em> to get passwords.</li>
-  <li>One password works with SMB for the user on the web page. We use that to do a <strong><code class="language-plaintext highlighter-rouge">RID</code> enumeration</strong> to get <strong>all the usernames on the system</strong>.</li>
-  <li><strong>Reusing the password we found with all users,</strong> we find one more user who happens to have <strong>PowerShell remoting access.</strong></li>
-  <li><em>To privesc</em>, we use the famous <strong>PrintNightmare</strong> vulnerability since <strong>print spooler</strong> is found running.</li>
-  <li>The <em>intended</em> path is <strong>dumping the running Firefox process from memory</strong> and using the <code class="language-plaintext highlighter-rouge">strings</code> command to obtain the <strong>Administrator credentials</strong> from the dump.</li>
-</ul>
-
-<hr />
-
-<h3 id="nmap">Nmap</h3>
-<p>we first start by doing a quick nmap top 10 tcp ports: <code class="language-plaintext highlighter-rouge">nmap --top-ports --open 10.10.10.149</code></p>
-
-<p><img src="/assets/Heist/nmap-top-10-ports.jpg" alt="nmap top 10 port scan" /></p>
-
-<p>we find http and smb ports open, so we begin with HTTP after leaving a full port scan <code class="language-plaintext highlighter-rouge">nmap -p- -T4 -sC -sV 10.10.10.149</code></p>
-
-<h3 id="guest-login">Guest login</h3>
-
-<p>we immediately see the login page of a web app that gives us the options to <em>Login as guest</em></p>
-
-<p><img src="/assets/Heist/Login-Page.jpg" alt="web app login page" /></p>
-
-<ol>
-  <li>we use that feature to login and we see a page of issues. a user called <strong>hazard</strong> is talking about having problems with his <strong>cisco</strong> router. And, he <em>attached</em> a <strong>configuration file</strong> <em>the previous admin</em> has been using.</li>
-  <li>the support admin replies to him saying that he will take a look</li>
-  <li>the hazard user asks the support admin to <strong>an account for him on the windows server</strong> as he needs to access the files.</li>
-</ol>
-
-<p><img src="/assets/Heist/Issues.jpg" alt="Issues" /></p>
-
-<h3 id="cisco-router-configuration-file">Cisco Router Configuration File</h3>
-
-<p>we go ahead and click the attachment link and see <strong>3 different hashes</strong>:</p>
-
-<p><img src="/assets/Heist/Config.jpg" alt="Config" /></p>
-
-<ol>
-  <li><code class="language-plaintext highlighter-rouge">enable secret 5 $1$pdQG$o8nrSzsGXeaduXrjlvKc91</code></li>
-  <li><code class="language-plaintext highlighter-rouge">username rout3r password 7 0242114B0E143F015F5D1E161713</code></li>
-  <li><code class="language-plaintext highlighter-rouge">username admin privilege 15 password 7 02375012182C1A1D751618034F36415408</code></li>
-</ol>
-
-<h3 id="cracking-cisco-hashes">Cracking Cisco Hashes</h3>
-
-<p>cracking those hashes might give us a set of passwords to try to gain more access with. So we use <code class="language-plaintext highlighter-rouge">john</code> to crack the first one</p>
-
-<p>we find that the password is <em>stealth1agent</em></p>
-
-<p><img src="/assets/Heist/cracked.jpg" alt="cracked" /></p>
-
-<p>we want to crack the two other hashes as well. so we do a google search on <code class="language-plaintext highlighter-rouge">crack cisco configuration hash</code>. and we find websites ready to do decrypt what is called a <strong>Cisco type 7 password</strong></p>
-
-<p><img src="/assets/Heist/google-search.jpg" alt="type-7-cracker" /></p>
-
-<p>we use them to crack hashes #2 and #3 for users <code class="language-plaintext highlighter-rouge">rout3r</code> and <code class="language-plaintext highlighter-rouge">admin</code></p>
-
-<p>the results were:</p>
-<ul>
-  <li><code class="language-plaintext highlighter-rouge">$uperP@ssword</code> for the <code class="language-plaintext highlighter-rouge">rout3r</code> user</li>
-  <li><code class="language-plaintext highlighter-rouge">Q4)sJu\Y8qz*A3?d</code> for the <code class="language-plaintext highlighter-rouge">admin</code> user</li>
-</ul>
-
-<p>this is a start :D
-<em>from the conversation on the issues page,</em> we know that <strong>the hazard user requested a user on the windows server</strong>. So, it would be relevant to try logging to the server as that user. we also have 3 different passwords to try with him. we will use the open <code class="language-plaintext highlighter-rouge">smb</code> port to try loggin in and use the mighty <code class="language-plaintext highlighter-rouge">crackmapexec</code> for that :)</p>
-
-<p>the <strong>hazard</strong> user authenticated with the password <code class="language-plaintext highlighter-rouge">stealth1agent</code> but he doesn’t seem to have administrator privileges :/</p>
-
-<p><img src="/assets/Heist/hazard-authenticated.jpg" alt="hazard-authenticated" /></p>
-
-<p>we gain some information about the host:</p>
-<ol>
-  <li>name: SupportDesk</li>
-  <li>OS: Windows 10.0 Build 17763 x64</li>
-  <li>Domain: SupportDesk</li>
-  <li>SMB Signing and SMBv1: False</li>
-</ol>
-
-<h3 id="testing-password-variations">Testing password variations</h3>
-
-<p>we try our luck with the administrator account using variations of the <code class="language-plaintext highlighter-rouge">stealth1agent</code> password as well as the other passwords we found. But we don’t have a success:</p>
-
-<p><img src="/assets/Heist/admin-trials.jpg" alt="admin-trials" /></p>
-
-<p>we get similar results when trying other probable users like admin, supportadmin, supportdesk etc.</p>
-
-<h3 id="listing-our-options">Listing our options</h3>
-
-<p>we take a step back and think about all the information we can get from having a valid user:</p>
-<ol>
-  <li>enumerate SMB shares</li>
-  <li>enumerate sessions</li>
-  <li>enumerate logged on users</li>
-  <li>enumerate local groups</li>
-  <li>enumerate local users using RID bruteforce</li>
-</ol>
-
-<p><em>when enumerating shares,</em> we don’t see something particularly exploitable</p>
-
-<p><img src="/assets/Heist/smb-shares.jpg" alt="smb-shares" /></p>
-
-<h3 id="rid-brute-forcing">RID Brute Forcing</h3>
-
-<p>we also get nothing from enumerating sessions, logged on users or localgroups. <em>However, when enumerating local users using RID bruteforce,</em> we get a nice list of users to try! :D</p>
-
-<p><img src="/assets/Heist/rid-brute.jpg" alt="rid-brute" /></p>
-
-<p>we update our <strong>userlist</strong> right away with those newly-found users:</p>
-<ol>
-  <li>support</li>
-  <li>chase</li>
-  <li>jason</li>
-</ol>
-
-<h3 id="password-reuse">Password Reuse</h3>
-
-<p>and we give it another shot with <code class="language-plaintext highlighter-rouge">crackmapexec</code> while telling it to <code class="language-plaintext highlighter-rouge">continue on success</code>. we want to know if any passwords were being reused.</p>
-
-<p><em>right now,</em> our lists are like this:</p>
-
-<p>usernames.txt</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>support
-chase
-jason
-</code></pre></div></div>
-
-<p>passwords.txt</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>stealth0agent
-stealth1agent
-stealth2agent
-stealth3agent
-stealth4agent
-stealth5agent
-stealth6agent
-stealth7agent
-stealth8agent
-stealth9agent
-$uperP@ssword
-Q4)sJu\Y8qz*A3?d
-</code></pre></div></div>
-
-<p>Our attack dropped one more user: <strong>chase!</strong></p>
-
-<p><img src="/assets/Heist/chase-owned.jpg" alt="chase-owned" /></p>
-
-<h3 id="getting-code-execution">Getting Code Execution</h3>
-
-<p><em>trying to execute commands using <code class="language-plaintext highlighter-rouge">crackmapexec</code>,</em> we don’t get command execution. It seems chase also isn’t an administrator on the machine :/</p>
-
-<p><em>however…</em></p>
-
-<p><em>our full port scan with nmap has now finished, we find another port open there: 5985,</em> this port is for <strong>Windows Remote Management (WinRM)</strong> and can be used to gain remote code execution.</p>
-
-<p><img src="/assets/Heist/full-nmap.jpg" alt="full-nmap" /></p>
-
-<p>there a tool called <code class="language-plaintext highlighter-rouge">evil-winrm</code> which we can use to see if we can connect remotely.</p>
-
-<p><img src="/assets/Heist/win-rm-as-chase.jpg" alt="win-rm-as-chase" /></p>
-
-<p>it works with <strong>chase</strong> <em>but not with hazard</em>, this is because he happens to be a member of the special group: <code class="language-plaintext highlighter-rouge">Remote Management Users</code> which allows him to use <strong>PowerShell Remoting.</strong></p>
-
-<p><img src="/assets/Heist/chase-groups.jpg" alt="chase-groups" /></p>
-
-<h3 id="lets-privesc">Let’s privesc</h3>
-
-<p><em>now on the machine,</em> we go into privilege escalation mode :D we try many things:</p>
-
-<ol>
-  <li>searching desktop, documents &amp; downloads: <code class="language-plaintext highlighter-rouge">ls -force ~\Desktop, ~\Documents, ~\Downloads</code>
-```
-Directory: C:\Users\Chase\Desktop</li>
-</ol>
-
-<p>Mode                LastWriteTime         Length Name
-—-                ————-         —— —-
--a-hs-        4/22/2019   7:14 AM            282 desktop.ini
--a—-        4/22/2019   9:08 AM            121 todo.txt
--ar—        3/18/2022   2:13 PM             34 user.txt</p>
-
-<p>Directory: C:\Users\Chase\Documents</p>
-
-<p>Mode                LastWriteTime         Length Name
-—-                ————-         —— —-
-d–hsl        4/22/2019   7:14 AM                My Music
-d–hsl        4/22/2019   7:14 AM                My Pictures
-d–hsl        4/22/2019   7:14 AM                My Videos
--a-hs-        4/22/2019   7:14 AM            402 desktop.ini</p>
-
-<p>Directory: C:\Users\Chase\Downloads</p>
-
-<p>Mode                LastWriteTime         Length Name
-—-                ————-         —— —-
--a-hs-        4/22/2019   7:14 AM            282 desktop.ini
--a—-        2/18/2021   4:03 PM       98779512 VMware-tools-11.2.5-17337674-x86_64.exe</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>the contents of `todo.txt` don't reveal something important:
-</code></pre></div></div>
-<p>Stuff to-do:</p>
-<ol>
-  <li>Keep checking the issues list.</li>
-  <li>Fix the router config.</li>
-</ol>
-
-<p>Done:</p>
-<ol>
-  <li>Restricted access for guest user.
-```</li>
-  <li>searching in IIS webroot: <code class="language-plaintext highlighter-rouge">ls -force c:\inetpub\wwwroot</code> we get <strong>access denied</strong></li>
-  <li>searching within hazard’s profile, we get <strong>access denied</strong></li>
-  <li>searching for <strong>Autologon Creds</strong>, with a <em>little powershell one-liner I wrote:</em>
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName', 'DefaultPassword', 'AltDefaultDomainName', 'AltDefaultUserName', 'AltDefaultPassword' | % {$Val = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name $_ ;if($Val){Write-Host -ForegroundColor Green "[+] $_`: $Val"; Clear-Variable Val}else{Write-Host "[-] $_`: Not found"}};$ErrorActionPreference='Continue'
-</code></pre></div>    </div>
-    <p>we get nothing also:</p>
-  </li>
-</ol>
-
-<p><img src="/assets/Heist/autologon-creds.jpg" alt="autologon-creds" /></p>
-
-<ol>
-  <li>checking for services, we get <strong>access denied</strong></li>
-  <li>checking for processes, we see intersting things running:
-    <ol>
-      <li>firefox –&gt; we can search for <em>stored passwords</em></li>
-      <li>php-cgi –&gt; maybe we can try to abuse this somehow</li>
-      <li>spoolsv –&gt; <strong>Print Nightmare Privesc!</strong></li>
-    </ol>
-  </li>
-</ol>
-
-<h3 id="printnightmare-would-be-too-easy">PrintNightmare would be too easy</h3>
-
-<p><em>given that print nightmare would be too easy,</em> I take a shot at the 1st option and search for stored passwords for <strong>Firefox</strong> :D
-the path should be <code class="language-plaintext highlighter-rouge">C:\Users\Chase\AppData\Roaming\Mozilla\Firefox\Profiles\</code> for chase. Which we find that it contains a password file <code class="language-plaintext highlighter-rouge">key4.db</code> but notice that <em>there was no <code class="language-plaintext highlighter-rouge">logins.json</code> to be used in pulling those credentials :/</em></p>
-
-<p><img src="/assets/Heist/no-json-logins.jpg" alt="no-json-logins" /></p>
-
-<h3 id="the-firefox-rabbit-hole">The Firefox Rabbit Hole</h3>
-
-<p>the process of hunting for those firefox passwords took way longer than you would expect :)</p>
-<ol>
-  <li>I used a tool called <code class="language-plaintext highlighter-rouge">SharpWeb.exe</code> (https://github.com/djhohnstein/SharpWeb), only to find out from its source code that <em>it only handles <code class="language-plaintext highlighter-rouge">key3.db</code> files.</em> Changing the name of the file to match that didn’t work. after all, if the number 4 refers to an improved version, that would mean that this version of the tool wouldn’t work.</li>
-  <li>I found another tool written in python, with which I had trouble transforimg to an exe using <code class="language-plaintext highlighter-rouge">pyinstaller</code>.</li>
-  <li>I found a final tool called <code class="language-plaintext highlighter-rouge">HarvestBrowserPasswords.exe</code> (https://github.com/Apr4h/HarvestBrowserPasswords) which threw the error of <em>not being able to find the <code class="language-plaintext highlighter-rouge">logins.json</code> file</em> which was the sign that this privesc path wasn’t valid.</li>
-</ol>
-
-<h3 id="trying-to-move-laterally">Trying to move <em>laterally</em></h3>
-
-<p>Afterwards, I think of pivoting to the hazard user and looking for something interesting. This would require using <code class="language-plaintext highlighter-rouge">runas.exe</code>, which needs a fully interactive tty. This is achievable in our case. Since this machine is a <strong>Windows 10.0 Build 17763 x64</strong>.</p>
-
-<p>we use the very nice reverse shell from (https://github.com/antonioCoco/ConPtyShell) for that. But we still get access denied here as well XD</p>
-
-<p><img src="/assets/Heist/run-as-failed.jpg" alt="run-as-failed" /></p>
-
-<h3 id="lets-just-use-printnightmare-xd">Let’s just use PrintNightmare XD</h3>
-
-<p>I then decide maybe I should just privesc with Print Nightmare :D</p>
-
-<p>I use John Hammond’s version of the exploit (https://github.com/JohnHammond/CVE-2021-34527) since it’s written in PowerShell <em>(to which I am biased :D</em>)</p>
-
-<p><em>After uploading the script and importing it,</em> we use it to create a local administrator and are successful :D</p>
-
-<p><img src="/assets/Heist/murder.jpg" alt="murder" /></p>
-
-<p>nevermind the names I use. It’s totally normal XD</p>
-
-<p>P.S. After checking <strong>Ippsec’s</strong> writeup, the <em>intended path</em> was to dump the memory of the <code class="language-plaintext highlighter-rouge">firefox</code> process and using the <code class="language-plaintext highlighter-rouge">strings</code> command to look into its contents where the credentials for the administrator would be found. But, oh well :/ :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary We find a website on port 80 that lets us login as a guest. On the first page, we find a conversation between a user and a support admin about checking an attached Cisco router configuration file. Browsing the configuration file, we find hashes that we can easily crack to get passwords. One password works with SMB for the user on the web page. We use that to do a RID enumeration to get all the usernames on the system. Reusing the password we found with all users, we find one more user who happens to have PowerShell remoting access. To privesc, we use the famous PrintNightmare vulnerability since print spooler is found running. The intended path is dumping the running Firefox process from memory and using the strings command to obtain the Administrator credentials from the dump.]]></summary></entry></feed>
+<p><img src="/assets/curling/gotcha.jpg" alt="gotcha" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary we find Joomla running on HTTP port 80 and we get a list of usernames from the posts on the main page. Inspecting the home page’s source code, we find a comment about a secret.txt file which happens to be at the webroot. The contents of the file reveal a base64-encoded password which we use to gain administrative access to Joomla using the floris user. We abuse the Joomla Administrator’s ability to edit PHP files to place a reverse shell and gain access as the www-data user. We find a readable hexdump called password_backup in floris’s home folder which we reverse to a binary and decompress to gain the password for the floris user. Detecting unusal activity on the box with pspy reveals a cron job running as root and executing a curl command that reads its configuration from a file we can modify. Abusing curl for privileged read/write access lets us get a shell as root by forging our own /etc/shadow file.]]></summary></entry></feed>
