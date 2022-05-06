@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-05-06T22:01:52+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="http://localhost:4000/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/06/Mantis</id><content type="html" xml:base="http://localhost:4000/2022/05/06/Mantis.html"><![CDATA[<h3 id="summary">Summary</h3>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-05-07T00:21:37+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="http://localhost:4000/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/06/Mantis</id><content type="html" xml:base="http://localhost:4000/2022/05/06/Mantis.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine. We find a <em>hidden credentials file</em> when directory bruteforcing <strong>IIS</strong> on a <em>custom</em> port.</li>
   <li>The file gives us information about the <strong>MSSQL database</strong> (the username and DB name) in plain text while the password is present in the file name as a <em>base-64 encoded hex</em> string.</li>
@@ -125,33 +125,33 @@ Host script results:
   <li>Guest</li>
 </ol>
 
-<p><img src="/assets/mantis/smb-enum.jpg" alt="smb-enum" /></p>
+<p><img src="/assets/Mantis/smb-enum.jpg" alt="smb-enum" /></p>
 
 <p>without success.</p>
 
 <h3 id="ldap-enumeration">LDAP Enumeration</h3>
 <p>Using <code class="language-plaintext highlighter-rouge">ldapsearch</code>, we don’t get much information either :/</p>
 
-<p><img src="/assets/mantis/ldapsearch-output.jpg" alt="ldapsearch-output" /></p>
+<p><img src="/assets/Mantis/ldapsearch-output.jpg" alt="ldapsearch-output" /></p>
 
 <h3 id="kerberos-enumeration">Kerberos Enumeration</h3>
 <p>Enumerating kerberos with <code class="language-plaintext highlighter-rouge">kerbrute</code> gave us one user: <code class="language-plaintext highlighter-rouge">james</code></p>
 
-<p><img src="/assets/mantis/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
+<p><img src="/assets/Mantis/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
 
 <h3 id="asreproasting-james">ASREPRoasting James</h3>
 <p><code class="language-plaintext highlighter-rouge">james</code> wasn’t asreproastable.</p>
 
-<p><img src="/assets/mantis/james-not-asreproastable.jpg" alt="james-not-asreproastable" /></p>
+<p><img src="/assets/Mantis/james-not-asreproastable.jpg" alt="james-not-asreproastable" /></p>
 
 <h3 id="port-8080">Port 8080</h3>
 <p>Checking out port 8080 showed a <strong>CMS</strong> called <strong>Orchard CMS</strong>  as detected by <code class="language-plaintext highlighter-rouge">wappalyzer</code>.</p>
 
-<p><img src="/assets/mantis/orchard-cms.jpg" alt="orchard-cms" /></p>
+<p><img src="/assets/Mantis/orchard-cms.jpg" alt="orchard-cms" /></p>
 
 <p><em>Testing for weak credentials</em> with both the <code class="language-plaintext highlighter-rouge">admin</code> and <code class="language-plaintext highlighter-rouge">james</code> users failed :/</p>
 
-<p><img src="/assets/mantis/orchard-test-default-creds.jpg" alt="orchard-test-default-creds" /></p>
+<p><img src="/assets/Mantis/orchard-test-default-creds.jpg" alt="orchard-test-default-creds" /></p>
 
 <h3 id="port-1337">Port 1337</h3>
 <p>This port was interesting because of its number.</p>
@@ -162,23 +162,23 @@ Host script results:
 
 <p>I tried the <strong>MetaSploit</strong> module and it showed those results:</p>
 
-<p><img src="/assets/mantis/iis-tilde-vuln.jpg" alt="iis-tilde-vuln" /></p>
+<p><img src="/assets/Mantis/iis-tilde-vuln.jpg" alt="iis-tilde-vuln" /></p>
 
 <p>The <code class="language-plaintext highlighter-rouge">secure*~</code> file/directory seemed interesting enough. So, I went ahead for directory bruteforcing using <code class="language-plaintext highlighter-rouge">gobuster</code> and the <code class="language-plaintext highlighter-rouge">directory-list-lowercase-2.3-medium.txt</code> wordlist.</p>
 
 <p>Note: I used the lowercase wordlist since we’re bruteforcing <strong>Windows</strong> which isn’t case sensitive like <strong>Linux.</strong></p>
 
-<p><img src="/assets/mantis/gobuster-output-1337.jpg" alt="gobuster-output-1337" /></p>
+<p><img src="/assets/Mantis/gobuster-output-1337.jpg" alt="gobuster-output-1337" /></p>
 
 <p>The full name for the directory was <code class="language-plaintext highlighter-rouge">secure_notes</code>. It had the below contents:</p>
 
-<p><img src="/assets/mantis/1337-secure-notes-contents.jpg" alt="1337-secure-notes-contents" /></p>
+<p><img src="/assets/Mantis/1337-secure-notes-contents.jpg" alt="1337-secure-notes-contents" /></p>
 
 <p>The <code class="language-plaintext highlighter-rouge">web.config</code> file didn’t exist.</p>
 
 <p>But both the name and contents of <code class="language-plaintext highlighter-rouge">dev_notes_NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx.txt.txt</code> were interesting:</p>
 
-<p><img src="/assets/mantis/dev_notes_top.jpg" alt="dev_notes_top" /></p>
+<p><img src="/assets/Mantis/dev_notes_top.jpg" alt="dev_notes_top" /></p>
 
 <p>We could tell:</p>
 <ol>
@@ -195,35 +195,35 @@ Host script results:
 
 <p>Using it revealed that the text was <strong>base64-encoded</strong> after being converted into <strong>hexadecimal</strong>:</p>
 
-<p><img src="/assets/mantis/cyber-chef-magic-wand-1.jpg" alt="cyber-chef-magic-wand-1" /></p>
+<p><img src="/assets/Mantis/cyber-chef-magic-wand-1.jpg" alt="cyber-chef-magic-wand-1" /></p>
 
-<p><img src="/assets/mantis/cyber-chef-magic-wand-2.jpg" alt="cyber-chef-magic-wand-2" /></p>
+<p><img src="/assets/Mantis/cyber-chef-magic-wand-2.jpg" alt="cyber-chef-magic-wand-2" /></p>
 
-<p><img src="/assets/mantis/cyber-chef-awesomeness.jpg" alt="cyber-chef-awesomeness" /></p>
+<p><img src="/assets/Mantis/cyber-chef-awesomeness.jpg" alt="cyber-chef-awesomeness" /></p>
 
 <p>The password turned out to be <code class="language-plaintext highlighter-rouge">m$$ql_S@_P@ssW0rd!</code></p>
 
 <h3 id="interacting-with-mssql-and-db-enumeration">Interacting with MSSQL and DB Enumeration</h3>
 <p><em>Using another awesome</em> <strong>Impacket</strong> <em>python script:</em> <code class="language-plaintext highlighter-rouge">mssqlclient.py</code>, we are able to interact with the <strong>MSSQL DB</strong> command prompt from our Linux machine:</p>
 
-<p><img src="/assets/mantis/mssql-client-py-help.jpg" alt="mssql-client-py-help" /></p>
+<p><img src="/assets/Mantis/mssql-client-py-help.jpg" alt="mssql-client-py-help" /></p>
 
-<p><img src="/assets/mantis/mssql-client-py-connected.jpg" alt="mssql-client-py-connected" /></p>
+<p><img src="/assets/Mantis/mssql-client-py-connected.jpg" alt="mssql-client-py-connected" /></p>
 
 <p>We’re going to enumerate the tables in the <code class="language-plaintext highlighter-rouge">orcharddb</code> database first using: <code class="language-plaintext highlighter-rouge">SELECT * FROM orcharddb.INFORMATION_SCHEMA.TABLES</code></p>
 
-<p><img src="/assets/mantis/orcharddb-tables.jpg" alt="orcharddb-tables" /></p>
+<p><img src="/assets/Mantis/orcharddb-tables.jpg" alt="orcharddb-tables" /></p>
 
 <p>The table <code class="language-plaintext highlighter-rouge">blog_Orchard_Users_UserPartRecord</code> seemed interesting. So, we did a select on it: <code class="language-plaintext highlighter-rouge">select * from blog_Orchard_Users_UserPartRecord</code></p>
 
-<p><img src="/assets/mantis/james-password-db-cleartext.jpg" alt="james-password-db-cleartext" /></p>
+<p><img src="/assets/Mantis/james-password-db-cleartext.jpg" alt="james-password-db-cleartext" /></p>
 
 <p>and we’re greeted with a clear-text password for james :D</p>
 
 <h3 id="post-cred-checks">Post-Cred Checks</h3>
 <p><em>Having tested the creds from the</em> <code class="language-plaintext highlighter-rouge">james</code> <em>user,</em> and found them valid and we went on to more enumeration/attacks.</p>
 
-<p><img src="/assets/mantis/james-creds-validated-cme.jpg" alt="james-creds-validated-cme" /></p>
+<p><img src="/assets/Mantis/james-creds-validated-cme.jpg" alt="james-creds-validated-cme" /></p>
 
 <ol>
   <li>New <strong>SMB</strong> Access</li>
@@ -243,19 +243,19 @@ Host script results:
   <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />1. New <strong>SMB</strong> Access had the standard <code class="language-plaintext highlighter-rouge">READ</code> access on <code class="language-plaintext highlighter-rouge">SYSVOL</code> and <code class="language-plaintext highlighter-rouge">NETLOGON</code> shares.</li>
 </ul>
 
-<p><img src="/assets/mantis/james-smb-access.jpg" alt="james-smb-access" /></p>
+<p><img src="/assets/Mantis/james-smb-access.jpg" alt="james-smb-access" /></p>
 
 <ul class="task-list">
   <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />2. <strong>GPP</strong></li>
 </ul>
 
-<p><img src="/assets/mantis/gpp-enumeration.jpg" alt="gpp-enumeration" /></p>
+<p><img src="/assets/Mantis/gpp-enumeration.jpg" alt="gpp-enumeration" /></p>
 
 <ul class="task-list">
   <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />3. Full AD user enumeration + Password Pattern Recognition &gt; Password Policy Enumeration &gt; Password Spraying</li>
 </ul>
 
-<p><img src="/assets/mantis/full-ad-userlist.jpg" alt="full-ad-userlist" /></p>
+<p><img src="/assets/Mantis/full-ad-userlist.jpg" alt="full-ad-userlist" /></p>
 
 <p>Going by the same pattern for the <code class="language-plaintext highlighter-rouge">james</code> user on his password <code class="language-plaintext highlighter-rouge">J@m3s_P@ssW0rd!</code>, the password for the <code class="language-plaintext highlighter-rouge">Administrator</code> should be something like:</p>
 <ul>
@@ -271,11 +271,11 @@ Host script results:
 
 <p><em>But before trying anything,</em> we’re going to enumerate the <strong>Password Policy</strong>:</p>
 
-<p><img src="/assets/mantis/cme-pass-pol.jpg" alt="cme-pass-pol" /></p>
+<p><img src="/assets/Mantis/cme-pass-pol.jpg" alt="cme-pass-pol" /></p>
 
 <p>Seems alright to bruteforce the <code class="language-plaintext highlighter-rouge">Administrator</code> :D</p>
 
-<p><img src="/assets/mantis/admin-brute-force.jpg" alt="admin-brute-force" /></p>
+<p><img src="/assets/Mantis/admin-brute-force.jpg" alt="admin-brute-force" /></p>
 
 <p>But no luck there I guess XD</p>
 
@@ -283,13 +283,13 @@ Host script results:
   <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />4. Full AD <strong>ASREPRoast</strong></li>
 </ul>
 
-<p><img src="/assets/mantis/full-ad-asreproast.jpg" alt="full-ad-asreproast" /></p>
+<p><img src="/assets/Mantis/full-ad-asreproast.jpg" alt="full-ad-asreproast" /></p>
 
 <ul class="task-list">
   <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />5. <strong>Kerberoast</strong></li>
 </ul>
 
-<p><img src="/assets/mantis/kerberoast.jpg" alt="kerberoast" /></p>
+<p><img src="/assets/Mantis/kerberoast.jpg" alt="kerberoast" /></p>
 
 <ul class="task-list">
   <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />6. <strong>Bloodhound</strong></li>
@@ -297,15 +297,15 @@ Host script results:
 
 <p>All collection methods:</p>
 
-<p><img src="/assets/mantis/bloodhound-py.jpg" alt="bloodhound-py" /></p>
+<p><img src="/assets/Mantis/bloodhound-py.jpg" alt="bloodhound-py" /></p>
 
 <p>Neo4j DB Initialization + BloodHound (–no-sandbox)</p>
 
-<p><img src="/assets/mantis/bloodhound-initialization.jpg" alt="bloodhound-initialization" /></p>
+<p><img src="/assets/Mantis/bloodhound-initialization.jpg" alt="bloodhound-initialization" /></p>
 
 <p>We find nothing special there apart from <strong>RDP Privilege</strong> to the DC:</p>
 
-<p><img src="/assets/mantis/james-can-rdp-the-dc.jpg" alt="james-can-rdp-the-dc" /></p>
+<p><img src="/assets/Mantis/james-can-rdp-the-dc.jpg" alt="james-can-rdp-the-dc" /></p>
 
 <h3 id="ms14-068-aka-pykek-the-kill-d">MS14-068 a.k.a Pykek (The Kill :D)</h3>
 <p><strong>MS14-068</strong> is a vulnerability that affects most Domain Controllers before Server 2016.</p>
@@ -327,7 +327,7 @@ Host script results:
 
 <p><em>With a handy</em> <strong>Impacket</strong> <em>script called</em> <code class="language-plaintext highlighter-rouge">lookupsid.py</code>, we can easily get that.</p>
 
-<p><img src="/assets/mantis/james-sid-calculation.jpg" alt="james-sid-calculation" /></p>
+<p><img src="/assets/Mantis/james-sid-calculation.jpg" alt="james-sid-calculation" /></p>
 
 <p><em>Because like the picture above,</em> a user’s SID is formed of <code class="language-plaintext highlighter-rouge">&lt;DOMAIN_SID&gt;-&lt;USER_RID&gt;</code></p>
 
@@ -335,13 +335,13 @@ Host script results:
 
 <p><code class="language-plaintext highlighter-rouge">python2.7 ./ms14-068.py -u james@htb.local -s S-1-5-21-4220043660-4019079961-2895681657-1103 -d mantis.htb.local -p 'J@m3s_P@ssW0rd!'</code></p>
 
-<p><img src="/assets/mantis/got-forged-ticket.jpg" alt="got-forged-ticket" /></p>
+<p><img src="/assets/Mantis/got-forged-ticket.jpg" alt="got-forged-ticket" /></p>
 
 <p>Looks like a success! :D</p>
 
 <p>we’re going to export this ticket to our shell environment’s <code class="language-plaintext highlighter-rouge">KRB5CCNAME</code> variable and use <code class="language-plaintext highlighter-rouge">psexec.py</code> to own this DC :D</p>
 
-<p><img src="/assets/mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
+<p><img src="/assets/Mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
 
 <p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Windows Domain Controller machine. We find a hidden credentials file when directory bruteforcing IIS on a custom port. The file gives us information about the MSSQL database (the username and DB name) in plain text while the password is present in the file name as a base-64 encoded hex string. Using the credentials found, we gain access to the MSSQL database which contains the password for a user called james who is an AD user. With james’s credentials, we’re able to exploit Kerberos with a known CVE (MS14-068) a.k.a Pykek to forge a Domain Admin ticket. Using the ticket with kerberos authentication, we can execute commands on the box as a Domain Administrator to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="http://localhost:4000/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/02/Sizzle</id><content type="html" xml:base="http://localhost:4000/2022/05/02/Sizzle.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
