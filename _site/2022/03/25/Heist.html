@@ -17,15 +17,15 @@
 <meta property="og:locale" content="en_US" />
 <meta name="description" content="Summary We find a website on port 80 that lets us login as a guest. On the first page, we find a conversation between a user and a support admin about checking an attached Cisco router configuration file. Browsing the configuration file, we find hashes that we can easily crack to get passwords. One password works with SMB for the user on the web page. We use that to do a RID enumeration to get all the usernames on the system. Reusing the password we found with all users, we find one more user who happens to have PowerShell remoting access. To privesc, we use the famous PrintNightmare vulnerability since print spooler is found running. The intended path is dumping the running Firefox process from memory and using the strings command to obtain the Administrator credentials from the dump." />
 <meta property="og:description" content="Summary We find a website on port 80 that lets us login as a guest. On the first page, we find a conversation between a user and a support admin about checking an attached Cisco router configuration file. Browsing the configuration file, we find hashes that we can easily crack to get passwords. One password works with SMB for the user on the web page. We use that to do a RID enumeration to get all the usernames on the system. Reusing the password we found with all users, we find one more user who happens to have PowerShell remoting access. To privesc, we use the famous PrintNightmare vulnerability since print spooler is found running. The intended path is dumping the running Firefox process from memory and using the strings command to obtain the Administrator credentials from the dump." />
-<link rel="canonical" href="https://omnisl4sh.github.io/2022/03/25/Heist.html" />
-<meta property="og:url" content="https://omnisl4sh.github.io/2022/03/25/Heist.html" />
+<link rel="canonical" href="http://localhost:4000/2022/03/25/Heist.html" />
+<meta property="og:url" content="http://localhost:4000/2022/03/25/Heist.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2022-03-25T00:00:00+02:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HTB Writeup [Windows - Easy] - Heist" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-03-25T00:00:00+02:00","datePublished":"2022-03-25T00:00:00+02:00","description":"Summary We find a website on port 80 that lets us login as a guest. On the first page, we find a conversation between a user and a support admin about checking an attached Cisco router configuration file. Browsing the configuration file, we find hashes that we can easily crack to get passwords. One password works with SMB for the user on the web page. We use that to do a RID enumeration to get all the usernames on the system. Reusing the password we found with all users, we find one more user who happens to have PowerShell remoting access. To privesc, we use the famous PrintNightmare vulnerability since print spooler is found running. The intended path is dumping the running Firefox process from memory and using the strings command to obtain the Administrator credentials from the dump.","headline":"HTB Writeup [Windows - Easy] - Heist","mainEntityOfPage":{"@type":"WebPage","@id":"https://omnisl4sh.github.io/2022/03/25/Heist.html"},"url":"https://omnisl4sh.github.io/2022/03/25/Heist.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-03-25T00:00:00+02:00","datePublished":"2022-03-25T00:00:00+02:00","description":"Summary We find a website on port 80 that lets us login as a guest. On the first page, we find a conversation between a user and a support admin about checking an attached Cisco router configuration file. Browsing the configuration file, we find hashes that we can easily crack to get passwords. One password works with SMB for the user on the web page. We use that to do a RID enumeration to get all the usernames on the system. Reusing the password we found with all users, we find one more user who happens to have PowerShell remoting access. To privesc, we use the famous PrintNightmare vulnerability since print spooler is found running. The intended path is dumping the running Firefox process from memory and using the strings command to obtain the Administrator credentials from the dump.","headline":"HTB Writeup [Windows - Easy] - Heist","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/03/25/Heist.html"},"url":"http://localhost:4000/2022/03/25/Heist.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -45,7 +45,7 @@
     <div id="container">
       <div class="inner">
         <header>
-          <h1><a href="https://omnisl4sh.github.io/">OmniSl4sh's Blog</a></h1>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
           <h2></h2>
         </header>
         <!--<<section id="downloads" class="clearfix">
@@ -235,52 +235,54 @@ Q4)sJu\Y8qz*A3?d
 <p><em>now on the machine,</em> we go into privilege escalation mode :D we try many things:</p>
 
 <ol>
-  <li>searching desktop, documents &amp; downloads: <code class="language-plaintext highlighter-rouge">ls -force ~\Desktop, ~\Documents, ~\Downloads</code>
-```
-Directory: C:\Users\Chase\Desktop</li>
+  <li>searching desktop, documents &amp; downloads: <code class="language-plaintext highlighter-rouge">ls -force ~\Desktop, ~\Documents, ~\Downloads</code></li>
 </ol>
 
-<p>Mode                LastWriteTime         Length Name
-—-                ————-         —— —-
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Directory: C:\Users\Chase\Desktop
+
+Mode                LastWriteTime         Length Name
+----                -------------         ------ ----
 -a-hs-        4/22/2019   7:14 AM            282 desktop.ini
--a—-        4/22/2019   9:08 AM            121 todo.txt
--ar—        3/18/2022   2:13 PM             34 user.txt</p>
+-a----        4/22/2019   9:08 AM            121 todo.txt
+-ar---        3/18/2022   2:13 PM             34 user.txt
 
-<p>Directory: C:\Users\Chase\Documents</p>
+Directory: C:\Users\Chase\Documents
 
-<p>Mode                LastWriteTime         Length Name
-—-                ————-         —— —-
-d–hsl        4/22/2019   7:14 AM                My Music
-d–hsl        4/22/2019   7:14 AM                My Pictures
-d–hsl        4/22/2019   7:14 AM                My Videos
--a-hs-        4/22/2019   7:14 AM            402 desktop.ini</p>
+Mode                LastWriteTime         Length Name
+----                -------------         ------ ----
+d--hsl        4/22/2019   7:14 AM                My Music
+d--hsl        4/22/2019   7:14 AM                My Pictures
+d--hsl        4/22/2019   7:14 AM                My Videos
+-a-hs-        4/22/2019   7:14 AM            402 desktop.ini
 
-<p>Directory: C:\Users\Chase\Downloads</p>
+Directory: C:\Users\Chase\Downloads
 
-<p>Mode                LastWriteTime         Length Name
-—-                ————-         —— —-
+Mode                LastWriteTime         Length Name
+----                -------------         ------ ----
 -a-hs-        4/22/2019   7:14 AM            282 desktop.ini
--a—-        2/18/2021   4:03 PM       98779512 VMware-tools-11.2.5-17337674-x86_64.exe</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>the contents of `todo.txt` don't reveal something important:
+-a----        2/18/2021   4:03 PM       98779512 VMware-tools-11.2.5-17337674-x86_64.exe
 </code></pre></div></div>
-<p>Stuff to-do:</p>
-<ol>
-  <li>Keep checking the issues list.</li>
-  <li>Fix the router config.</li>
-</ol>
 
-<p>Done:</p>
+<p>the contents of <code class="language-plaintext highlighter-rouge">todo.txt</code> don’t reveal something important:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Stuff to-do:
+1. Keep checking the issues list.
+2. Fix the router config.
+
+Done:
+1. Restricted access for guest user.
+</code></pre></div></div>
+
 <ol>
-  <li>Restricted access for guest user.
-```</li>
   <li>searching in IIS webroot: <code class="language-plaintext highlighter-rouge">ls -force c:\inetpub\wwwroot</code> we get <strong>access denied</strong></li>
   <li>searching within hazard’s profile, we get <strong>access denied</strong></li>
-  <li>searching for <strong>Autologon Creds</strong>, with a <em>little powershell one-liner I wrote:</em>
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName', 'DefaultPassword', 'AltDefaultDomainName', 'AltDefaultUserName', 'AltDefaultPassword' | % {$Val = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name $_ ;if($Val){Write-Host -ForegroundColor Green "[+] $_`: $Val"; Clear-Variable Val}else{Write-Host "[-] $_`: Not found"}};$ErrorActionPreference='Continue'
-</code></pre></div>    </div>
-    <p>we get nothing also:</p>
-  </li>
+  <li>searching for <strong>Autologon Creds</strong>, with a <em>little powershell one-liner I wrote:</em></li>
 </ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName', 'DefaultPassword', 'AltDefaultDomainName', 'AltDefaultUserName', 'AltDefaultPassword' | % {$Val = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name $_ ;if($Val){Write-Host -ForegroundColor Green "[+] $_`: $Val"; Clear-Variable Val}else{Write-Host "[-] $_`: Not found"}};$ErrorActionPreference='Continue'
+</code></pre></div></div>
+
+<p>we get nothing also:</p>
 
 <p><img src="/assets/Heist/autologon-creds.jpg" alt="autologon-creds" /></p>
 

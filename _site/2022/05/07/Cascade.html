@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9) | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Summary Noticing the open ports: DNS, Kerberos, LDAP &amp; SMB, we know we’re up against a Windows Domain Controller. LDAP Enumeration reveals a base-64 encoded password which was embedded in a unique Active Directory user attribute. Decoding the password grants us access to the r.thompson user who happens to have read access to the data SMB share. Exploring the share, we find a VNC-related .reg file which contains an encrypted password in hexadecimal format. We also find an e-mail about a deleted user (TempAdmin) who has a similar password to the normal (admin) user. After we crack the VNC password with a tool called vncpwd, we gain access to the s.smith user. While enumerating SMB access for s.smith, we find that he has read access to the audit share. The audit share contained an sqlite3 database file. When enumerating it, we find an encrypted password for the arksvc user. We also find two files CascAudit.exe and CasCrypto.dll which we reverse to find the necessary information to decrypt the arksvc password. We authenticate as the arksvc user and find that he’s a member of a special group: AD Recycle Bin. Combining this information with the e-mail contents, we’re enticed to check the deleted AD users. Using PowerShell to fetch the deleted users with all their properties, we find the password for the Administrator account in a unique attribute of the TempAdmin user. We use it to authenticate and we gain full access to the machine." />
+<meta property="og:description" content="Summary Noticing the open ports: DNS, Kerberos, LDAP &amp; SMB, we know we’re up against a Windows Domain Controller. LDAP Enumeration reveals a base-64 encoded password which was embedded in a unique Active Directory user attribute. Decoding the password grants us access to the r.thompson user who happens to have read access to the data SMB share. Exploring the share, we find a VNC-related .reg file which contains an encrypted password in hexadecimal format. We also find an e-mail about a deleted user (TempAdmin) who has a similar password to the normal (admin) user. After we crack the VNC password with a tool called vncpwd, we gain access to the s.smith user. While enumerating SMB access for s.smith, we find that he has read access to the audit share. The audit share contained an sqlite3 database file. When enumerating it, we find an encrypted password for the arksvc user. We also find two files CascAudit.exe and CasCrypto.dll which we reverse to find the necessary information to decrypt the arksvc password. We authenticate as the arksvc user and find that he’s a member of a special group: AD Recycle Bin. Combining this information with the e-mail contents, we’re enticed to check the deleted AD users. Using PowerShell to fetch the deleted users with all their properties, we find the password for the Administrator account in a unique attribute of the TempAdmin user. We use it to authenticate and we gain full access to the machine." />
+<link rel="canonical" href="http://localhost:4000/2022/05/07/Cascade.html" />
+<meta property="og:url" content="http://localhost:4000/2022/05/07/Cascade.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-05-07T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-05-07T00:00:00+02:00","datePublished":"2022-05-07T00:00:00+02:00","description":"Summary Noticing the open ports: DNS, Kerberos, LDAP &amp; SMB, we know we’re up against a Windows Domain Controller. LDAP Enumeration reveals a base-64 encoded password which was embedded in a unique Active Directory user attribute. Decoding the password grants us access to the r.thompson user who happens to have read access to the data SMB share. Exploring the share, we find a VNC-related .reg file which contains an encrypted password in hexadecimal format. We also find an e-mail about a deleted user (TempAdmin) who has a similar password to the normal (admin) user. After we crack the VNC password with a tool called vncpwd, we gain access to the s.smith user. While enumerating SMB access for s.smith, we find that he has read access to the audit share. The audit share contained an sqlite3 database file. When enumerating it, we find an encrypted password for the arksvc user. We also find two files CascAudit.exe and CasCrypto.dll which we reverse to find the necessary information to decrypt the arksvc password. We authenticate as the arksvc user and find that he’s a member of a special group: AD Recycle Bin. Combining this information with the e-mail contents, we’re enticed to check the deleted AD users. Using PowerShell to fetch the deleted users with all their properties, we find the password for the Administrator account in a unique attribute of the TempAdmin user. We use it to authenticate and we gain full access to the machine.","headline":"HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/05/07/Cascade.html"},"url":"http://localhost:4000/2022/05/07/Cascade.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-05-07T00:00:00+02:00" itemprop="datePublished">May 7, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h3 id="summary">Summary</h3>
+<ul>
+  <li><em>Noticing the open ports</em>: <strong>DNS, Kerberos, LDAP &amp; SMB</strong>, we know we’re up against a <strong>Windows Domain Controller</strong>.</li>
+  <li><strong>LDAP Enumeration</strong> reveals a <em>base-64 encoded</em> password which was <em>embedded</em> in a unique <strong>Active Directory</strong> user attribute.</li>
+  <li>Decoding the password grants us access to the <code class="language-plaintext highlighter-rouge">r.thompson</code> user who happens to have <code class="language-plaintext highlighter-rouge">read</code> access to the <code class="language-plaintext highlighter-rouge">data</code> <strong>SMB</strong> share.</li>
+  <li><em>Exploring the share,</em> we find a <code class="language-plaintext highlighter-rouge">VNC</code>-related <code class="language-plaintext highlighter-rouge">.reg</code> file which contains an encrypted password in hexadecimal format.</li>
+  <li>We also find an e-mail about a <em>deleted</em> user (<code class="language-plaintext highlighter-rouge">TempAdmin</code>) who has a similar password to the normal (admin) user.</li>
+  <li><em>After we crack the</em> <strong>VNC</strong> <em>password with a tool called</em> <code class="language-plaintext highlighter-rouge">vncpwd</code>, we gain access to the <code class="language-plaintext highlighter-rouge">s.smith</code> user.</li>
+  <li><em>While enumerating SMB access for</em> <code class="language-plaintext highlighter-rouge">s.smith</code>, we find that he has <code class="language-plaintext highlighter-rouge">read</code> access to the <code class="language-plaintext highlighter-rouge">audit</code> share.</li>
+  <li>The <code class="language-plaintext highlighter-rouge">audit</code> share contained an <code class="language-plaintext highlighter-rouge">sqlite3</code> database file. <em>When enumerating it,</em> we find an encrypted password for the <code class="language-plaintext highlighter-rouge">arksvc</code> user.</li>
+  <li>We also find two files <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> and <code class="language-plaintext highlighter-rouge">CasCrypto.dll</code> which we reverse to find the necessary information to decrypt the <code class="language-plaintext highlighter-rouge">arksvc</code> password.</li>
+  <li>We authenticate as the <code class="language-plaintext highlighter-rouge">arksvc</code> user and find that he’s a member of a special group: <code class="language-plaintext highlighter-rouge">AD Recycle Bin</code>.</li>
+  <li><em>Combining this information with the e-mail contents,</em> we’re enticed to check the deleted AD users.</li>
+  <li><em>Using</em> <strong>PowerShell</strong> <em>to fetch the deleted users with all their properties,</em> we find the password for the <code class="language-plaintext highlighter-rouge">Administrator</code> account in a unique attribute of the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user. We use it to authenticate and we gain <strong>full access</strong> to the machine.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
+53/tcp    open  domain        Microsoft DNS 6.1.7601 (1DB15D39) (Windows Server 2008 R2 SP1)
+| dns-nsid: 
+|_  bind.version: Microsoft DNS 6.1.7601 (1DB15D39)
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-05-06 11:02:19Z)
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: cascade.local, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds?
+636/tcp   open  tcpwrapped
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: cascade.local, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49154/tcp open  msrpc         Microsoft Windows RPC
+49155/tcp open  msrpc         Microsoft Windows RPC
+49157/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49158/tcp open  msrpc         Microsoft Windows RPC
+49170/tcp open  msrpc         Microsoft Windows RPC
+Service Info: Host: CASC-DC1; OS: Windows; CPE: cpe:/o:microsoft:windows_server_2008:r2:sp1, cpe:/o:microsoft:windows
+
+Host script results:
+| smb2-security-mode: 
+|   2.1: 
+|_    Message signing enabled and required
+| smb2-time: 
+|   date: 2022-05-06T11:03:13
+|_  start_date: 2022-05-06T10:54:20
+</code></pre></div></div>
+<p><strong>DNS + Kerberos + LDAP + SMB = Domain Controller :D</strong></p>
+
+<p><strong>WinRM</strong> = Shell Access maybe :)</p>
+
+<p><em>From</em> <code class="language-plaintext highlighter-rouge">nmap</code> <em>version detection and scripts:</em></p>
+<ul>
+  <li><strong>OS:</strong> Windows Server 2008 R2 SP1</li>
+  <li><strong>Domain Name:</strong> Cascade.local</li>
+  <li><strong>Host name:</strong> CASC-DC1</li>
+</ul>
+
+<h3 id="checkpoint-listing-possible-enumerationexploitation-paths">Checkpoint: Listing Possible Enumeration/Exploitation Paths</h3>
+<p><em>Having the port data,</em> we go over our <strong>game plan</strong>:</p>
+
+<p><img src="/assets/Cascade/ad-gameplan-map.jpg" alt="ad-gameplan-map" /></p>
+
+<h3 id="down-to-business-rpc">Down to business: RPC</h3>
+<p><code class="language-plaintext highlighter-rouge">enum4linux-ng</code> (https://github.com/cddmp/enum4linux-ng) is a really nice revamp of the old <code class="language-plaintext highlighter-rouge">enum4linux</code> tool.</p>
+
+<p>we run it using the <code class="language-plaintext highlighter-rouge">-A</code> switch as well as <code class="language-plaintext highlighter-rouge">-oY</code> to output into <strong>YAML format</strong>.</p>
+
+<p>Command: <code class="language-plaintext highlighter-rouge">enum4linux-ng -A 10.10.10.182 -oY e4lng-output</code></p>
+
+<p>we get a bunch of cool stuff:</p>
+
+<ol>
+  <li>usernames</li>
+</ol>
+
+<p><img src="/assets/Cascade/e4lng-output-users.jpg" alt="e4lng-output-users" /></p>
+
+<ol>
+  <li>groups</li>
+</ol>
+
+<p><img src="/assets/Cascade/e4lng-output-groups.jpg" alt="e4lng-output-groups" /></p>
+
+<ol>
+  <li>password policy</li>
+</ol>
+
+<p><img src="/assets/Cascade/e4lng-output-pass-pol.jpg" alt="e4lng-output-pass-pol" /></p>
+
+<p>This is great! We have a userlist that we can use to do <strong>ASREPRoasting</strong> and we can do <strong>Password Spraying</strong> without locking anyone out.</p>
+
+<h3 id="time-saving-1-asreproasting">Time Saving #1: ASREPRoasting</h3>
+<p><em>To save time,</em> we’re going to do the <strong>ASREPRoast</strong> first because it’s a quick check and has a high chance of giving us creds (<em>if we crack the hash</em>).</p>
+
+<p>Command: <code class="language-plaintext highlighter-rouge">GetNPUsers.py -dc-ip 10.10.10.182 -request -debug -usersfile users.txt cascade.local/</code></p>
+
+<p><strong>Note:</strong> <em>I generally prefer to use the</em> <code class="language-plaintext highlighter-rouge">-debug</code> <em>flag with everything. It can save me a lot of time in troubleshooting.</em></p>
+
+<p><img src="/assets/Cascade/asreproast-results.jpg" alt="asreproast-results" /></p>
+
+<p>We find no accounts that don’t require <strong>kerberoes preauthentication.</strong></p>
+
+<p>we also notice some accounts got another type of error: <code class="language-plaintext highlighter-rouge">KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)</code>. <em>more on those later :)</em></p>
+
+<h3 id="time-saving-2-password-spraying-in-the-background">Time Saving #2: Password Spraying in the background</h3>
+<p><em>Since the password policy contained no user lockout,</em> we’re good to go spraying :D</p>
+
+<p>Command: <code class="language-plaintext highlighter-rouge">for i in $(cat /opt/Seclists/Passwords/Common-Credentials/500-worst-passwords.txt); do kerbrute passwordspray --dc 10.10.10.182 -d cascade.local users.txt $i | grep -oP '\[\+\].*'; done</code></p>
+
+<p>what this does:</p>
+
+<p>it will spray using common passwords and only show us the output if it catches something.</p>
+
+<p>This is <em>mainly</em> to avoid filling up the screen with junk.</p>
+
+<p>Note on the error we get when <strong>ASREPRoasting:</strong></p>
+
+<p><em>Upon spraying,</em> we know that the users that got the <code class="language-plaintext highlighter-rouge">KDC_ERR_CLIENT_REVOKED</code> were in fact locked out.</p>
+
+<p>Another benefit of the verbosity with <code class="language-plaintext highlighter-rouge">-v</code> :)</p>
+
+<p><img src="/assets/Cascade/locked-out-users.jpg" alt="locked-out-users" /></p>
+
+<h3 id="smb-enumeration">SMB Enumeration</h3>
+<p><em>While we leave our spray running,</em> we’re going to enumerate <strong>SMB shares</strong> using <code class="language-plaintext highlighter-rouge">crackmapexec</code></p>
+
+<p><img src="/assets/Cascade/crackmapexec-smb-enum.jpg" alt="crackmapexec-smb-enum" /></p>
+
+<p>Notice that we test with the <code class="language-plaintext highlighter-rouge">cascguest</code> user on the 3rd attempt.</p>
+
+<p>This is because it was there in the <code class="language-plaintext highlighter-rouge">enum4linux-ng</code> output.</p>
+
+<p><img src="/assets/Cascade/casc-guest.jpg" alt="casc-guest" /></p>
+
+<h3 id="ldap">LDAP</h3>
+<p>We’re going to enumerate <strong>LDAP</strong> and see if we can find something there.</p>
+
+<p>Command: <code class="language-plaintext highlighter-rouge">ldapsearch -x -H ldap://10.10.10.182 -b 'dc=cascade,dc=local'</code></p>
+
+<p>The output was huge (6k+ lines). So we saved it to <code class="language-plaintext highlighter-rouge">ldap-output</code></p>
+
+<p><img src="/assets/Cascade/ldap-output-huge.jpg" alt="ldap-output-huge" /></p>
+
+<p>we’re going to use a <code class="language-plaintext highlighter-rouge">grep</code> with some <strong>Regex Kung Fu</strong> to get rid of any unnecessary information.</p>
+
+<p><strong>Regex:</strong> <code class="language-plaintext highlighter-rouge">^\w+:</code></p>
+
+<p><strong>English:</strong> Get us any line that starts (<code class="language-plaintext highlighter-rouge">^</code>) with a bunch of characters (<code class="language-plaintext highlighter-rouge">\w+</code>) followed by a semicolon (<code class="language-plaintext highlighter-rouge">:</code>).</p>
+
+<p>We then follow up with a <code class="language-plaintext highlighter-rouge">sort</code> using the <code class="language-plaintext highlighter-rouge">-u</code> flag to get <em>only the signicant attributes.</em></p>
+
+<p><img src="/assets/Cascade/regex-kung-fu.jpg" alt="regex-kung-fu" /></p>
+
+<p>100 lines is much better XD</p>
+
+<p><em>While sifting through the attributes,</em> we came across this:</p>
+
+<p><img src="/assets/Cascade/ldap-uniq-attrib.jpg" alt="ldap-uniq-attrib" /></p>
+
+<p><img src="/assets/Cascade/ldap-uniq-attrib-val.jpg" alt="ldap-uniq-attrib-val" /></p>
+
+<p><em>Since it has an</em> <code class="language-plaintext highlighter-rouge">=</code> <em>at the end,</em> we try to decode it using <code class="language-plaintext highlighter-rouge">base64 -d</code></p>
+
+<p><img src="/assets/Cascade/ldap-uniq-attrib-pass-decoded.jpg" alt="ldap-uniq-attrib-pass-decoded" /></p>
+
+<p>This attribute belonged to the <code class="language-plaintext highlighter-rouge">r.thompson</code> user.</p>
+
+<p>Authentication succeded with it. But we didn’t get code execution with <strong>WinRM</strong> :/</p>
+
+<p><img src="/assets/Cascade/ryan-creds-check.jpg" alt="ryan-creds-check" /></p>
+
+<h3 id="kerberoasting">Kerberoasting</h3>
+<p><em>Applying the same strategy as before,</em> we’re going to <strong>kerberoast.</strong></p>
+
+<p><img src="/assets/Cascade/kerberoasting.jpg" alt="kerberoasting" /></p>
+
+<p>No results there.</p>
+
+<h3 id="smb-access-with-rthompson">SMB Access with <code class="language-plaintext highlighter-rouge">R.Thompson</code></h3>
+<p>We’re going to use a <code class="language-plaintext highlighter-rouge">crackmapexec</code> module called <code class="language-plaintext highlighter-rouge">spider_plus</code>.</p>
+
+<p>It essentially crawls the <code class="language-plaintext highlighter-rouge">SMB</code> share and returns a list of files that we have access to.</p>
+
+<p><img src="/assets/Cascade/cme-spider-plus.jpg" alt="cme-spider-plus" /></p>
+
+<p>Here’s what it found:</p>
+
+<p><img src="/assets/Cascade/cme-spider-plus-results.jpg" alt="cme-spider-plus-results" /></p>
+
+<p><em>In the</em> <code class="language-plaintext highlighter-rouge">Data</code> <em>share,</em> the contents of the <code class="language-plaintext highlighter-rouge">Meeting_Notes_June_2018.html</code> were interesting:</p>
+
+<p><img src="/assets/Cascade/email-contents.jpg" alt="email-contents" /></p>
+
+<p><em>According to the mail,</em> a user called <code class="language-plaintext highlighter-rouge">TempAdmin</code> which has the same password as the normal admin (<code class="language-plaintext highlighter-rouge">Administrator</code> <em>probably</em>) should be deleted at the end of 2018.</p>
+
+<p>We note this down and make sure to be on the lookout for any information regarding that user.</p>
+
+<p>When we look at the <code class="language-plaintext highlighter-rouge">ArkAdRecycleBin.log</code> we get a confirmation that the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user has in fact been deleted.</p>
+
+<p><img src="/assets/Cascade/ark-ad-recycle-bin.jpg" alt="ark-ad-recycle-bin" /></p>
+
+<p>We find something very intersting in the <code class="language-plaintext highlighter-rouge">VNC Install.reg</code> file:</p>
+
+<p><img src="/assets/Cascade/tight-vnc-password.jpg" alt="tight-vnc-password" /></p>
+
+<h3 id="cracking-vnc-passwords">Cracking VNC Passwords</h3>
+<p>We’re interested in cracking this <strong>VNC</strong> password and reusing it.</p>
+
+<p><em>Luckily,</em> a tool called <code class="language-plaintext highlighter-rouge">vncpwd</code> (https://github.com/jeroennijhof/vncpwd) can easily do that.</p>
+
+<p>we clone the repo using <code class="language-plaintext highlighter-rouge">git clone https://github.com/jeroennijhof/vncpwd</code> and follow up with a <code class="language-plaintext highlighter-rouge">make</code> command to build it.</p>
+
+<p>We then get the hex string, reverse it with <code class="language-plaintext highlighter-rouge">xxd</code> using the <code class="language-plaintext highlighter-rouge">-r</code> and <code class="language-plaintext highlighter-rouge">-p</code> flags and decrypt it.</p>
+
+<p><img src="/assets/Cascade/vnc-pwd-cracked.jpg" alt="vnc-pwd-cracked" /></p>
+
+<h3 id="password-reuse">Password Reuse</h3>
+<p><em>Having a new password</em> <code class="language-plaintext highlighter-rouge">sT333ve2</code>, we’re going to to spray it all over the domain users we’ve collected.</p>
+
+<p><img src="/assets/Cascade/steve-ad-user-owned.jpg" alt="steve-ad-user-owned" /></p>
+
+<p><em>As expected,</em> the password belonged to the <code class="language-plaintext highlighter-rouge">s.smith</code> user.</p>
+
+<p>He also has <strong>WinRM</strong> access :D</p>
+
+<p><img src="/assets/Cascade/steve-winrm-access.jpg" alt="steve-winrm-access" /></p>
+
+<p>The user flag is the only significant thing that we found using his shell access.</p>
+
+<p>Running <strong>WinPeas</strong> didn’t pick up anything either. So we took a step back to check his <strong>SMB</strong> access.</p>
+
+<h3 id="steves-smb-access-the-audit-share">Steve’s SMB access: The <code class="language-plaintext highlighter-rouge">Audit$</code> Share</h3>
+<p>Using <code class="language-plaintext highlighter-rouge">crackmapexec</code> with the <code class="language-plaintext highlighter-rouge">--shares</code> flag, we get the below:</p>
+
+<p><img src="/assets/Cascade/steve-smb-access.jpg" alt="steve-smb-access" /></p>
+
+<p>we mount the share with: <code class="language-plaintext highlighter-rouge">mount -t cifs -o 'username=s.smith,password=sT333ve2' //10.10.10.182/Audit$ /mnt</code></p>
+
+<p>and list the files with: <code class="language-plaintext highlighter-rouge">find /mnt -type f 2&gt;/dev/null</code></p>
+
+<p><img src="/assets/Cascade/mount-and-find.jpg" alt="mount-and-find" /></p>
+
+<p>Checking the <code class="language-plaintext highlighter-rouge">.bat</code> file, we find that the executable <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> runs with a database as an argument <code class="language-plaintext highlighter-rouge">"\\CASC-DC1\Audit$\DB\Audit.db"</code></p>
+
+<p><img src="/assets/Cascade/audit-bat-file.jpg" alt="audit-bat-file" /></p>
+
+<p><em>From the</em> <strong>SQLite</strong> <code class="language-plaintext highlighter-rouge">.dll</code> <em>files,</em> we infer that the <code class="language-plaintext highlighter-rouge">.db</code> file is of that type.</p>
+
+<p>We confirm that with <code class="language-plaintext highlighter-rouge">file</code>:</p>
+
+<p><img src="/assets/Cascade/check-out-the-db.jpg" alt="check-out-the-db" /></p>
+
+<h3 id="db-enumeration">DB Enumeration</h3>
+<p>We’re going to use the <code class="language-plaintext highlighter-rouge">sqlite3</code> command-line utility to check out the database contents.</p>
+
+<ol>
+  <li>we list the tables with: <code class="language-plaintext highlighter-rouge">.tables</code></li>
+  <li>we get the schema using <code class="language-plaintext highlighter-rouge">.schema</code></li>
+  <li>we select everything from the <code class="language-plaintext highlighter-rouge">Ldap</code> table after noticing the <code class="language-plaintext highlighter-rouge">pwd</code> field.</li>
+  <li>no new data was found in <code class="language-plaintext highlighter-rouge">DeletedUserAudit</code> table.</li>
+  <li>same for the <code class="language-plaintext highlighter-rouge">Misc</code> table as well.</li>
+</ol>
+
+<p><img src="/assets/Cascade/sqlite-db-enumeration.jpg" alt="sqlite-db-enumeration" /></p>
+
+<p>The password we found in the <code class="language-plaintext highlighter-rouge">Ldap</code> table appears to be for the <code class="language-plaintext highlighter-rouge">ArkSvc</code> user.</p>
+
+<p>Decoding it as base-64 gives us strange output. It must be encrypted.</p>
+
+<p><img src="/assets/Cascade/ark-svc-b64-attempt.jpg" alt="ark-svc-b64-attempt" /></p>
+
+<h3 id="reversing-the-cascauditexe-and-dll-files">Reversing the <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> and <code class="language-plaintext highlighter-rouge">.dll</code> files</h3>
+<p><em>Since the</em> <code class="language-plaintext highlighter-rouge">.bat</code> <em>file showed the</em> <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> <em>processing the Audit database,</em> we’re interested to know how it works.</p>
+
+<p>The same goes for <code class="language-plaintext highlighter-rouge">CascCrypto.dll</code>. <em>Judging by its name,</em> it’s very likely related to the encryption.</p>
+
+<p>Doing a <code class="language-plaintext highlighter-rouge">file</code> command against the <code class="language-plaintext highlighter-rouge">CascAudit</code> files tells us they are built with <code class="language-plaintext highlighter-rouge">.Net</code></p>
+
+<p><img src="/assets/Cascade/inspecting-cascaudit-files.jpg" alt="inspecting-cascaudit-files" /></p>
+
+<p><em>Because of an amazing tool called</em> <code class="language-plaintext highlighter-rouge">DNSpy</code> (https://github.com/dnSpy/dnSpy), reversing <code class="language-plaintext highlighter-rouge">.Net</code> is simple.</p>
+
+<p>Opening the <code class="language-plaintext highlighter-rouge">CascCrypto.dll</code> with <code class="language-plaintext highlighter-rouge">DNSpy.exe</code> shows two important functions: <code class="language-plaintext highlighter-rouge">EncryptString</code> and <code class="language-plaintext highlighter-rouge">DecryptString</code></p>
+
+<p><img src="/assets/Cascade/dnspy-casc-crypto-dll.jpg" alt="dnspy-casc-crypto-dll" /></p>
+
+<p>A great deal of information is present regarding the encryption:</p>
+<ol>
+  <li><strong>Type:</strong> AES</li>
+  <li><strong>Block Size:</strong> 128-bit</li>
+  <li><strong>Key Size:</strong> 128-bit</li>
+  <li><strong>Initialization Vector (IV):</strong> <code class="language-plaintext highlighter-rouge">1tdyjCbY1Ix49842</code></li>
+  <li><strong>Mode:</strong> CBC</li>
+</ol>
+
+<p>We need just the key to be able to decrypt the <code class="language-plaintext highlighter-rouge">ArkSvc</code> password found in the DB. Or so we hope :D</p>
+
+<p>We find the it in the <code class="language-plaintext highlighter-rouge">.exe</code> code</p>
+
+<p><img src="/assets/Cascade/dnspy-casc-exe.jpg" alt="dnspy-casc-exe" /></p>
+
+<p>it’s <code class="language-plaintext highlighter-rouge">c4scadek3y654321</code></p>
+
+<p><em>Looking at the code,</em> it seems that the <code class="language-plaintext highlighter-rouge">.exe</code> reads the encrypted password from the database and decrypts it using the <code class="language-plaintext highlighter-rouge">DecryptString</code> function before moving on to carry out its tasks.</p>
+
+<h3 id="aes-cbc-128-decryption">AES-CBC-128 Decryption</h3>
+<p><em>Adding the details we found into an</em> <strong>online decryption tool</strong> (https://www.devglan.com/online-tools/aes-encryption-decryption), we get the plaintext: <code class="language-plaintext highlighter-rouge">w3lc0meFr31nd</code></p>
+
+<p><img src="/assets/Cascade/aes-cbc-128-decryption.jpg" alt="aes-cbc-128-decryption" /></p>
+
+<h3 id="arksvc-and-the-ad-recycle-bin">ArkSvc and the AD Recycle Bin</h3>
+<p>The user <code class="language-plaintext highlighter-rouge">ArkSvc</code> authenticates successfully with the <code class="language-plaintext highlighter-rouge">w3lc0meFr31nd</code> password and also has <code class="language-plaintext highlighter-rouge">WinRM</code> access.</p>
+
+<p><img src="/assets/Cascade/ark-svc-got-winrm.jpg" alt="ark-svc-got-winrm" /></p>
+
+<p><em>While doing some basic privesc checks</em>, we notice that the group membership of this user is unique:</p>
+
+<p><img src="/assets/Cascade/ark-svc-group-membership.jpg" alt="ark-svc-group-membership" /></p>
+
+<p><code class="language-plaintext highlighter-rouge">s.smith</code> didn’t have this access.</p>
+
+<p><img src="/assets/Cascade/s-smith-group-membership.jpg" alt="s-smith-group-membership" /></p>
+
+<p>The <strong>Recycle Bin</strong> of <strong>Active Directory</strong> is important in our case because it contains the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user.</p>
+
+<p>We don’t know his password yet. But it might be similar to any of the ones we found.</p>
+
+<p>We try restoring him using <code class="language-plaintext highlighter-rouge">PowerShell</code></p>
+
+<p>The command has 3 parts:</p>
+<ol>
+  <li>Fetching all deleted objects: <code class="language-plaintext highlighter-rouge">Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects</code></li>
+  <li>Selecting the last one (TempAdmin): <code class="language-plaintext highlighter-rouge">Select -Last 1 </code></li>
+  <li>Restoring It: <code class="language-plaintext highlighter-rouge">Restore-ADObject</code></li>
+</ol>
+
+<p><img src="/assets/Cascade/attempting-tempadmin-restore.jpg" alt="attempting-tempadmin-restore" /></p>
+
+<p>But that fails :/</p>
+
+<p>I scratch my head for a while…</p>
+
+<p>But eventually get the idea of checking all the attributes for the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user.</p>
+
+<p>Just in case his password was in one of them. Just like the <code class="language-plaintext highlighter-rouge">r.thompson</code> user or something.</p>
+
+<p>Command: <code class="language-plaintext highlighter-rouge">Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects -Properties * | Select -Last 1</code></p>
+
+<p><img src="/assets/Cascade/temp-admin-password.jpg" alt="temp-admin-password" /></p>
+
+<p>Son of a … It was indeed the case XD</p>
+
+<p><em>And of course,</em> it was base-64 encoded.</p>
+
+<p>We decode it and try it with the <code class="language-plaintext highlighter-rouge">Administrator</code> user as mentioned in the email:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Username is TempAdmin (password is the same as the normal admin account password)
+</code></pre></div></div>
+
+<p><img src="/assets/Cascade/got-admin-at-last.jpg" alt="got-admin-at-last" /></p>
+
+<p>And we finally own the box after following all those breadcrumbs XD</p>
+
+  </div><a class="u-url" href="/2022/05/07/Cascade.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>

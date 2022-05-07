@@ -1,0 +1,356 @@
+---
+layout: post
+title:  "HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)"
+---
+
+### Summary
+- *Noticing the open ports*: **DNS, Kerberos, LDAP & SMB**, we know we're up against a **Windows Domain Controller**.
+- **LDAP Enumeration** reveals a *base-64 encoded* password which was *embedded* in a unique **Active Directory** user attribute.
+- Decoding the password grants us access to the `r.thompson` user who happens to have `read` access to the `data` **SMB** share.
+- *Exploring the share,* we find a `VNC`-related `.reg` file which contains an encrypted password in hexadecimal format.
+- We also find an e-mail about a *deleted* user (`TempAdmin`) who has a similar password to the normal (admin) user.
+- *After we crack the* **VNC** *password with a tool called* `vncpwd`, we gain access to the `s.smith` user.
+- *While enumerating SMB access for* `s.smith`, we find that he has `read` access to the `audit` share.
+- The `audit` share contained an `sqlite3` database file. *When enumerating it,* we find an encrypted password for the `arksvc` user.
+- We also find two files `CascAudit.exe` and `CasCrypto.dll` which we reverse to find the necessary information to decrypt the `arksvc` password.
+- We authenticate as the `arksvc` user and find that he's a member of a special group: `AD Recycle Bin`.
+- *Combining this information with the e-mail contents,* we're enticed to check the deleted AD users.
+- *Using* **PowerShell** *to fetch the deleted users with all their properties,* we find the password for the `Administrator` account in a unique attribute of the `TempAdmin` user. We use it to authenticate and we gain **full access** to the machine.
+
+---
+
+### Nmap
+```
+PORT      STATE SERVICE       VERSION
+53/tcp    open  domain        Microsoft DNS 6.1.7601 (1DB15D39) (Windows Server 2008 R2 SP1)
+| dns-nsid: 
+|_  bind.version: Microsoft DNS 6.1.7601 (1DB15D39)
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-05-06 11:02:19Z)
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: cascade.local, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds?
+636/tcp   open  tcpwrapped
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: cascade.local, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49154/tcp open  msrpc         Microsoft Windows RPC
+49155/tcp open  msrpc         Microsoft Windows RPC
+49157/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49158/tcp open  msrpc         Microsoft Windows RPC
+49170/tcp open  msrpc         Microsoft Windows RPC
+Service Info: Host: CASC-DC1; OS: Windows; CPE: cpe:/o:microsoft:windows_server_2008:r2:sp1, cpe:/o:microsoft:windows
+
+Host script results:
+| smb2-security-mode: 
+|   2.1: 
+|_    Message signing enabled and required
+| smb2-time: 
+|   date: 2022-05-06T11:03:13
+|_  start_date: 2022-05-06T10:54:20
+```
+**DNS + Kerberos + LDAP + SMB = Domain Controller :D** 
+
+**WinRM** = Shell Access maybe :)
+
+*From* `nmap` *version detection and scripts:*
+- **OS:** Windows Server 2008 R2 SP1
+- **Domain Name:** Cascade.local
+- **Host name:** CASC-DC1
+
+### Checkpoint: Listing Possible Enumeration/Exploitation Paths
+*Having the port data,* we go over our **game plan**:
+
+![ad-gameplan-map](/assets/Cascade/ad-gameplan-map.jpg)
+
+### Down to business: RPC
+`enum4linux-ng` (https://github.com/cddmp/enum4linux-ng) is a really nice revamp of the old `enum4linux` tool.
+
+we run it using the `-A` switch as well as `-oY` to output into **YAML format**.
+
+Command: `enum4linux-ng -A 10.10.10.182 -oY e4lng-output`
+
+we get a bunch of cool stuff:
+
+1. usernames
+
+![e4lng-output-users](/assets/Cascade/e4lng-output-users.jpg)
+
+2. groups
+
+![e4lng-output-groups](/assets/Cascade/e4lng-output-groups.jpg)
+
+3. password policy
+
+![e4lng-output-pass-pol](/assets/Cascade/e4lng-output-pass-pol.jpg)
+
+This is great! We have a userlist that we can use to do **ASREPRoasting** and we can do **Password Spraying** without locking anyone out.
+
+### Time Saving #1: ASREPRoasting
+*To save time,* we're going to do the **ASREPRoast** first because it's a quick check and has a high chance of giving us creds (*if we crack the hash*).
+
+Command: `GetNPUsers.py -dc-ip 10.10.10.182 -request -debug -usersfile users.txt cascade.local/`
+
+**Note:** *I generally prefer to use the* `-debug` *flag with everything. It can save me a lot of time in troubleshooting.*
+
+![asreproast-results](/assets/Cascade/asreproast-results.jpg)
+
+We find no accounts that don't require **kerberoes preauthentication.**
+
+we also notice some accounts got another type of error: `KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)`. *more on those later :)*
+
+### Time Saving #2: Password Spraying in the background
+*Since the password policy contained no user lockout,* we're good to go spraying :D
+
+Command: `for i in $(cat /opt/Seclists/Passwords/Common-Credentials/500-worst-passwords.txt); do kerbrute passwordspray --dc 10.10.10.182 -d cascade.local users.txt $i | grep -oP '\[\+\].*'; done`
+
+what this does:
+
+it will spray using common passwords and only show us the output if it catches something.
+
+This is *mainly* to avoid filling up the screen with junk.
+
+Note on the error we get when **ASREPRoasting:**
+
+*Upon spraying,* we know that the users that got the `KDC_ERR_CLIENT_REVOKED` were in fact locked out.
+
+Another benefit of the verbosity with `-v` :)
+
+![locked-out-users](/assets/Cascade/locked-out-users.jpg)
+
+### SMB Enumeration
+*While we leave our spray running,* we're going to enumerate **SMB shares** using `crackmapexec`
+
+![crackmapexec-smb-enum](/assets/Cascade/crackmapexec-smb-enum.jpg)
+
+Notice that we test with the `cascguest` user on the 3rd attempt.
+
+This is because it was there in the `enum4linux-ng` output.
+
+![casc-guest](/assets/Cascade/casc-guest.jpg)
+
+### LDAP
+We're going to enumerate **LDAP** and see if we can find something there.
+
+Command: `ldapsearch -x -H ldap://10.10.10.182 -b 'dc=cascade,dc=local'`
+
+The output was huge (6k+ lines). So we saved it to `ldap-output`
+
+![ldap-output-huge](/assets/Cascade/ldap-output-huge.jpg)
+
+we're going to use a `grep` with some **Regex Kung Fu** to get rid of any unnecessary information.
+
+**Regex:** `^\w+:`
+
+**English:** Get us any line that starts (`^`) with a bunch of characters (`\w+`) followed by a semicolon (`:`).
+
+We then follow up with a `sort` using the `-u` flag to get *only the signicant attributes.*
+
+![regex-kung-fu](/assets/Cascade/regex-kung-fu.jpg)
+
+100 lines is much better XD
+
+*While sifting through the attributes,* we came across this:
+
+![ldap-uniq-attrib](/assets/Cascade/ldap-uniq-attrib.jpg)
+
+![ldap-uniq-attrib-val](/assets/Cascade/ldap-uniq-attrib-val.jpg)
+
+*Since it has an* `=` *at the end,* we try to decode it using `base64 -d`
+
+![ldap-uniq-attrib-pass-decoded](/assets/Cascade/ldap-uniq-attrib-pass-decoded.jpg)
+
+This attribute belonged to the `r.thompson` user.
+
+Authentication succeded with it. But we didn't get code execution with **WinRM** :/
+
+![ryan-creds-check](/assets/Cascade/ryan-creds-check.jpg)
+
+### Kerberoasting
+*Applying the same strategy as before,* we're going to **kerberoast.**
+
+![kerberoasting](/assets/Cascade/kerberoasting.jpg)
+
+No results there.
+
+### SMB Access with `R.Thompson`
+We're going to use a `crackmapexec` module called `spider_plus`.
+
+It essentially crawls the `SMB` share and returns a list of files that we have access to.
+
+![cme-spider-plus](/assets/Cascade/cme-spider-plus.jpg)
+
+Here's what it found:
+
+![cme-spider-plus-results](/assets/Cascade/cme-spider-plus-results.jpg)
+
+*In the* `Data` *share,* the contents of the `Meeting_Notes_June_2018.html` were interesting:
+
+![email-contents](/assets/Cascade/email-contents.jpg)
+
+*According to the mail,* a user called `TempAdmin` which has the same password as the normal admin (`Administrator` *probably*) should be deleted at the end of 2018.
+
+We note this down and make sure to be on the lookout for any information regarding that user.
+
+When we look at the `ArkAdRecycleBin.log` we get a confirmation that the `TempAdmin` user has in fact been deleted.
+
+![ark-ad-recycle-bin](/assets/Cascade/ark-ad-recycle-bin.jpg)
+
+We find something very intersting in the `VNC Install.reg` file:
+
+![tight-vnc-password](/assets/Cascade/tight-vnc-password.jpg)
+
+### Cracking VNC Passwords
+We're interested in cracking this **VNC** password and reusing it.
+
+*Luckily,* a tool called `vncpwd` (https://github.com/jeroennijhof/vncpwd) can easily do that.
+
+we clone the repo using `git clone https://github.com/jeroennijhof/vncpwd` and follow up with a `make` command to build it.
+
+We then get the hex string, reverse it with `xxd` using the `-r` and `-p` flags and decrypt it.
+
+![vnc-pwd-cracked](/assets/Cascade/vnc-pwd-cracked.jpg)
+
+### Password Reuse
+*Having a new password* `sT333ve2`, we're going to to spray it all over the domain users we've collected.
+
+![steve-ad-user-owned](/assets/Cascade/steve-ad-user-owned.jpg)
+
+*As expected,* the password belonged to the `s.smith` user.
+
+He also has **WinRM** access :D
+
+![steve-winrm-access](/assets/Cascade/steve-winrm-access.jpg)
+
+The user flag is the only significant thing that we found using his shell access.
+
+Running **WinPeas** didn't pick up anything either. So we took a step back to check his **SMB** access.
+
+### Steve's SMB access: The `Audit$` Share
+Using `crackmapexec` with the `--shares` flag, we get the below:
+
+![steve-smb-access](/assets/Cascade/steve-smb-access.jpg)
+
+we mount the share with: `mount -t cifs -o 'username=s.smith,password=sT333ve2' //10.10.10.182/Audit$ /mnt`
+
+and list the files with: `find /mnt -type f 2>/dev/null`
+
+![mount-and-find](/assets/Cascade/mount-and-find.jpg)
+
+Checking the `.bat` file, we find that the executable `CascAudit.exe` runs with a database as an argument `"\\CASC-DC1\Audit$\DB\Audit.db"`
+
+![audit-bat-file](/assets/Cascade/audit-bat-file.jpg)
+
+*From the* **SQLite** `.dll` *files,* we infer that the `.db` file is of that type.
+
+We confirm that with `file`:
+
+![check-out-the-db](/assets/Cascade/check-out-the-db.jpg)
+
+### DB Enumeration
+We're going to use the `sqlite3` command-line utility to check out the database contents.
+
+1. we list the tables with: `.tables`
+2. we get the schema using `.schema`
+3. we select everything from the `Ldap` table after noticing the `pwd` field.
+4. no new data was found in `DeletedUserAudit` table.
+5. same for the `Misc` table as well.
+
+![sqlite-db-enumeration](/assets/Cascade/sqlite-db-enumeration.jpg)
+
+The password we found in the `Ldap` table appears to be for the `ArkSvc` user.
+
+Decoding it as base-64 gives us strange output. It must be encrypted.
+
+![ark-svc-b64-attempt](/assets/Cascade/ark-svc-b64-attempt.jpg)
+
+### Reversing the `CascAudit.exe` and `.dll` files
+*Since the* `.bat` *file showed the* `CascAudit.exe` *processing the Audit database,* we're interested to know how it works.
+
+The same goes for `CascCrypto.dll`. *Judging by its name,* it's very likely related to the encryption.
+
+Doing a `file` command against the `CascAudit` files tells us they are built with `.Net`
+
+![inspecting-cascaudit-files](/assets/Cascade/inspecting-cascaudit-files.jpg)
+
+*Because of an amazing tool called* `DNSpy` (https://github.com/dnSpy/dnSpy), reversing `.Net` is simple.
+
+Opening the `CascCrypto.dll` with `DNSpy.exe` shows two important functions: `EncryptString` and `DecryptString`
+
+![dnspy-casc-crypto-dll](/assets/Cascade/dnspy-casc-crypto-dll.jpg)
+
+A great deal of information is present regarding the encryption:
+1. **Type:** AES
+2. **Block Size:** 128-bit
+3. **Key Size:** 128-bit
+4. **Initialization Vector (IV):** `1tdyjCbY1Ix49842`
+5. **Mode:** CBC
+
+We need just the key to be able to decrypt the `ArkSvc` password found in the DB. Or so we hope :D
+
+We find the it in the `.exe` code
+
+![dnspy-casc-exe](/assets/Cascade/dnspy-casc-exe.jpg)
+
+it's `c4scadek3y654321`
+
+*Looking at the code,* it seems that the `.exe` reads the encrypted password from the database and decrypts it using the `DecryptString` function before moving on to carry out its tasks.
+
+### AES-CBC-128 Decryption
+*Adding the details we found into an* **online decryption tool** (https://www.devglan.com/online-tools/aes-encryption-decryption), we get the plaintext: `w3lc0meFr31nd`
+
+![aes-cbc-128-decryption](/assets/Cascade/aes-cbc-128-decryption.jpg)
+
+### ArkSvc and the AD Recycle Bin
+The user `ArkSvc` authenticates successfully with the `w3lc0meFr31nd` password and also has `WinRM` access.
+
+![ark-svc-got-winrm](/assets/Cascade/ark-svc-got-winrm.jpg)
+
+*While doing some basic privesc checks*, we notice that the group membership of this user is unique:
+
+![ark-svc-group-membership](/assets/Cascade/ark-svc-group-membership.jpg)
+
+`s.smith` didn't have this access.
+
+![s-smith-group-membership](/assets/Cascade/s-smith-group-membership.jpg)
+
+The **Recycle Bin** of **Active Directory** is important in our case because it contains the `TempAdmin` user.
+
+We don't know his password yet. But it might be similar to any of the ones we found.
+
+We try restoring him using `PowerShell`
+
+The command has 3 parts:
+1. Fetching all deleted objects: `Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects`
+2. Selecting the last one (TempAdmin): `Select -Last 1 `
+3. Restoring It: `Restore-ADObject`
+
+![attempting-tempadmin-restore](/assets/Cascade/attempting-tempadmin-restore.jpg)
+
+But that fails :/
+
+I scratch my head for a while...
+
+But eventually get the idea of checking all the attributes for the `TempAdmin` user.
+
+Just in case his password was in one of them. Just like the `r.thompson` user or something.
+
+Command: `Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects -Properties * | Select -Last 1`
+
+![temp-admin-password](/assets/Cascade/temp-admin-password.jpg)
+
+Son of a ... It was indeed the case XD
+
+*And of course,* it was base-64 encoded.
+
+We decode it and try it with the `Administrator` user as mentioned in the email:
+
+```
+Username is TempAdmin (password is the same as the normal admin account password)
+```
+
+![got-admin-at-last](/assets/Cascade/got-admin-at-last.jpg)
+
+And we finally own the box after following all those breadcrumbs XD
