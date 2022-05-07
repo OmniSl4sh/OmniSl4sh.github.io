@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "HTB Writeup [Windows - Easy] - Heist"
+title:  "HTB Writeup [Windows - Easy] - Heist (Intro to Dante Track #1)"
 ---
 
 ![Heist](/assets/Heist/Heist.png)

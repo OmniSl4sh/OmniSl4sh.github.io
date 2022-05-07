@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "HTB Writeup [Linux - Easy] - Curling"
+title:  "HTB Writeup [Linux - Easy] - Curling (Intro to Dante Track #4)"
 ---
 
 ![Curling](/assets/Curling/Curling.png)
