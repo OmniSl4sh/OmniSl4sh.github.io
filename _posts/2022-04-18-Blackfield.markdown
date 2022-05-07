@@ -3,6 +3,8 @@ layout: post
 title:  "HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)"
 ---
 
+![BlackField](/assets/Blackfield/Blackfield.png)
+
 ### Summary
 - A **Domain Controller** machine. We first find **SMB anonymous read access** to a share containing a list of folders which can be used as usernames.
 - We perform an **ASREPRoast attack** using the created wordlist to get credentials for the `support` user.

@@ -15,8 +15,6 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Summary A Windows Domain Controller machine. We find a hidden credentials file when directory bruteforcing IIS on a custom port. The file gives us information about the MSSQL database (the username and DB name) in plain text while the password is present in the file name as a base-64 encoded hex string. Using the credentials found, we gain access to the MSSQL database which contains the password for a user called james who is an AD user. With james’s credentials, we’re able to exploit Kerberos with a known CVE (MS14-068) a.k.a Pykek to forge a Domain Admin ticket. Using the ticket with kerberos authentication, we can execute commands on the box as a Domain Administrator to gain full access." />
-<meta property="og:description" content="Summary A Windows Domain Controller machine. We find a hidden credentials file when directory bruteforcing IIS on a custom port. The file gives us information about the MSSQL database (the username and DB name) in plain text while the password is present in the file name as a base-64 encoded hex string. Using the credentials found, we gain access to the MSSQL database which contains the password for a user called james who is an AD user. With james’s credentials, we’re able to exploit Kerberos with a known CVE (MS14-068) a.k.a Pykek to forge a Domain Admin ticket. Using the ticket with kerberos authentication, we can execute commands on the box as a Domain Administrator to gain full access." />
 <link rel="canonical" href="http://localhost:4000/2022/05/06/Mantis.html" />
 <meta property="og:url" content="http://localhost:4000/2022/05/06/Mantis.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
@@ -25,7 +23,7 @@
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-05-06T00:00:00+02:00","datePublished":"2022-05-06T00:00:00+02:00","description":"Summary A Windows Domain Controller machine. We find a hidden credentials file when directory bruteforcing IIS on a custom port. The file gives us information about the MSSQL database (the username and DB name) in plain text while the password is present in the file name as a base-64 encoded hex string. Using the credentials found, we gain access to the MSSQL database which contains the password for a user called james who is an AD user. With james’s credentials, we’re able to exploit Kerberos with a known CVE (MS14-068) a.k.a Pykek to forge a Domain Admin ticket. Using the ticket with kerberos authentication, we can execute commands on the box as a Domain Administrator to gain full access.","headline":"HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/05/06/Mantis.html"},"url":"http://localhost:4000/2022/05/06/Mantis.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-05-06T00:00:00+02:00","datePublished":"2022-05-06T00:00:00+02:00","headline":"HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/05/06/Mantis.html"},"url":"http://localhost:4000/2022/05/06/Mantis.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -64,7 +62,9 @@
   </header>
 
   <div class="post-content e-content" itemprop="articleBody">
-    <h3 id="summary">Summary</h3>
+    <p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
+
+<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine. We find a <em>hidden credentials file</em> when directory bruteforcing <strong>IIS</strong> on a <em>custom</em> port.</li>
   <li>The file gives us information about the <strong>MSSQL database</strong> (the username and DB name) in plain text while the password is present in the file name as a <em>base-64 encoded hex</em> string.</li>

@@ -15,8 +15,6 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Summary A Domain controller box. We first retrieve information about all users using rpcclient and find a password in the description field of one user which doesn’t work. We reuse that password and spray all domain users and we get access to another user who has PowerShell remoting privileges. Browsing the file system, we find a PowerShell transcript file with credentials for another user in a hidden folder. The other user is a member of the DNSAdmins AD Group which can gain system privilges on the machine by means of DLL Injection." />
-<meta property="og:description" content="Summary A Domain controller box. We first retrieve information about all users using rpcclient and find a password in the description field of one user which doesn’t work. We reuse that password and spray all domain users and we get access to another user who has PowerShell remoting privileges. Browsing the file system, we find a PowerShell transcript file with credentials for another user in a hidden folder. The other user is a member of the DNSAdmins AD Group which can gain system privilges on the machine by means of DLL Injection." />
 <link rel="canonical" href="http://localhost:4000/2022/04/25/Resolute.html" />
 <meta property="og:url" content="http://localhost:4000/2022/04/25/Resolute.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
@@ -25,7 +23,7 @@
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-04-25T00:00:00+02:00","datePublished":"2022-04-25T00:00:00+02:00","description":"Summary A Domain controller box. We first retrieve information about all users using rpcclient and find a password in the description field of one user which doesn’t work. We reuse that password and spray all domain users and we get access to another user who has PowerShell remoting privileges. Browsing the file system, we find a PowerShell transcript file with credentials for another user in a hidden folder. The other user is a member of the DNSAdmins AD Group which can gain system privilges on the machine by means of DLL Injection.","headline":"HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/04/25/Resolute.html"},"url":"http://localhost:4000/2022/04/25/Resolute.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-04-25T00:00:00+02:00","datePublished":"2022-04-25T00:00:00+02:00","headline":"HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/04/25/Resolute.html"},"url":"http://localhost:4000/2022/04/25/Resolute.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -64,7 +62,9 @@
   </header>
 
   <div class="post-content e-content" itemprop="articleBody">
-    <h3 id="summary">Summary</h3>
+    <p><img src="/assets/Resolute/Resolute.png" alt="Resolute" /></p>
+
+<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Domain controller</strong> box. We first retrieve information about all users using <code class="language-plaintext highlighter-rouge">rpcclient</code> and find <strong>a password in the description field</strong> of one user which doesn’t work.</li>
   <li>We <em>reuse</em> that password and <strong>spray all domain users</strong> and we get <strong>access to another user who has PowerShell remoting privileges</strong>.</li>

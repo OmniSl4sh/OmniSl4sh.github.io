@@ -15,8 +15,6 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Summary A Domain Controller Machine. We first find an SMB share called Replication which we can read using null authentication. Going through the share, we find a Groups.xml file containing the encrypted password of the svc_tgs account. This password can be easily decrypted using the gpp-decrypt built-in tool and we can authenticate as svc_tgs. We find that we can kerberoast the Domain Administrator and we get his TGS hash. The hash is crackable with John and we retrieve the password to gain full access." />
-<meta property="og:description" content="Summary A Domain Controller Machine. We first find an SMB share called Replication which we can read using null authentication. Going through the share, we find a Groups.xml file containing the encrypted password of the svc_tgs account. This password can be easily decrypted using the gpp-decrypt built-in tool and we can authenticate as svc_tgs. We find that we can kerberoast the Domain Administrator and we get his TGS hash. The hash is crackable with John and we retrieve the password to gain full access." />
 <link rel="canonical" href="http://localhost:4000/2022/04/14/Active.html" />
 <meta property="og:url" content="http://localhost:4000/2022/04/14/Active.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
@@ -25,7 +23,7 @@
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-04-14T00:00:00+02:00","datePublished":"2022-04-14T00:00:00+02:00","description":"Summary A Domain Controller Machine. We first find an SMB share called Replication which we can read using null authentication. Going through the share, we find a Groups.xml file containing the encrypted password of the svc_tgs account. This password can be easily decrypted using the gpp-decrypt built-in tool and we can authenticate as svc_tgs. We find that we can kerberoast the Domain Administrator and we get his TGS hash. The hash is crackable with John and we retrieve the password to gain full access.","headline":"HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/04/14/Active.html"},"url":"http://localhost:4000/2022/04/14/Active.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-04-14T00:00:00+02:00","datePublished":"2022-04-14T00:00:00+02:00","headline":"HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/04/14/Active.html"},"url":"http://localhost:4000/2022/04/14/Active.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -64,7 +62,9 @@
   </header>
 
   <div class="post-content e-content" itemprop="articleBody">
-    <h3 id="summary">Summary</h3>
+    <p><img src="/assets/Active/Active.png" alt="Active" /></p>
+
+<h3 id="summary">Summary</h3>
 <ul>
   <li>A Domain Controller Machine. We first find an SMB share called <code class="language-plaintext highlighter-rouge">Replication</code> which we can <code class="language-plaintext highlighter-rouge">read</code> using <code class="language-plaintext highlighter-rouge">null authentication</code>.</li>
   <li><em>Going through the share,</em> we find a <code class="language-plaintext highlighter-rouge">Groups.xml</code> file containing the encrypted password of the <code class="language-plaintext highlighter-rouge">svc_tgs</code> account.</li>

@@ -15,8 +15,6 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="HTB Writeup [Linux - Easy] - OpenAdmin" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Summary A Linux machine with port 80 that reveals a vulnerable web application. Exploiting the application, we gain access as www-data. We find credentials in the database configuration file which we use to pivot to another user which has access to a special folder. Browsing the special folder and checking listening ports, we find an internal website being served on a high port. On the website, logging in presents us with an SSH key of another user that we crack the passphrase for using John. The third user has sudo privileges with nano which we use to privesc." />
-<meta property="og:description" content="Summary A Linux machine with port 80 that reveals a vulnerable web application. Exploiting the application, we gain access as www-data. We find credentials in the database configuration file which we use to pivot to another user which has access to a special folder. Browsing the special folder and checking listening ports, we find an internal website being served on a high port. On the website, logging in presents us with an SSH key of another user that we crack the passphrase for using John. The third user has sudo privileges with nano which we use to privesc." />
 <link rel="canonical" href="http://localhost:4000/2022/03/25/OpenAdmin.html" />
 <meta property="og:url" content="http://localhost:4000/2022/03/25/OpenAdmin.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
@@ -25,7 +23,7 @@
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HTB Writeup [Linux - Easy] - OpenAdmin" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-03-25T00:00:00+02:00","datePublished":"2022-03-25T00:00:00+02:00","description":"Summary A Linux machine with port 80 that reveals a vulnerable web application. Exploiting the application, we gain access as www-data. We find credentials in the database configuration file which we use to pivot to another user which has access to a special folder. Browsing the special folder and checking listening ports, we find an internal website being served on a high port. On the website, logging in presents us with an SSH key of another user that we crack the passphrase for using John. The third user has sudo privileges with nano which we use to privesc.","headline":"HTB Writeup [Linux - Easy] - OpenAdmin","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/03/25/OpenAdmin.html"},"url":"http://localhost:4000/2022/03/25/OpenAdmin.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-03-25T00:00:00+02:00","datePublished":"2022-03-25T00:00:00+02:00","headline":"HTB Writeup [Linux - Easy] - OpenAdmin","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/03/25/OpenAdmin.html"},"url":"http://localhost:4000/2022/03/25/OpenAdmin.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -64,7 +62,9 @@
   </header>
 
   <div class="post-content e-content" itemprop="articleBody">
-    <h3 id="summary">Summary</h3>
+    <p><img src="/assets/OpenAdmin/OpenAdmin.png" alt="OpenAdmin" /></p>
+
+<h3 id="summary">Summary</h3>
 <ul>
   <li>A <strong>Linux machine</strong> with port 80 that reveals a <em>vulnerable web application</em>.</li>
   <li><em>Exploiting the application,</em> we gain access as <code class="language-plaintext highlighter-rouge">www-data</code>.</li>
@@ -80,8 +80,10 @@
 <p>We start off with the usual nmap scan and we find two open ports:</p>
 <ol>
   <li>SSH</li>
-  <li>HTTP
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT   STATE SERVICE VERSION
+  <li>HTTP</li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT   STATE SERVICE VERSION
 22/tcp open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
 | ssh-hostkey: 
 |   2048 4b:98:df:85:d1:7e:f0:3d:da:48:cd:bc:92:00:b7:54 (RSA)
@@ -91,10 +93,8 @@
 |_http-title: Apache2 Ubuntu Default Page: It works
 |_http-server-header: Apache/2.4.29 (Ubuntu)
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
-</code></pre></div>    </div>
-    <p><em>going to port 80,</em> we see the default apache2 web page:</p>
-  </li>
-</ol>
+</code></pre></div></div>
+<p><em>going to port 80,</em> we see the default apache2 web page:</p>
 
 <p><img src="/assets/OpenAdmin/Apache-Default-Page.jpg" alt="Apache-Default-Page" /></p>
 

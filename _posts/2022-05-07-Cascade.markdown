@@ -3,6 +3,8 @@ layout: post
 title:  "HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)"
 ---
 
+![Cascade](/assets/Cascade/Cascade.png)
+
 ### Summary
 - *Noticing the open ports*: **DNS, Kerberos, LDAP & SMB**, we know we're up against a **Windows Domain Controller**.
 - **LDAP Enumeration** reveals a *base-64 encoded* password which was *embedded* in a unique **Active Directory** user attribute.

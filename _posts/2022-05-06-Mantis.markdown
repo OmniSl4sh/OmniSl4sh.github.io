@@ -3,6 +3,8 @@ layout: post
 title:  "HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)"
 ---
 
+![Mantis](/assets/Mantis/Mantis.png)
+
 ### Summary
 - A **Windows Domain Controller** machine. We find a *hidden credentials file* when directory bruteforcing **IIS** on a *custom* port.
 - The file gives us information about the **MSSQL database** (the username and DB name) in plain text while the password is present in the file name as a *base-64 encoded hex* string.

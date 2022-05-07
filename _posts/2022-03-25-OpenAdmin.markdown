@@ -3,6 +3,8 @@ layout: post
 title:  "HTB Writeup [Linux - Easy] - OpenAdmin"
 ---
 
+![OpenAdmin](/assets/OpenAdmin/OpenAdmin.png)
+
 ### Summary
 - A **Linux machine** with port 80 that reveals a *vulnerable web application*.
 - *Exploiting the application,* we gain access as `www-data`.
@@ -17,6 +19,7 @@ title:  "HTB Writeup [Linux - Easy] - OpenAdmin"
 We start off with the usual nmap scan and we find two open ports:
 1. SSH
 2. HTTP
+
 ```
 PORT   STATE SERVICE VERSION
 22/tcp open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)

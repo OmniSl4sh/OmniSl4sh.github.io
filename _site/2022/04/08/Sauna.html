@@ -15,8 +15,6 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Summary We find a domain controller with IIS running on port 80. It turns out to be the company website and we create a list of usernames from the ‘Meet the Team’ page. We try ASREPRoasing and get creds for a user with PowerShell Remoting capabilities. Enumerating Autologon, we find creds for another user with DCSync privileges which we use to dump all domain NTLM hashes." />
-<meta property="og:description" content="Summary We find a domain controller with IIS running on port 80. It turns out to be the company website and we create a list of usernames from the ‘Meet the Team’ page. We try ASREPRoasing and get creds for a user with PowerShell Remoting capabilities. Enumerating Autologon, we find creds for another user with DCSync privileges which we use to dump all domain NTLM hashes." />
 <link rel="canonical" href="http://localhost:4000/2022/04/08/Sauna.html" />
 <meta property="og:url" content="http://localhost:4000/2022/04/08/Sauna.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
@@ -25,7 +23,7 @@
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-04-08T00:00:00+02:00","datePublished":"2022-04-08T00:00:00+02:00","description":"Summary We find a domain controller with IIS running on port 80. It turns out to be the company website and we create a list of usernames from the ‘Meet the Team’ page. We try ASREPRoasing and get creds for a user with PowerShell Remoting capabilities. Enumerating Autologon, we find creds for another user with DCSync privileges which we use to dump all domain NTLM hashes.","headline":"HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/04/08/Sauna.html"},"url":"http://localhost:4000/2022/04/08/Sauna.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-04-08T00:00:00+02:00","datePublished":"2022-04-08T00:00:00+02:00","headline":"HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/04/08/Sauna.html"},"url":"http://localhost:4000/2022/04/08/Sauna.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -64,7 +62,9 @@
   </header>
 
   <div class="post-content e-content" itemprop="articleBody">
-    <h3 id="summary">Summary</h3>
+    <p><img src="/assets/Sauna/Sauna.png" alt="Sauna" /></p>
+
+<h3 id="summary">Summary</h3>
 <ul>
   <li>We find a <strong>domain controller</strong> with <strong>IIS</strong> running on port 80.</li>
   <li>It turns out to be the <strong>company website</strong> and we create a <strong>list of usernames</strong> from the <strong>‘Meet the Team’ page</strong>.</li>

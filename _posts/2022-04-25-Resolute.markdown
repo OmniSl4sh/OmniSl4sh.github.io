@@ -3,6 +3,8 @@ layout: post
 title:  "HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)"
 ---
 
+![Resolute](/assets/Resolute/Resolute.png)
+
 ### Summary
 - A **Domain controller** box. We first retrieve information about all users using `rpcclient` and find **a password in the description field** of one user which doesn't work.
 - We *reuse* that password and **spray all domain users** and we get **access to another user who has PowerShell remoting privileges**.

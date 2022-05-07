@@ -15,8 +15,6 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="HTB Writeup [Windows - Easy] - Heist" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Summary We find a website on port 80 that lets us login as a guest. On the first page, we find a conversation between a user and a support admin about checking an attached Cisco router configuration file. Browsing the configuration file, we find hashes that we can easily crack to get passwords. One password works with SMB for the user on the web page. We use that to do a RID enumeration to get all the usernames on the system. Reusing the password we found with all users, we find one more user who happens to have PowerShell remoting access. To privesc, we use the famous PrintNightmare vulnerability since print spooler is found running. The intended path is dumping the running Firefox process from memory and using the strings command to obtain the Administrator credentials from the dump." />
-<meta property="og:description" content="Summary We find a website on port 80 that lets us login as a guest. On the first page, we find a conversation between a user and a support admin about checking an attached Cisco router configuration file. Browsing the configuration file, we find hashes that we can easily crack to get passwords. One password works with SMB for the user on the web page. We use that to do a RID enumeration to get all the usernames on the system. Reusing the password we found with all users, we find one more user who happens to have PowerShell remoting access. To privesc, we use the famous PrintNightmare vulnerability since print spooler is found running. The intended path is dumping the running Firefox process from memory and using the strings command to obtain the Administrator credentials from the dump." />
 <link rel="canonical" href="http://localhost:4000/2022/03/25/Heist.html" />
 <meta property="og:url" content="http://localhost:4000/2022/03/25/Heist.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
@@ -25,7 +23,7 @@
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HTB Writeup [Windows - Easy] - Heist" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-03-25T00:00:00+02:00","datePublished":"2022-03-25T00:00:00+02:00","description":"Summary We find a website on port 80 that lets us login as a guest. On the first page, we find a conversation between a user and a support admin about checking an attached Cisco router configuration file. Browsing the configuration file, we find hashes that we can easily crack to get passwords. One password works with SMB for the user on the web page. We use that to do a RID enumeration to get all the usernames on the system. Reusing the password we found with all users, we find one more user who happens to have PowerShell remoting access. To privesc, we use the famous PrintNightmare vulnerability since print spooler is found running. The intended path is dumping the running Firefox process from memory and using the strings command to obtain the Administrator credentials from the dump.","headline":"HTB Writeup [Windows - Easy] - Heist","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/03/25/Heist.html"},"url":"http://localhost:4000/2022/03/25/Heist.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-03-25T00:00:00+02:00","datePublished":"2022-03-25T00:00:00+02:00","headline":"HTB Writeup [Windows - Easy] - Heist","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/03/25/Heist.html"},"url":"http://localhost:4000/2022/03/25/Heist.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -64,7 +62,9 @@
   </header>
 
   <div class="post-content e-content" itemprop="articleBody">
-    <h3 id="summary">Summary</h3>
+    <p><img src="/assets/Heist/Heist.png" alt="Heist" /></p>
+
+<h3 id="summary">Summary</h3>
 <ul>
   <li>We find a website on port 80 that <strong>lets us login as a guest</strong>.</li>
   <li><em>On the first page,</em> we find a conversation between a user and a support admin about checking an <strong>attached Cisco router configuration file</strong>.</li>
