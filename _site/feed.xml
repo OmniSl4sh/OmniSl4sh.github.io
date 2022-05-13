@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-05-13T20:15:58+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/13/Certifried</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-05-13T20:17:23+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/13/Certifried</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
 
 <h1 id="the-attack-in-brief">The Attack In Brief</h1>
 <ol>
@@ -11,7 +11,7 @@
   <li><em>By default,</em> <strong>any authenticated user</strong> can join up to 10 computers to the domain.</li>
   <li><em>When a user joins a computer to the domain,</em> he will have the permission to modify that computer’s <code class="language-plaintext highlighter-rouge">DNSHostname</code> property.</li>
   <li><em>Combining the points above,</em> any authenticated user can add a computer to the domain and alter its <code class="language-plaintext highlighter-rouge">DNSHostname</code> to that of a <strong>Domain Controller</strong> and get a certificate as that domain controller.</li>
-  <li><em>With that certificate,</em> the user <em>can obtain</em> the computer account’s <strong>NTLM</strong> hash which can be used to <em>request a full copy of the domain’s hashes</em> (a.k.a <strong>perform a <code class="language-plaintext highlighter-rouge">DCSync</code> attack</strong>).</li>
+  <li><em>Using that certificate,</em> the user <em>can obtain</em> the computer account’s <strong>NTLM</strong> hash which can be used to <em>request a full copy of the domain’s hashes</em> (a.k.a <strong>perform a <code class="language-plaintext highlighter-rouge">DCSync</code> attack</strong>).</li>
 </ol>
 
 <hr />
@@ -62,7 +62,7 @@
 
 <p><img src="/assets/Certifried/got-nt-hash-for-dc.jpg" alt="got-nt-hash-for-dc" /></p>
 
-<h2 id="4-performing-dcsync-as-the-impersonated-domain-controller">4. Performing DCsync As The Impersonated Domain Controller</h2>
+<h2 id="4-performing-dcsync-as-the-impersonated-domain-controller">4. Performing DCSync As The Impersonated Domain Controller</h2>
 <p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">secretsdump.py -just-dc &lt;DOMAIN_FQDN&gt;/'&lt;DC_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'@&lt;DC_IP&gt; -hashes :&lt;RETRIEVED_HASH&gt;</code></p>
 
 <p><img src="/assets/Certifried/dc-sync-with-dc-ntlm-hash.jpg" alt="dc-sync-with-dc-ntlm-hash" /></p>

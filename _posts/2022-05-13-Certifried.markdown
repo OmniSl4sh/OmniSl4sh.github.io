@@ -15,7 +15,7 @@ title:  "AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)"
 7. *By default,* **any authenticated user** can join up to 10 computers to the domain.
 8. *When a user joins a computer to the domain,* he will have the permission to modify that computer's `DNSHostname` property.
 9. *Combining the points above,* any authenticated user can add a computer to the domain and alter its `DNSHostname` to that of a **Domain Controller** and get a certificate as that domain controller.
-10. *With that certificate,* the user *can obtain* the computer account's **NTLM** hash which can be used to *request a full copy of the domain's hashes* (a.k.a **perform a `DCSync` attack**).
+10. *Using that certificate,* the user *can obtain* the computer account's **NTLM** hash which can be used to *request a full copy of the domain's hashes* (a.k.a **perform a `DCSync` attack**).
 
 ---
 
@@ -63,7 +63,7 @@ Password = the same password generated from the computer creation in the previou
 
 ![got-nt-hash-for-dc](/assets/Certifried/got-nt-hash-for-dc.jpg)
 
-## 4. Performing DCsync As The Impersonated Domain Controller
+## 4. Performing DCSync As The Impersonated Domain Controller
 **Command:** `secretsdump.py -just-dc <DOMAIN_FQDN>/'<DC_NAME_ENDING_WITH_DOLLAR_SIGN>'@<DC_IP> -hashes :<RETRIEVED_HASH>`
 
 ![dc-sync-with-dc-ntlm-hash](/assets/Certifried/dc-sync-with-dc-ntlm-hash.jpg)
