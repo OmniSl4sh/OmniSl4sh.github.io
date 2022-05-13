@@ -15,15 +15,15 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="AD Pentesting Domain Privesc - Certifried (CVE-2022-26923)" />
 <meta property="og:locale" content="en_US" />
-<link rel="canonical" href="http://localhost:4000/2022/05/13/Certifried.html" />
-<meta property="og:url" content="http://localhost:4000/2022/05/13/Certifried.html" />
+<link rel="canonical" href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" />
+<meta property="og:url" content="https://omnisl4sh.github.io/2022/05/13/Certifried.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2022-05-13T00:00:00+02:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="AD Pentesting Domain Privesc - Certifried (CVE-2022-26923)" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-05-13T00:00:00+02:00","datePublished":"2022-05-13T00:00:00+02:00","headline":"AD Pentesting Domain Privesc - Certifried (CVE-2022-26923)","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/05/13/Certifried.html"},"url":"http://localhost:4000/2022/05/13/Certifried.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-05-13T00:00:00+02:00","datePublished":"2022-05-13T00:00:00+02:00","headline":"AD Pentesting Domain Privesc - Certifried (CVE-2022-26923)","mainEntityOfPage":{"@type":"WebPage","@id":"https://omnisl4sh.github.io/2022/05/13/Certifried.html"},"url":"https://omnisl4sh.github.io/2022/05/13/Certifried.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -43,7 +43,7 @@
     <div id="container">
       <div class="inner">
         <header>
-          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
+          <h1><a href="https://omnisl4sh.github.io/">OmniSl4sh's Blog</a></h1>
           <h2></h2>
         </header>
         <!--<<section id="downloads" class="clearfix">
@@ -68,16 +68,14 @@
 <ol>
   <li>AD Certificates can be used for authentication.</li>
   <li>Certificates can be generated from <strong>templates</strong> in a <strong>Certificate Signing Request</strong> (CSR).</li>
-  <li>There are <strong>two</strong> types of templates available in <strong>ADCS</strong> by default: User and Computer.</li>
-  <li>Those templates are <strong>accessible to anyone</strong> in the <code class="language-plaintext highlighter-rouge">Domain Users</code> or <code class="language-plaintext highlighter-rouge">Domain Computers</code> groups.</li>
-  <li>Those templates <strong>allow the certificate holder to authenticate</strong> with them.</li>
-  <li><em>When generating a certificate for a computer object</em>, the template will check its <code class="language-plaintext highlighter-rouge">DNSHostname</code> property and <strong>will generate the certificate based on that</strong>.</li>
-  <li><strong>Meaning:</strong> <em>if the computer’s</em> <code class="language-plaintext highlighter-rouge">DNSHostname</code> <em>says it’s a Domain Controller,</em> you will get a certificate for a <strong>Domain Controller!</strong></li>
+  <li>There are <strong>two</strong> types of templates available in <strong>ADCS</strong> by default: User and Computer. They are <strong>accessible to anyone</strong> in the <code class="language-plaintext highlighter-rouge">Domain Users</code> or <code class="language-plaintext highlighter-rouge">Domain Computers</code> groups.</li>
+  <li>The certificates they generate <strong>allow for authentication.</strong></li>
+  <li><em>When generating a certificate for a computer object</em>, the computer template will check that computer’s <code class="language-plaintext highlighter-rouge">DNSHostname</code> property and <strong>will generate the certificate based on it</strong>.</li>
+  <li><strong>Meaning:</strong> <em>if the computer’s</em> <code class="language-plaintext highlighter-rouge">DNSHostname</code> <em>is a Domain Controller’s,</em> you will get a certificate for that <strong>Domain Controller!</strong></li>
   <li><em>By default,</em> <strong>any authenticated user</strong> can join up to 10 computers to the domain.</li>
-  <li><em>When a user joins a computer to the domain,</em> he can modify its <code class="language-plaintext highlighter-rouge">DNSHostname</code> property.</li>
-  <li><em>Combining points above,</em> a user can <em>spoof</em> the <code class="language-plaintext highlighter-rouge">DNSHostname</code> to <em>forge</em> a certificate as a <strong>Domain Controller</strong>.</li>
-  <li><em>With a Domain Controller’s certificate,</em> the user <em>can obtain</em> the computer account’s <strong>NTLM</strong> hash.</li>
-  <li><em>And with that hash,</em> he can <em>impersonate</em> a legit <strong>Domain Controller</strong> and <em>request a full copy of the domain’s hashes</em> (a.k.a <strong>perform a <code class="language-plaintext highlighter-rouge">DCSync</code> attack</strong>).</li>
+  <li><em>When a user joins a computer to the domain,</em> he will have the permission to modify that computer’s <code class="language-plaintext highlighter-rouge">DNSHostname</code> property.</li>
+  <li><em>Combining the points above,</em> any authenticated user can add a computer to the domain and alter its <code class="language-plaintext highlighter-rouge">DNSHostname</code> to that of a <strong>Domain Controller</strong> and get a certificate as that domain controller.</li>
+  <li><em>With that certificate,</em> the user <em>can obtain</em> the computer account’s <strong>NTLM</strong> hash which can be used to <em>request a full copy of the domain’s hashes</em> (a.k.a <strong>perform a <code class="language-plaintext highlighter-rouge">DCSync</code> attack</strong>).</li>
 </ol>
 
 <hr />
