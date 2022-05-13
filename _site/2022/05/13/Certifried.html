@@ -73,8 +73,8 @@
   <li><em>When generating a certificate for a computer object</em>, the computer template will check that computer’s <code class="language-plaintext highlighter-rouge">DNSHostname</code> property and <strong>will generate the certificate based on it</strong>.</li>
   <li><strong>Meaning:</strong> <em>if the computer’s</em> <code class="language-plaintext highlighter-rouge">DNSHostname</code> <em>is a Domain Controller’s,</em> you will get a certificate for that <strong>Domain Controller!</strong></li>
   <li><em>By default,</em> <strong>any authenticated user</strong> can join up to 10 computers to the domain.</li>
-  <li><em>When a user joins a computer to the domain,</em> he will have the permission to modify that computer’s <code class="language-plaintext highlighter-rouge">DNSHostname</code> property.</li>
-  <li><em>Combining the points above,</em> any authenticated user can add a computer to the domain and alter its <code class="language-plaintext highlighter-rouge">DNSHostname</code> to that of a <strong>Domain Controller</strong> and get a certificate as that domain controller.</li>
+  <li><em>When a user joins a computer to the domain,</em> he will have the <strong>permission to modify</strong> that computer’s <code class="language-plaintext highlighter-rouge">DNSHostname</code> property.</li>
+  <li><em>Combining the points above,</em> any authenticated user can add a computer to the domain and <em>alter</em> its <code class="language-plaintext highlighter-rouge">DNSHostname</code> to that of a <strong>Domain Controller</strong> and get a certificate as that domain controller.</li>
   <li><em>Using that certificate,</em> the user <em>can obtain</em> the computer account’s <strong>NTLM</strong> hash which can be used to <em>request a full copy of the domain’s hashes</em> (a.k.a <strong>perform a <code class="language-plaintext highlighter-rouge">DCSync</code> attack</strong>).</li>
 </ol>
 

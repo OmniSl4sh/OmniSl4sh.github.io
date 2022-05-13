@@ -13,8 +13,8 @@ title:  "AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)"
 5. *When generating a certificate for a computer object*, the computer template will check that computer's `DNSHostname` property and **will generate the certificate based on it**.
 6. **Meaning:** *if the computer's* `DNSHostname` *is a Domain Controller's,* you will get a certificate for that **Domain Controller!**
 7. *By default,* **any authenticated user** can join up to 10 computers to the domain.
-8. *When a user joins a computer to the domain,* he will have the permission to modify that computer's `DNSHostname` property.
-9. *Combining the points above,* any authenticated user can add a computer to the domain and alter its `DNSHostname` to that of a **Domain Controller** and get a certificate as that domain controller.
+8. *When a user joins a computer to the domain,* he will have the **permission to modify** that computer's `DNSHostname` property.
+9. *Combining the points above,* any authenticated user can add a computer to the domain and *alter* its `DNSHostname` to that of a **Domain Controller** and get a certificate as that domain controller.
 10. *Using that certificate,* the user *can obtain* the computer account's **NTLM** hash which can be used to *request a full copy of the domain's hashes* (a.k.a **perform a `DCSync` attack**).
 
 ---
