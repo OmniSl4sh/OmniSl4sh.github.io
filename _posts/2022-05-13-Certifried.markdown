@@ -56,7 +56,7 @@ This can be done by visiting the `/certsrv` web directory on the server with ADC
 
 **Command:** `certipy req -dc-ip <DC_IP> <DOMAIN_FQDN>/'<ADDED_COMPUTER_NAME_ENDING_WITH_DOLLAR_SIGN>'@<DC_IP> -ca <CA_NAME> -template Machine`
 
-Pssword = the same password generated from the computer creation in the previous step
+Password = the same password generated from the computer creation in the previous step
 
 ![requesting-dc-cert](/assets/Certifried/requesting-dc-cert.jpg)
 
