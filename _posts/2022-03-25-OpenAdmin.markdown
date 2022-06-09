@@ -5,11 +5,6 @@ title:  "HTB Writeup [Linux - Easy] - OpenAdmin (Intro to Dante Track #2)"
 
 ![OpenAdmin](/assets/OpenAdmin/OpenAdmin.png)
 
-### Disclaimer
-The writeup you are about to read is **NOT** a full breakdown of the journey I took to root the machine. The **process** can take **hours** maybe **days**. I may be able to solve a machine totally on my own (*If I'm already familiar with the field*). *However, If I have tried everything and have completely ran out of ideas*, I would go for a hint from another writeup to get a *nudge* in the right direction. I try to show you a bit of reality by demonstrating as much of the fails and rabbit holes as I can without making the post too long. I might be called an imposter for being this honest. *But, if I'm learning and growing every day,* give me 10 years and I'll probably be the realest hacker you've ever seen XD.
-
-*That being said,* **Let's get down to business :D**
-
 ### Summary
 - A **Linux machine** with port 80 that reveals a *vulnerable web application*.
 - *Exploiting the application,* we gain access as `www-data`.
