@@ -227,7 +227,7 @@ Seems that the connection string doesn't use our `mhope` user credentials.
 
 ![correct-conn-string](/assets/Monteverde/correct-conn-string.jpg)
 
-### Enough Troubleshooting. Let me some creds!
+### Enough Troubleshooting. Let me see some creds!
 *After modifying the connection string,* let's go over what the script does in brief:
 
 1. Defining the connection string: we're connecting to the **ADSync DB** on the **local computer** using **Windows Authentication**
