@@ -110,20 +110,20 @@ All of those didn't yield any results. However..
 ### When you use a magnifying glass..
 *when looking really close at one of the images on the website,* something is there!
 
-![secret-image-small](/assets/search/secret-image-small.jpg)
+![secret-image-small](/assets/Search/secret-image-small.jpg)
 
 The text was very small. so we had to open up the image in a new tab and zoom in to find what's written:
 
-![secret-image-up-close](/assets/search/secret-image-up-close.jpg)
+![secret-image-up-close](/assets/Search/secret-image-up-close.jpg)
 
 It said: **"Send password to Hope Sharp"** then **"IsolationIsKey?"**
 
 ### First set of credentials
 *Earlier,* when extracted usernames from the website:
 
-![website-users](/assets/search/website-users-2.jpg)
+![website-users](/assets/Search/website-users-2.jpg)
 
-we used a python tool called [`ADGenerator`](/assets/search/https://github.com/w0Tx/generate-ad-username) to generate a list of usernames based on their first and last names following common naming conventions:
+we used a python tool called [`ADGenerator`](/assets/Search/https://github.com/w0Tx/generate-ad-username) to generate a list of usernames based on their first and last names following common naming conventions:
 
 - NameSurname
 - Name.Surname
@@ -136,49 +136,49 @@ we used a python tool called [`ADGenerator`](/assets/search/https://github.com/w
 - SurnameN
 - Surname.N
 
-and we used a tool called [`kerbrute`](/assets/search/https://github.com/ropnop/kerbrute) to enumerate which were valid users using the `userenum` module.
+and we used a tool called [`kerbrute`](/assets/Search/https://github.com/ropnop/kerbrute) to enumerate which were valid users using the `userenum` module.
 
-![kerbrute-userenum](/assets/search/kerbrute-userenum.jpg)
+![kerbrute-userenum](/assets/Search/kerbrute-userenum.jpg)
 
 *From that,* we know that the username convention is **Name.Surname**
 
 We went ahead and found the password **"IsolationIsKey?"** to work with **"Hope.Sharp"**
 
-![auth-as-hope-sharp](/assets/search/auth-as-hope-sharp.jpg)
+![auth-as-hope-sharp](/assets/Search/auth-as-hope-sharp.jpg)
 
 ### The Awesomeness of BloodHound
 *Since port 5985 isn't open,* we have no reason to check for **WinRM** capabilities. So we turn to using all the tools that don't require a foothold on the box.
 
-We start with [`BloodHound.py`](/assets/search/https://github.com/fox-it/BloodHound.py) to get an overview of the situation in the domain.
+We start with [`BloodHound.py`](/assets/Search/https://github.com/fox-it/BloodHound.py) to get an overview of the situation in the domain.
 
 **Note:** it's recommended to set your **DNS** server in `/etc/resolv.conf` to the box's IP to make sure things go smoothly when using any of the tools we're about to use.
 
 **Command:** `python3 bloodhound.py -d search.htb -dc research.search.htb -u hope.sharp -p 'IsolationIsKey?'`
 
-![bloodhound-py](/assets/search/bloodhound-py.jpg)
+![bloodhound-py](/assets/Search/bloodhound-py.jpg)
 
 *When checking the output of the* `ShortestPath to High Value Targets`, we see a **clear path** to owning the domain:
 
-![clear-path-to-DA](/assets/search/clear-path-to-DA.jpg)
+![clear-path-to-DA](/assets/Search/clear-path-to-DA.jpg)
 
 We would first have to make our way to any of users on the left within the `ITSEC` group.
 
 *In another* `BloodHound` *query for kerberoastable accounts*, we find we can attack `WEB_SVC`:
 
-![web-svc-kerberoastable](/assets/search/web-svc-kerberoastable.jpg)
+![web-svc-kerberoastable](/assets/Search/web-svc-kerberoastable.jpg)
 
 ### Kerberoasting `web_svc`
 we use impacket's `GetUserSPNs.py`
 
 **Command:** `python3 GetUserSPNs.py -debug -request -dc-ip 10.10.11.129 search.htb/hope.sharp:'IsolationIsKey?'`
 
-![kerberoasted](/assets/search/kerberoasted.jpg)
+![kerberoasted](/assets/Search/kerberoasted.jpg)
 
 And we crack the password using `john`
 
 **Command:** `john web_svc_hash -w=/usr/share/wordlists/rockyou.txt`
 
-![cracked-with-john](/assets/search/cracked-with-john.jpg)
+![cracked-with-john](/assets/Search/cracked-with-john.jpg)
 
 The password was **"@3ONEmillionbaby"**
 
@@ -189,11 +189,11 @@ It has turned into a habit for me to spray any password I get on all possible us
 
 **Command:** `crackmapexec smb 10.10.11.129 -u 'web_svc' -p '@3ONEmillionbaby' --users`
 
-![cme-full-userlist](/assets/search/cme-full-userlist.jpg)
+![cme-full-userlist](/assets/Search/cme-full-userlist.jpg)
 
 We find out that another user had been user the same password **"@3ONEmillionbaby"**
 
-![edgar-reusing](/assets/search/edgar-reusing.jpg)
+![edgar-reusing](/assets/Search/edgar-reusing.jpg)
 
 ### Enumerating SMB access for Edgar
 We use `crackmapexec`'s `spider_plus` module to get a *nicely-formatted* **JSON** output for `edgar`'s share access.
@@ -202,41 +202,41 @@ We use `crackmapexec`'s `spider_plus` module to get a *nicely-formatted* **JSON*
 
 We notice something interesting in the results:
 
-![interesting-document-found](/assets/search/interesting-document-found.jpg)
+![interesting-document-found](/assets/Search/interesting-document-found.jpg)
 
 we use `smbclient` to fetch the file:
 
-![getting-the-sheet](/assets/search/getting-the-sheet.jpg)
+![getting-the-sheet](/assets/Search/getting-the-sheet.jpg)
 
 *After opening the document with* **Microsoft Office's Excel** *and looking into the second tab of the workbook,* we notice a hidden column: **C**
 
-![hidden-column](/assets/search/hidden-column.jpg)
+![hidden-column](/assets/Search/hidden-column.jpg)
 
 We won't be able to **unhide** this column unless we **unprotect** the sheet:
 
-![unprotecting-sheet](/assets/search/unprotecting-sheet.jpg)
+![unprotecting-sheet](/assets/Search/unprotecting-sheet.jpg)
 
 *We can, however,* use the trick of uploading the `xlsx` file to **Google Sheets** :D
 
-![got-them-passwords](/assets/search/got-them-passwords.jpg)
+![got-them-passwords](/assets/Search/got-them-passwords.jpg)
 
 **PROFIT! :D**
 
 ### Access as Sierra
 *When using the obtained passwords throughout the domain,* we gain access to `seirra.frye`
 
-![got-sierra](/assets/search/got-sierra.jpg)
+![got-sierra](/assets/Search/got-sierra.jpg)
 
 and since `sierra` is a member of the `ITSEC` group, we're going to go for a full domain takeover!
 
-![path-to-da](/assets/search/path-to-da.jpg)
+![path-to-da](/assets/Search/path-to-da.jpg)
 
 ### Reading the GMSA password & Resetting `tristan`'s password
-We can obtain the **NTLM** hash of the **GMSA** `BIR-ADFS-GMSA$` with a **python** tool called [`gMSADumper`](/assets/search/https://github.com/micahvandeusen/gMSADumper)
+We can obtain the **NTLM** hash of the **GMSA** `BIR-ADFS-GMSA$` with a **python** tool called [`gMSADumper`](/assets/Search/https://github.com/micahvandeusen/gMSADumper)
 
 **Command:** `python3 gMSADumper.py -u Sierra.Frye -p '$$49=wide=STRAIGHT=jordan=28$$18' -d search.htb`
 
-![got-gmsa-ntlm](/assets/search/got-gmsa-ntlm.jpg)
+![got-gmsa-ntlm](/assets/Search/got-gmsa-ntlm.jpg)
 
 What's left is to reset the password for `tristan` which we can do through `rpcclient` using the `--pw-nt-hash` to pass the hash.
 
@@ -244,28 +244,28 @@ then following with the `setuserinfo2` command making sure our password satisfie
 
 and finishing with **impacket**'s `wmiexec.py` to get full shell access.
 
-![got-tristan](/assets/search/got-tristan.jpg)
+![got-tristan](/assets/Search/got-tristan.jpg)
 
 ### An Alternate Route: cracking the `.pfx` certificate on `sierra`'s share + using it for PowerShell web access
 *If we take some time to check* `sierra`'s *profile,* we see a file called `staff.pfx` in the `\Downloads\Backups` folder:
 
-![pfx-found](/assets/search/pfx-found.jpg)
+![pfx-found](/assets/Search/pfx-found.jpg)
 
 Using `john`'s python utility script `pfx2john`, we can get a format that's crackable.
 
-![cracked-pfx](/assets/search/cracked-pfx.jpg)
+![cracked-pfx](/assets/Search/cracked-pfx.jpg)
 
 We can import these certificates into `firefox`
 
-![firefox-cert-import](/assets/search/firefox-cert-import.jpg)
+![firefox-cert-import](/assets/Search/firefox-cert-import.jpg)
 
 *After importing the certificates,* we can browse to `https://10.10.11.129/staff`
 
-![powershell-web-access](/assets/search/powershell-web-access.jpg)
+![powershell-web-access](/assets/Search/powershell-web-access.jpg)
 
 we get a nice web terminal after authenticating:
 
-![powershell-web-terminal](/assets/search/powershell-web-terminal.jpg)
+![powershell-web-terminal](/assets/Search/powershell-web-terminal.jpg)
 
 *In order to be able to run code as* `BIR-ADFS-GMSA`, we're going to do a couple of things:
 
@@ -291,6 +291,6 @@ Invoke-Command -ComputerName 127.0.0.1 -credential $cred -ScriptBlock $Script
 
 `Invoke-Command -ComputerName 127.0.0.1 -credential $killercreds -ScriptBlock {whoami}`
 
-![tristan-web-access](/assets/search/tristan-web-access.jpg)
+![tristan-web-access](/assets/Search/tristan-web-access.jpg)
 
 And this wrap us the secondary path :D

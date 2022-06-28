@@ -172,20 +172,20 @@ Host script results:
 <h3 id="when-you-use-a-magnifying-glass">When you use a magnifying glass..</h3>
 <p><em>when looking really close at one of the images on the website,</em> something is there!</p>
 
-<p><img src="/assets/search/secret-image-small.jpg" alt="secret-image-small" /></p>
+<p><img src="/assets/Search/secret-image-small.jpg" alt="secret-image-small" /></p>
 
 <p>The text was very small. so we had to open up the image in a new tab and zoom in to find what’s written:</p>
 
-<p><img src="/assets/search/secret-image-up-close.jpg" alt="secret-image-up-close" /></p>
+<p><img src="/assets/Search/secret-image-up-close.jpg" alt="secret-image-up-close" /></p>
 
 <p>It said: <strong>“Send password to Hope Sharp”</strong> then <strong>“IsolationIsKey?”</strong></p>
 
 <h3 id="first-set-of-credentials">First set of credentials</h3>
 <p><em>Earlier,</em> when extracted usernames from the website:</p>
 
-<p><img src="/assets/search/website-users-2.jpg" alt="website-users" /></p>
+<p><img src="/assets/Search/website-users-2.jpg" alt="website-users" /></p>
 
-<p>we used a python tool called <a href="/assets/search/https://github.com/w0Tx/generate-ad-username"><code class="language-plaintext highlighter-rouge">ADGenerator</code></a> to generate a list of usernames based on their first and last names following common naming conventions:</p>
+<p>we used a python tool called <a href="/assets/Search/https://github.com/w0Tx/generate-ad-username"><code class="language-plaintext highlighter-rouge">ADGenerator</code></a> to generate a list of usernames based on their first and last names following common naming conventions:</p>
 
 <ul>
   <li>NameSurname</li>
@@ -200,49 +200,49 @@ Host script results:
   <li>Surname.N</li>
 </ul>
 
-<p>and we used a tool called <a href="/assets/search/https://github.com/ropnop/kerbrute"><code class="language-plaintext highlighter-rouge">kerbrute</code></a> to enumerate which were valid users using the <code class="language-plaintext highlighter-rouge">userenum</code> module.</p>
+<p>and we used a tool called <a href="/assets/Search/https://github.com/ropnop/kerbrute"><code class="language-plaintext highlighter-rouge">kerbrute</code></a> to enumerate which were valid users using the <code class="language-plaintext highlighter-rouge">userenum</code> module.</p>
 
-<p><img src="/assets/search/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
+<p><img src="/assets/Search/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
 
 <p><em>From that,</em> we know that the username convention is <strong>Name.Surname</strong></p>
 
 <p>We went ahead and found the password <strong>“IsolationIsKey?”</strong> to work with <strong>“Hope.Sharp”</strong></p>
 
-<p><img src="/assets/search/auth-as-hope-sharp.jpg" alt="auth-as-hope-sharp" /></p>
+<p><img src="/assets/Search/auth-as-hope-sharp.jpg" alt="auth-as-hope-sharp" /></p>
 
 <h3 id="the-awesomeness-of-bloodhound">The Awesomeness of BloodHound</h3>
 <p><em>Since port 5985 isn’t open,</em> we have no reason to check for <strong>WinRM</strong> capabilities. So we turn to using all the tools that don’t require a foothold on the box.</p>
 
-<p>We start with <a href="/assets/search/https://github.com/fox-it/BloodHound.py"><code class="language-plaintext highlighter-rouge">BloodHound.py</code></a> to get an overview of the situation in the domain.</p>
+<p>We start with <a href="/assets/Search/https://github.com/fox-it/BloodHound.py"><code class="language-plaintext highlighter-rouge">BloodHound.py</code></a> to get an overview of the situation in the domain.</p>
 
 <p><strong>Note:</strong> it’s recommended to set your <strong>DNS</strong> server in <code class="language-plaintext highlighter-rouge">/etc/resolv.conf</code> to the box’s IP to make sure things go smoothly when using any of the tools we’re about to use.</p>
 
 <p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">python3 bloodhound.py -d search.htb -dc research.search.htb -u hope.sharp -p 'IsolationIsKey?'</code></p>
 
-<p><img src="/assets/search/bloodhound-py.jpg" alt="bloodhound-py" /></p>
+<p><img src="/assets/Search/bloodhound-py.jpg" alt="bloodhound-py" /></p>
 
 <p><em>When checking the output of the</em> <code class="language-plaintext highlighter-rouge">ShortestPath to High Value Targets</code>, we see a <strong>clear path</strong> to owning the domain:</p>
 
-<p><img src="/assets/search/clear-path-to-DA.jpg" alt="clear-path-to-DA" /></p>
+<p><img src="/assets/Search/clear-path-to-DA.jpg" alt="clear-path-to-DA" /></p>
 
 <p>We would first have to make our way to any of users on the left within the <code class="language-plaintext highlighter-rouge">ITSEC</code> group.</p>
 
 <p><em>In another</em> <code class="language-plaintext highlighter-rouge">BloodHound</code> <em>query for kerberoastable accounts</em>, we find we can attack <code class="language-plaintext highlighter-rouge">WEB_SVC</code>:</p>
 
-<p><img src="/assets/search/web-svc-kerberoastable.jpg" alt="web-svc-kerberoastable" /></p>
+<p><img src="/assets/Search/web-svc-kerberoastable.jpg" alt="web-svc-kerberoastable" /></p>
 
 <h3 id="kerberoasting-web_svc">Kerberoasting <code class="language-plaintext highlighter-rouge">web_svc</code></h3>
 <p>we use impacket’s <code class="language-plaintext highlighter-rouge">GetUserSPNs.py</code></p>
 
 <p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">python3 GetUserSPNs.py -debug -request -dc-ip 10.10.11.129 search.htb/hope.sharp:'IsolationIsKey?'</code></p>
 
-<p><img src="/assets/search/kerberoasted.jpg" alt="kerberoasted" /></p>
+<p><img src="/assets/Search/kerberoasted.jpg" alt="kerberoasted" /></p>
 
 <p>And we crack the password using <code class="language-plaintext highlighter-rouge">john</code></p>
 
 <p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">john web_svc_hash -w=/usr/share/wordlists/rockyou.txt</code></p>
 
-<p><img src="/assets/search/cracked-with-john.jpg" alt="cracked-with-john" /></p>
+<p><img src="/assets/Search/cracked-with-john.jpg" alt="cracked-with-john" /></p>
 
 <p>The password was <strong>“@3ONEmillionbaby”</strong></p>
 
@@ -253,11 +253,11 @@ Host script results:
 
 <p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.11.129 -u 'web_svc' -p '@3ONEmillionbaby' --users</code></p>
 
-<p><img src="/assets/search/cme-full-userlist.jpg" alt="cme-full-userlist" /></p>
+<p><img src="/assets/Search/cme-full-userlist.jpg" alt="cme-full-userlist" /></p>
 
 <p>We find out that another user had been user the same password <strong>“@3ONEmillionbaby”</strong></p>
 
-<p><img src="/assets/search/edgar-reusing.jpg" alt="edgar-reusing" /></p>
+<p><img src="/assets/Search/edgar-reusing.jpg" alt="edgar-reusing" /></p>
 
 <h3 id="enumerating-smb-access-for-edgar">Enumerating SMB access for Edgar</h3>
 <p>We use <code class="language-plaintext highlighter-rouge">crackmapexec</code>’s <code class="language-plaintext highlighter-rouge">spider_plus</code> module to get a <em>nicely-formatted</em> <strong>JSON</strong> output for <code class="language-plaintext highlighter-rouge">edgar</code>’s share access.</p>
@@ -266,41 +266,41 @@ Host script results:
 
 <p>We notice something interesting in the results:</p>
 
-<p><img src="/assets/search/interesting-document-found.jpg" alt="interesting-document-found" /></p>
+<p><img src="/assets/Search/interesting-document-found.jpg" alt="interesting-document-found" /></p>
 
 <p>we use <code class="language-plaintext highlighter-rouge">smbclient</code> to fetch the file:</p>
 
-<p><img src="/assets/search/getting-the-sheet.jpg" alt="getting-the-sheet" /></p>
+<p><img src="/assets/Search/getting-the-sheet.jpg" alt="getting-the-sheet" /></p>
 
 <p><em>After opening the document with</em> <strong>Microsoft Office’s Excel</strong> <em>and looking into the second tab of the workbook,</em> we notice a hidden column: <strong>C</strong></p>
 
-<p><img src="/assets/search/hidden-column.jpg" alt="hidden-column" /></p>
+<p><img src="/assets/Search/hidden-column.jpg" alt="hidden-column" /></p>
 
 <p>We won’t be able to <strong>unhide</strong> this column unless we <strong>unprotect</strong> the sheet:</p>
 
-<p><img src="/assets/search/unprotecting-sheet.jpg" alt="unprotecting-sheet" /></p>
+<p><img src="/assets/Search/unprotecting-sheet.jpg" alt="unprotecting-sheet" /></p>
 
 <p><em>We can, however,</em> use the trick of uploading the <code class="language-plaintext highlighter-rouge">xlsx</code> file to <strong>Google Sheets</strong> :D</p>
 
-<p><img src="/assets/search/got-them-passwords.jpg" alt="got-them-passwords" /></p>
+<p><img src="/assets/Search/got-them-passwords.jpg" alt="got-them-passwords" /></p>
 
 <p><strong>PROFIT! :D</strong></p>
 
 <h3 id="access-as-sierra">Access as Sierra</h3>
 <p><em>When using the obtained passwords throughout the domain,</em> we gain access to <code class="language-plaintext highlighter-rouge">seirra.frye</code></p>
 
-<p><img src="/assets/search/got-sierra.jpg" alt="got-sierra" /></p>
+<p><img src="/assets/Search/got-sierra.jpg" alt="got-sierra" /></p>
 
 <p>and since <code class="language-plaintext highlighter-rouge">sierra</code> is a member of the <code class="language-plaintext highlighter-rouge">ITSEC</code> group, we’re going to go for a full domain takeover!</p>
 
-<p><img src="/assets/search/path-to-da.jpg" alt="path-to-da" /></p>
+<p><img src="/assets/Search/path-to-da.jpg" alt="path-to-da" /></p>
 
 <h3 id="reading-the-gmsa-password--resetting-tristans-password">Reading the GMSA password &amp; Resetting <code class="language-plaintext highlighter-rouge">tristan</code>’s password</h3>
-<p>We can obtain the <strong>NTLM</strong> hash of the <strong>GMSA</strong> <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> with a <strong>python</strong> tool called <a href="/assets/search/https://github.com/micahvandeusen/gMSADumper"><code class="language-plaintext highlighter-rouge">gMSADumper</code></a></p>
+<p>We can obtain the <strong>NTLM</strong> hash of the <strong>GMSA</strong> <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> with a <strong>python</strong> tool called <a href="/assets/Search/https://github.com/micahvandeusen/gMSADumper"><code class="language-plaintext highlighter-rouge">gMSADumper</code></a></p>
 
 <p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">python3 gMSADumper.py -u Sierra.Frye -p '$$49=wide=STRAIGHT=jordan=28$$18' -d search.htb</code></p>
 
-<p><img src="/assets/search/got-gmsa-ntlm.jpg" alt="got-gmsa-ntlm" /></p>
+<p><img src="/assets/Search/got-gmsa-ntlm.jpg" alt="got-gmsa-ntlm" /></p>
 
 <p>What’s left is to reset the password for <code class="language-plaintext highlighter-rouge">tristan</code> which we can do through <code class="language-plaintext highlighter-rouge">rpcclient</code> using the <code class="language-plaintext highlighter-rouge">--pw-nt-hash</code> to pass the hash.</p>
 
@@ -308,28 +308,28 @@ Host script results:
 
 <p>and finishing with <strong>impacket</strong>’s <code class="language-plaintext highlighter-rouge">wmiexec.py</code> to get full shell access.</p>
 
-<p><img src="/assets/search/got-tristan.jpg" alt="got-tristan" /></p>
+<p><img src="/assets/Search/got-tristan.jpg" alt="got-tristan" /></p>
 
 <h3 id="an-alternate-route-cracking-the-pfx-certificate-on-sierras-share--using-it-for-powershell-web-access">An Alternate Route: cracking the <code class="language-plaintext highlighter-rouge">.pfx</code> certificate on <code class="language-plaintext highlighter-rouge">sierra</code>’s share + using it for PowerShell web access</h3>
 <p><em>If we take some time to check</em> <code class="language-plaintext highlighter-rouge">sierra</code>’s <em>profile,</em> we see a file called <code class="language-plaintext highlighter-rouge">staff.pfx</code> in the <code class="language-plaintext highlighter-rouge">\Downloads\Backups</code> folder:</p>
 
-<p><img src="/assets/search/pfx-found.jpg" alt="pfx-found" /></p>
+<p><img src="/assets/Search/pfx-found.jpg" alt="pfx-found" /></p>
 
 <p>Using <code class="language-plaintext highlighter-rouge">john</code>’s python utility script <code class="language-plaintext highlighter-rouge">pfx2john</code>, we can get a format that’s crackable.</p>
 
-<p><img src="/assets/search/cracked-pfx.jpg" alt="cracked-pfx" /></p>
+<p><img src="/assets/Search/cracked-pfx.jpg" alt="cracked-pfx" /></p>
 
 <p>We can import these certificates into <code class="language-plaintext highlighter-rouge">firefox</code></p>
 
-<p><img src="/assets/search/firefox-cert-import.jpg" alt="firefox-cert-import" /></p>
+<p><img src="/assets/Search/firefox-cert-import.jpg" alt="firefox-cert-import" /></p>
 
 <p><em>After importing the certificates,</em> we can browse to <code class="language-plaintext highlighter-rouge">https://10.10.11.129/staff</code></p>
 
-<p><img src="/assets/search/powershell-web-access.jpg" alt="powershell-web-access" /></p>
+<p><img src="/assets/Search/powershell-web-access.jpg" alt="powershell-web-access" /></p>
 
 <p>we get a nice web terminal after authenticating:</p>
 
-<p><img src="/assets/search/powershell-web-terminal.jpg" alt="powershell-web-terminal" /></p>
+<p><img src="/assets/Search/powershell-web-terminal.jpg" alt="powershell-web-terminal" /></p>
 
 <p><em>In order to be able to run code as</em> <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA</code>, we’re going to do a couple of things:</p>
 
@@ -362,7 +362,7 @@ Invoke-Command -ComputerName 127.0.0.1 -credential $cred -ScriptBlock $Script
 
 <p><code class="language-plaintext highlighter-rouge">Invoke-Command -ComputerName 127.0.0.1 -credential $killercreds -ScriptBlock {whoami}</code></p>
 
-<p><img src="/assets/search/tristan-web-access.jpg" alt="tristan-web-access" /></p>
+<p><img src="/assets/Search/tristan-web-access.jpg" alt="tristan-web-access" /></p>
 
 <p>And this wrap us the secondary path :D</p>
 
