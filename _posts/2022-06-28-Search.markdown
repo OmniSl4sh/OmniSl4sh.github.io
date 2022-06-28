@@ -293,4 +293,4 @@ Invoke-Command -ComputerName 127.0.0.1 -credential $cred -ScriptBlock $Script
 
 ![tristan-web-access](/assets/Search/tristan-web-access.jpg)
 
-And this wrap us the secondary path :D
+And this wrap us this path :D
