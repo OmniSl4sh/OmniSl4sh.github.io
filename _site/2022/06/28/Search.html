@@ -65,7 +65,7 @@
     <p><img src="/assets/search/Search.png" alt="Search" /></p>
 
 <h3 id="summary">Summary</h3>
-<ol>
+<ul>
   <li>A <strong>Windows Domain Controller</strong> machine where we don’t get any access using conventional methods. The key to gaining our initial set of credentials is by inspecting <em>the images</em> on the website where one turns out to have <strong>credentials</strong> for a user called <code class="language-plaintext highlighter-rouge">hope.sharp</code></li>
   <li><em>Using this authenticated access,</em> we run a <strong>Kerberoast</strong> attack which gets us the hash of the <code class="language-plaintext highlighter-rouge">web_svc</code> account that we crack to get a password.</li>
   <li><em>When spraying this password across the domain users,</em> we find out that the password is also used by another user: <code class="language-plaintext highlighter-rouge">edgar.jacobs</code>.</li>
@@ -76,7 +76,7 @@
   <li>The account <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> had a <code class="language-plaintext highlighter-rouge">WriteDACL</code> right on a <strong>Domain Administrator</strong> called <code class="language-plaintext highlighter-rouge">tristan.davies</code>.</li>
   <li>We use a python script to retrieve the <strong>NTLM</strong> hash of <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> and abuse his rights to reset the password of <code class="language-plaintext highlighter-rouge">tristan.davies</code> via <strong>RPC.</strong></li>
   <li>Another route that is a bit longer includes using the <strong>PowerShell Web Access</strong> enabled on the web server after cracking then importing into our browser a <code class="language-plaintext highlighter-rouge">.pfx</code> certificate found on the shared user profile of the <code class="language-plaintext highlighter-rouge">sierra.frye</code> user.</li>
-</ol>
+</ul>
 
 <hr />
 

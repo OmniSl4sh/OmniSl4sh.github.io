@@ -6,16 +6,16 @@ title:  "HTB Writeup [Windows - Hard] - Search"
 ![Search](/assets/search/Search.png)
 
 ### Summary
-1. A **Windows Domain Controller** machine where we don't get any access using conventional methods. The key to gaining our initial set of credentials is by inspecting *the images* on the website where one turns out to have **credentials** for a user called `hope.sharp`
-2. *Using this authenticated access,* we run a **Kerberoast** attack which gets us the hash of the `web_svc` account that we crack to get a password.
-3. *When spraying this password across the domain users,* we find out that the password is also used by another user: `edgar.jacobs`.
-4. Edgar's shared redirected folder was exposing his user profile which contained an interesting **Microsoft Excel** document called `Phishing_Attempt.xlsx`.
-5. *When closely checking the contents of that document,* we find a *hidden* column which cannot be viewed because of the protection on the document.
-6. Uploading the Excel workbook to **Google Sheets** does the trick and shows us the hidden column which turned out to be a set of passwords.
-7. One of the passwords worked for a user called `sierra.frye` which had the permission to read the **GMSA** password of `BIR-ADFS-GMSA$`.
-8. The account `BIR-ADFS-GMSA$` had a `WriteDACL` right on a **Domain Administrator** called `tristan.davies`.
-9. We use a python script to retrieve the **NTLM** hash of `BIR-ADFS-GMSA$` and abuse his rights to reset the password of `tristan.davies` via **RPC.**
-10. Another route that is a bit longer includes using the **PowerShell Web Access** enabled on the web server after cracking then importing into our browser a `.pfx` certificate found on the shared user profile of the `sierra.frye` user.
+- A **Windows Domain Controller** machine where we don't get any access using conventional methods. The key to gaining our initial set of credentials is by inspecting *the images* on the website where one turns out to have **credentials** for a user called `hope.sharp`
+- *Using this authenticated access,* we run a **Kerberoast** attack which gets us the hash of the `web_svc` account that we crack to get a password.
+- *When spraying this password across the domain users,* we find out that the password is also used by another user: `edgar.jacobs`.
+- Edgar's shared redirected folder was exposing his user profile which contained an interesting **Microsoft Excel** document called `Phishing_Attempt.xlsx`.
+- *When closely checking the contents of that document,* we find a *hidden* column which cannot be viewed because of the protection on the document.
+- Uploading the Excel workbook to **Google Sheets** does the trick and shows us the hidden column which turned out to be a set of passwords.
+- One of the passwords worked for a user called `sierra.frye` which had the permission to read the **GMSA** password of `BIR-ADFS-GMSA$`.
+- The account `BIR-ADFS-GMSA$` had a `WriteDACL` right on a **Domain Administrator** called `tristan.davies`.
+- We use a python script to retrieve the **NTLM** hash of `BIR-ADFS-GMSA$` and abuse his rights to reset the password of `tristan.davies` via **RPC.**
+- Another route that is a bit longer includes using the **PowerShell Web Access** enabled on the web server after cracking then importing into our browser a `.pfx` certificate found on the shared user profile of the `sierra.frye` user.
 
 ---
 
