@@ -3,7 +3,7 @@ layout: post
 title:  "HTB Writeup [Windows - Hard] - Search"
 ---
 
-![Search](/assets/search/Search.png)
+![Search](/assets/Search/Search.png)
 
 ### Summary
 - A **Windows Domain Controller** machine where we don't get any access using conventional methods. The key to gaining our initial set of credentials is by inspecting *the images* on the website where one turns out to have **credentials** for a user called `hope.sharp`
