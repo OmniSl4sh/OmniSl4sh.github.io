@@ -78,11 +78,15 @@
 <hr />
 
 <h3 id="nmap">Nmap</h3>
-<p>we first start by doing a quick nmap top 10 tcp ports: <code class="language-plaintext highlighter-rouge">nmap --top-ports --open 10.10.10.149</code></p>
+<p>we first start by doing a quick nmap top 10 tcp ports:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nmap <span class="nt">--top-ports</span> <span class="nt">--open</span> 10.10.10.149
+</code></pre></div></div>
 
 <p><img src="/assets/Heist/nmap-top-10-ports.jpg" alt="nmap top 10 port scan" /></p>
 
-<p>we find http and smb ports open, so we begin with HTTP after leaving a full port scan <code class="language-plaintext highlighter-rouge">nmap -p- -T4 -sC -sV 10.10.10.149</code></p>
+<p>we find http and smb ports open, so we begin with HTTP after leaving a full port scan</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nmap <span class="nt">-p-</span> <span class="nt">-T4</span> <span class="nt">-sC</span> <span class="nt">-sV</span> 10.10.10.149
+</code></pre></div></div>
 
 <h3 id="guest-login">Guest login</h3>
 
@@ -279,8 +283,8 @@ Done:
   <li>searching for <strong>Autologon Creds</strong>, with a <em>little powershell one-liner I wrote:</em></li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName', 'DefaultPassword', 'AltDefaultDomainName', 'AltDefaultUserName', 'AltDefaultPassword' | % {$Val = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name $_ ;if($Val){Write-Host -ForegroundColor Green "[+] $_`: $Val"; Clear-Variable Val}else{Write-Host "[-] $_`: Not found"}};$ErrorActionPreference='Continue'
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="bp">$Error</span><span class="n">ActionPreference</span><span class="o">=</span><span class="s1">'SilentlyContinue'</span><span class="p">;</span><span class="s1">'DefaultDomainName'</span><span class="p">,</span><span class="w"> </span><span class="s1">'DefaultUserName'</span><span class="p">,</span><span class="w"> </span><span class="s1">'DefaultPassword'</span><span class="p">,</span><span class="w"> </span><span class="s1">'AltDefaultDomainName'</span><span class="p">,</span><span class="w"> </span><span class="s1">'AltDefaultUserName'</span><span class="p">,</span><span class="w"> </span><span class="s1">'AltDefaultPassword'</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="p">{</span><span class="nv">$Val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Get-ItemPropertyValue</span><span class="w"> </span><span class="nt">-Path</span><span class="w"> </span><span class="s2">"HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"</span><span class="w"> </span><span class="nt">-Name</span><span class="w"> </span><span class="bp">$_</span><span class="w"> </span><span class="p">;</span><span class="kr">if</span><span class="p">(</span><span class="nv">$Val</span><span class="p">){</span><span class="n">Write-Host</span><span class="w"> </span><span class="nt">-ForegroundColor</span><span class="w"> </span><span class="nx">Green</span><span class="w"> </span><span class="s2">"[+] </span><span class="bp">$_</span><span class="se">`:</span><span class="s2"> </span><span class="nv">$Val</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="n">Clear-Variable</span><span class="w"> </span><span class="nx">Val</span><span class="p">}</span><span class="kr">else</span><span class="p">{</span><span class="n">Write-Host</span><span class="w"> </span><span class="s2">"[-] </span><span class="bp">$_</span><span class="se">`:</span><span class="s2"> Not found"</span><span class="p">}};</span><span class="bp">$Error</span><span class="n">ActionPreference</span><span class="o">=</span><span class="s1">'Continue'</span><span class="w">
+</span></code></pre></div></div>
 
 <p>we get nothing also:</p>
 
@@ -333,7 +337,7 @@ the path should be <code class="language-plaintext highlighter-rouge">C:\Users\C
 
 <p>nevermind the names I use. It’s totally normal XD</p>
 
-<p>P.S. After checking <strong>Ippsec’s</strong> writeup, the <em>intended path</em> was to dump the memory of the <code class="language-plaintext highlighter-rouge">firefox</code> process and using the <code class="language-plaintext highlighter-rouge">strings</code> command to look into its contents where the credentials for the administrator would be found. But, oh well :/ :D</p>
+<p><strong>P.S.</strong> After checking <strong>Ippsec’s</strong> writeup, the <em>intended path</em> was to dump the memory of the <code class="language-plaintext highlighter-rouge">firefox</code> process and using the <code class="language-plaintext highlighter-rouge">strings</code> command to look into its contents where the credentials for the administrator would be found. But, oh well :/ :D</p>
 
   </div><a class="u-url" href="/2022/03/25/Heist.html" hidden></a>
 </article>

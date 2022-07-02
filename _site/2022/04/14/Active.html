@@ -124,7 +124,9 @@ Host script results:
   <li><strong>Global Catalog LDAP:</strong> TCP 3268</li>
 </ul>
 
-<p>we can also verify that by doing a DNS query for a domain’s SRV record using <code class="language-plaintext highlighter-rouge">nslookup -type=srv _ldap._tcp.dc._msdcs.active.htb</code></p>
+<p>we can also verify that by doing a DNS query for a domain’s SRV record using</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nslookup <span class="nt">-type</span><span class="o">=</span>srv _ldap._tcp.dc._msdcs.active.htb
+</code></pre></div></div>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Server:         10.10.10.100
 Address:        10.10.10.100#53
 
@@ -157,15 +159,15 @@ unlock_lookup dighost.c:4091
 
 <h3 id="smb-share-enumeration">SMB Share enumeration</h3>
 <p>first, we check <strong>SMB shares</strong> using <strong>null authenticaion</strong> with <code class="language-plaintext highlighter-rouge">crackmapexec</code>. And, we find that we have <strong>READ access</strong> to the <code class="language-plaintext highlighter-rouge">Replication</code> share.</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>└─# crackmapexec smb 10.10.10.100 -u '' -p '' --shares
-SMB         10.10.10.100    445    DC               [*] Windows 6.1 Build 7601 x64 (name:DC) (domain:active.htb) (signing:True) (SMBv1:False)
-SMB         10.10.10.100    445    DC               [-] active.htb\: STATUS_ACCESS_DENIED 
-SMB         10.10.10.100    445    DC               [+] Enumerated shares
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>└─# crackmapexec smb 10.10.10.100 <span class="nt">-u</span> <span class="s1">''</span> <span class="nt">-p</span> <span class="s1">''</span> <span class="nt">--shares</span>
+SMB         10.10.10.100    445    DC               <span class="o">[</span><span class="k">*</span><span class="o">]</span> Windows 6.1 Build 7601 x64 <span class="o">(</span>name:DC<span class="o">)</span> <span class="o">(</span>domain:active.htb<span class="o">)</span> <span class="o">(</span>signing:True<span class="o">)</span> <span class="o">(</span>SMBv1:False<span class="o">)</span>
+SMB         10.10.10.100    445    DC               <span class="o">[</span>-] active.htb<span class="se">\:</span> STATUS_ACCESS_DENIED 
+SMB         10.10.10.100    445    DC               <span class="o">[</span>+] Enumerated shares
 SMB         10.10.10.100    445    DC               Share           Permissions     Remark
-SMB         10.10.10.100    445    DC               -----           -----------     ------
-SMB         10.10.10.100    445    DC               ADMIN$                          Remote Admin
-SMB         10.10.10.100    445    DC               C$                              Default share
-SMB         10.10.10.100    445    DC               IPC$                            Remote IPC
+SMB         10.10.10.100    445    DC               <span class="nt">-----</span>           <span class="nt">-----------</span>     <span class="nt">------</span>
+SMB         10.10.10.100    445    DC               ADMIN<span class="nv">$ </span>                         Remote Admin
+SMB         10.10.10.100    445    DC               C<span class="nv">$ </span>                             Default share
+SMB         10.10.10.100    445    DC               IPC<span class="nv">$ </span>                           Remote IPC
 SMB         10.10.10.100    445    DC               NETLOGON                        Logon server share 
 SMB         10.10.10.100    445    DC               Replication     READ            
 SMB         10.10.10.100    445    DC               SYSVOL                          Logon server share 

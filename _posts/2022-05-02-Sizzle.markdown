@@ -168,7 +168,7 @@ we loop over the files using the `file` command and `grep` out any empty hex lin
 
 *Since we were nearing a dead end with our enumeration,* we're going to use a simple `bash` script to check for `write` access in the SMB share.
 
-```
+```bash
 #!/bin/bash
 list=$(find /mnt -type d)
 for d in $list
@@ -251,7 +251,9 @@ This can be done after authenticating to `http://10.10.10.103/certsrv` and submi
 
 The command should be as below:
 
-`openssl req -newkey rsa:2048 -keyout amanda.key -out amanda.csr`
+```bash
+openssl req -newkey rsa:2048 -keyout amanda.key -out amanda.csr
+```
 
 ![gen-key-gen-csr](/assets/Sizzle/gen-key-gen-csr.jpg)
 

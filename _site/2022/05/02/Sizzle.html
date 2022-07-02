@@ -230,19 +230,19 @@ Host script results:
 
 <p><em>Since we were nearing a dead end with our enumeration,</em> we’re going to use a simple <code class="language-plaintext highlighter-rouge">bash</code> script to check for <code class="language-plaintext highlighter-rouge">write</code> access in the SMB share.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#!/bin/bash
-list=$(find /mnt -type d)
-for d in $list
-do
-        touch $d/just-a-test-dir 2&gt;/dev/null
-        if [ $? -eq 0 ]
-        then
-                echo -e "\e[32m[+] $d is writable\e[0m"
-                rm $d/just-a-test-dir
-        else
-                echo -e "\e[31m[-] $d is not writable\e[0m"
-        fi
-done
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="nv">list</span><span class="o">=</span><span class="si">$(</span>find /mnt <span class="nt">-type</span> d<span class="si">)</span>
+<span class="k">for </span>d <span class="k">in</span> <span class="nv">$list</span>
+<span class="k">do
+        </span><span class="nb">touch</span> <span class="nv">$d</span>/just-a-test-dir 2&gt;/dev/null
+        <span class="k">if</span> <span class="o">[</span> <span class="nv">$?</span> <span class="nt">-eq</span> 0 <span class="o">]</span>
+        <span class="k">then
+                </span><span class="nb">echo</span> <span class="nt">-e</span> <span class="s2">"</span><span class="se">\e</span><span class="s2">[32m[+] </span><span class="nv">$d</span><span class="s2"> is writable</span><span class="se">\e</span><span class="s2">[0m"</span>
+                <span class="nb">rm</span> <span class="nv">$d</span>/just-a-test-dir
+        <span class="k">else
+                </span><span class="nb">echo</span> <span class="nt">-e</span> <span class="s2">"</span><span class="se">\e</span><span class="s2">[31m[-] </span><span class="nv">$d</span><span class="s2"> is not writable</span><span class="se">\e</span><span class="s2">[0m"</span>
+        <span class="k">fi
+done</span>
 </code></pre></div></div>
 
 <ol>
@@ -313,7 +313,8 @@ Command=ToggleDesktop
 
 <p>The command should be as below:</p>
 
-<p><code class="language-plaintext highlighter-rouge">openssl req -newkey rsa:2048 -keyout amanda.key -out amanda.csr</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl req <span class="nt">-newkey</span> rsa:2048 <span class="nt">-keyout</span> amanda.key <span class="nt">-out</span> amanda.csr
+</code></pre></div></div>
 
 <p><img src="/assets/Sizzle/gen-key-gen-csr.jpg" alt="gen-key-gen-csr" /></p>
 

