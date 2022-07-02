@@ -116,7 +116,7 @@ We'll make the script generate dates between 2018 to 2022. That's 2 years before
 
 Here's the script:
 
-```
+```powershell
 foreach($year in (2018 .. 2022)){
 	foreach($month in (1 .. 12)){
 	        if ($month -lt 10){$month = "0$month"}   # if the month's number is less than 10, put a zero before it
@@ -135,7 +135,7 @@ Which works like a charm :D
 
 We create a specific folder for the **PDF**s and then write a quick **bash** loop to download every document it can find. we use `wget` with the `-q` flag to make it go quietly.
 
-```
+```bash
 for doc in $(cat pdf_name_list.txt); do wget -q "http://10.10.10.248/documents/$doc"; done
 ```
 
@@ -151,7 +151,7 @@ We wanted to find a tool to get us their content in text if possible. So we **Go
 
 *After installing the package,* We're going to use another **bash** script to create the converted text files.
 
-```
+```bash
 for pdf in $(ls *.pdf); do pdftotext $pdf; done
 ```
 
@@ -159,7 +159,7 @@ We end up with 99 text files that we need to browse through :D
 
 Time for another script xD
 
-```
+```bash
 for text in $(ls *.txt); do echo $text; echo '---------------------'; cat $text; echo 'press any key to continue'; read; done
 ```
 
@@ -198,7 +198,7 @@ We use the tool with the `-creator` flag to only extract that field.
 
 We couple this with some Shell Fu to create a user list:
 
-```
+```bash
 for pdf in $(ls *.pdf); do exiftool -creator $pdf | awk -F ': ' '{print $2}'; done | sort -u > userlist.txt
 ```
 
@@ -235,7 +235,7 @@ We connect to it using `smbclient` and find the script that the previous note wa
 
 When checking its content:
 
-```
+```powershell
 # Check web server status. Scheduled to run every 5min
 Import-Module ActiveDirectory 
 foreach($record in Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb" | Where-Object Name -like "web*")  {
@@ -251,15 +251,15 @@ foreach($record in Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=Doma
 
 We can see that the script:
 - Runs every 5 minutes
-```
+```powershell
 # Check web server status. Scheduled to run every 5min
 ```
 - Looks for **DNS** records that start with **"web"**
-```
+```powershell
 Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb" | Where-Object Name -like "web*"
 ```
 - Uses the credentials of the user running the script to issue web requests for every record match
-```
+```powershell
 Invoke-WebRequest -Uri "http://$($record.Name)" -UseDefaultCredentials
 ```
 

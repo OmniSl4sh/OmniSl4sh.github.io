@@ -15,15 +15,15 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="HTB Writeup [Windows - Medium] - Intelligence" />
 <meta property="og:locale" content="en_US" />
-<link rel="canonical" href="https://omnisl4sh.github.io/2022/07/01/Intelligence.html" />
-<meta property="og:url" content="https://omnisl4sh.github.io/2022/07/01/Intelligence.html" />
+<link rel="canonical" href="http://localhost:4000/2022/07/01/Intelligence.html" />
+<meta property="og:url" content="http://localhost:4000/2022/07/01/Intelligence.html" />
 <meta property="og:site_name" content="OmniSl4sh’s Blog" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2022-07-01T00:00:00+02:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HTB Writeup [Windows - Medium] - Intelligence" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-07-01T00:00:00+02:00","datePublished":"2022-07-01T00:00:00+02:00","headline":"HTB Writeup [Windows - Medium] - Intelligence","mainEntityOfPage":{"@type":"WebPage","@id":"https://omnisl4sh.github.io/2022/07/01/Intelligence.html"},"url":"https://omnisl4sh.github.io/2022/07/01/Intelligence.html"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-07-01T00:00:00+02:00","datePublished":"2022-07-01T00:00:00+02:00","headline":"HTB Writeup [Windows - Medium] - Intelligence","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/07/01/Intelligence.html"},"url":"http://localhost:4000/2022/07/01/Intelligence.html"}</script>
 <!-- End Jekyll SEO tag -->
 
     <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
@@ -43,7 +43,7 @@
     <div id="container">
       <div class="inner">
         <header>
-          <h1><a href="https://omnisl4sh.github.io/">OmniSl4sh's Blog</a></h1>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
           <h2></h2>
         </header>
         <!--<<section id="downloads" class="clearfix">
@@ -180,17 +180,17 @@ Host script results:
 
 <p>Here’s the script:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>foreach($year in (2018 .. 2022)){
-	foreach($month in (1 .. 12)){
-	        if ($month -lt 10){$month = "0$month"}   # if the month's number is less than 10, put a zero before it
-	        foreach($day in (1..31)){
-	                if($day -lt 10){$day = "0$day"}  # if the day's number is less than 10, put a zero before it
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kr">foreach</span><span class="p">(</span><span class="nv">$year</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="p">(</span><span class="mi">2018</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="mi">2022</span><span class="p">)){</span><span class="w">
+	</span><span class="kr">foreach</span><span class="p">(</span><span class="nv">$month</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="mi">12</span><span class="p">)){</span><span class="w">
+	        </span><span class="kr">if</span><span class="w"> </span><span class="p">(</span><span class="nv">$month</span><span class="w"> </span><span class="o">-lt</span><span class="w"> </span><span class="mi">10</span><span class="p">){</span><span class="nv">$month</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0</span><span class="nv">$month</span><span class="s2">"</span><span class="p">}</span><span class="w">   </span><span class="c"># if the month's number is less than 10, put a zero before it</span><span class="w">
+	        </span><span class="kr">foreach</span><span class="p">(</span><span class="nv">$day</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="o">..</span><span class="mi">31</span><span class="p">)){</span><span class="w">
+	                </span><span class="kr">if</span><span class="p">(</span><span class="nv">$day</span><span class="w"> </span><span class="o">-lt</span><span class="w"> </span><span class="mi">10</span><span class="p">){</span><span class="nv">$day</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0</span><span class="nv">$day</span><span class="s2">"</span><span class="p">}</span><span class="w">  </span><span class="c"># if the day's number is less than 10, put a zero before it</span><span class="w">
 
-	                "$year-$month-$day-upload.pdf" &gt;&gt; pdf_name_list.txt # output the generated name into a text file
-	        }
-	}
-}
-</code></pre></div></div>
+	                </span><span class="s2">"</span><span class="nv">$year</span><span class="s2">-</span><span class="nv">$month</span><span class="s2">-</span><span class="nv">$day</span><span class="s2">-upload.pdf"</span><span class="w"> </span><span class="err">&gt;&gt;</span><span class="w"> </span><span class="n">pdf_name_list.txt</span><span class="w"> </span><span class="c"># output the generated name into a text file</span><span class="w">
+	        </span><span class="p">}</span><span class="w">
+	</span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
 
 <p>Which works like a charm :D</p>
 
@@ -198,7 +198,7 @@ Host script results:
 
 <p>We create a specific folder for the <strong>PDF</strong>s and then write a quick <strong>bash</strong> loop to download every document it can find. we use <code class="language-plaintext highlighter-rouge">wget</code> with the <code class="language-plaintext highlighter-rouge">-q</code> flag to make it go quietly.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for doc in $(cat pdf_name_list.txt); do wget -q "http://10.10.10.248/documents/$doc"; done
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>doc <span class="k">in</span> <span class="si">$(</span><span class="nb">cat </span>pdf_name_list.txt<span class="si">)</span><span class="p">;</span> <span class="k">do </span>wget <span class="nt">-q</span> <span class="s2">"http://10.10.10.248/documents/</span><span class="nv">$doc</span><span class="s2">"</span><span class="p">;</span> <span class="k">done</span>
 </code></pre></div></div>
 
 <p><img src="/assets/Intelligence/a-lot-of-pdfs.jpg" alt="a-lot-of-pdfs" /></p>
@@ -213,14 +213,14 @@ Host script results:
 
 <p><em>After installing the package,</em> We’re going to use another <strong>bash</strong> script to create the converted text files.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for pdf in $(ls *.pdf); do pdftotext $pdf; done
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>pdf <span class="k">in</span> <span class="si">$(</span><span class="nb">ls</span> <span class="k">*</span>.pdf<span class="si">)</span><span class="p">;</span> <span class="k">do </span>pdftotext <span class="nv">$pdf</span><span class="p">;</span> <span class="k">done</span>
 </code></pre></div></div>
 
 <p>We end up with 99 text files that we need to browse through :D</p>
 
 <p>Time for another script xD</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for text in $(ls *.txt); do echo $text; echo '---------------------'; cat $text; echo 'press any key to continue'; read; done
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>text <span class="k">in</span> <span class="si">$(</span><span class="nb">ls</span> <span class="k">*</span>.txt<span class="si">)</span><span class="p">;</span> <span class="k">do </span><span class="nb">echo</span> <span class="nv">$text</span><span class="p">;</span> <span class="nb">echo</span> <span class="s1">'---------------------'</span><span class="p">;</span> <span class="nb">cat</span> <span class="nv">$text</span><span class="p">;</span> <span class="nb">echo</span> <span class="s1">'press any key to continue'</span><span class="p">;</span> <span class="nb">read</span><span class="p">;</span> <span class="k">done</span>
 </code></pre></div></div>
 
 <p>This displays the document names and allows you to browse each.</p>
@@ -258,7 +258,7 @@ Host script results:
 
 <p>We couple this with some Shell Fu to create a user list:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for pdf in $(ls *.pdf); do exiftool -creator $pdf | awk -F ': ' '{print $2}'; done | sort -u &gt; userlist.txt
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>pdf <span class="k">in</span> <span class="si">$(</span><span class="nb">ls</span> <span class="k">*</span>.pdf<span class="si">)</span><span class="p">;</span> <span class="k">do </span>exiftool <span class="nt">-creator</span> <span class="nv">$pdf</span> | <span class="nb">awk</span> <span class="nt">-F</span> <span class="s1">': '</span> <span class="s1">'{print $2}'</span><span class="p">;</span> <span class="k">done</span> | <span class="nb">sort</span> <span class="nt">-u</span> <span class="o">&gt;</span> userlist.txt
 </code></pre></div></div>
 
 <p><img src="/assets/Intelligence/exiftool-userlist.jpg" alt="exiftool-userlist" /></p>
@@ -294,32 +294,32 @@ Host script results:
 
 <p>When checking its content:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Check web server status. Scheduled to run every 5min
-Import-Module ActiveDirectory 
-foreach($record in Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb" | Where-Object Name -like "web*")  {
-	try {
-		$request = Invoke-WebRequest -Uri "http://$($record.Name)" -UseDefaultCredentials
-		if(.StatusCode -ne 200) {
-			Send-MailMessage -From 'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;' -To 'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;' -Subject "Host: $($record.Name) is down"
-		}
-	}
-	catch {}
-}
-</code></pre></div></div>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Check web server status. Scheduled to run every 5min</span><span class="w">
+</span><span class="n">Import-Module</span><span class="w"> </span><span class="nx">ActiveDirectory</span><span class="w"> 
+</span><span class="kr">foreach</span><span class="p">(</span><span class="nv">$record</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="n">Get-ChildItem</span><span class="w"> </span><span class="s2">"AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Where-Object</span><span class="w"> </span><span class="nx">Name</span><span class="w"> </span><span class="o">-like</span><span class="w"> </span><span class="s2">"web*"</span><span class="p">)</span><span class="w">  </span><span class="p">{</span><span class="w">
+	</span><span class="kr">try</span><span class="w"> </span><span class="p">{</span><span class="w">
+		</span><span class="nv">$request</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Invoke-WebRequest</span><span class="w"> </span><span class="nt">-Uri</span><span class="w"> </span><span class="s2">"http://</span><span class="si">$(</span><span class="nv">$record</span><span class="o">.</span><span class="nf">Name</span><span class="si">)</span><span class="s2">"</span><span class="w"> </span><span class="nt">-UseDefaultCredentials</span><span class="w">
+		</span><span class="kr">if</span><span class="p">(</span><span class="o">.</span><span class="nf">StatusCode</span><span class="w"> </span><span class="o">-ne</span><span class="w"> </span><span class="mi">200</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
+			</span><span class="n">Send-MailMessage</span><span class="w"> </span><span class="nt">-From</span><span class="w"> </span><span class="s1">'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;'</span><span class="w"> </span><span class="nt">-To</span><span class="w"> </span><span class="s1">'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;'</span><span class="w"> </span><span class="nt">-Subject</span><span class="w"> </span><span class="s2">"Host: </span><span class="si">$(</span><span class="nv">$record</span><span class="o">.</span><span class="nf">Name</span><span class="si">)</span><span class="s2"> is down"</span><span class="w">
+		</span><span class="p">}</span><span class="w">
+	</span><span class="p">}</span><span class="w">
+	</span><span class="kr">catch</span><span class="w"> </span><span class="p">{}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
 
 <p>We can see that the script:</p>
 <ul>
   <li>Runs every 5 minutes
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Check web server status. Scheduled to run every 5min
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Check web server status. Scheduled to run every 5min</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Looks for <strong>DNS</strong> records that start with <strong>“web”</strong>
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb" | Where-Object Name -like "web*"
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Get-ChildItem</span><span class="w"> </span><span class="s2">"AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Where-Object</span><span class="w"> </span><span class="nx">Name</span><span class="w"> </span><span class="o">-like</span><span class="w"> </span><span class="s2">"web*"</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
   <li>Uses the credentials of the user running the script to issue web requests for every record match
-    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Invoke-WebRequest -Uri "http://$($record.Name)" -UseDefaultCredentials
-</code></pre></div>    </div>
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Invoke-WebRequest</span><span class="w"> </span><span class="nt">-Uri</span><span class="w"> </span><span class="s2">"http://</span><span class="si">$(</span><span class="nv">$record</span><span class="o">.</span><span class="nf">Name</span><span class="si">)</span><span class="s2">"</span><span class="w"> </span><span class="nt">-UseDefaultCredentials</span><span class="w">
+</span></code></pre></div>    </div>
   </li>
 </ul>
 
