@@ -74,7 +74,7 @@
   <li><em>While checking Tiffany’s</em> <strong>SMB</strong> <em>share access,</em> we come across a <strong>PowerShell</strong> script on the <strong>“IT”</strong> share that routinely queries <strong>DNS</strong> for record names starting with <strong>“web”</strong> and issues <strong>authenticated</strong> web requests to them.</li>
   <li><em>Knowing this information,</em> we use a tool called <code class="language-plaintext highlighter-rouge">dnstool.py</code> from the <strong>Krbrelayx</strong> toolkit to add a record that starts with <strong>“web”</strong> and points to our Kali machine’s IP address.</li>
   <li><em>Having fired our</em> <code class="language-plaintext highlighter-rouge">responder</code> <em>to capture the</em> <strong>HTTP</strong> <em>request,</em> we wait for a couple of minutes and get the hash of a user called <code class="language-plaintext highlighter-rouge">ted.graves</code> who was running the script.</li>
-  <li><em>After running a</em> <code class="language-plaintext highlighter-rouge">bloodhound</code> <em>collection and viewing exploit paths from the users we own,</em> we find that <strong>Ted</strong> can read the <strong>gMSA</strong> password of <code class="language-plaintext highlighter-rouge">SVC_INT</code> which has <strong>contrained delegation</strong> on the Domain Controller.</li>
+  <li><em>After running a</em> <code class="language-plaintext highlighter-rouge">bloodhound</code> <em>collection and viewing exploit paths from the users we own,</em> we find that <strong>Ted</strong> can read the <strong>gMSA</strong> password of <code class="language-plaintext highlighter-rouge">SVC_INT</code> which has <strong>constrained delegation</strong> on the Domain Controller.</li>
   <li>We use the <code class="language-plaintext highlighter-rouge">gMSADumper</code> python tool to get the <strong>NTLM hash</strong> of <code class="language-plaintext highlighter-rouge">SVC_INT</code> and use it to request a <strong>silver ticket</strong> impersonating the <code class="language-plaintext highlighter-rouge">Administrator</code> for a full domain takeover.</li>
 </ul>
 
@@ -150,7 +150,7 @@ Host script results:
 <h3 id="the-website">The Website</h3>
 <p><img src="/assets/Intelligence/website-homepage.jpg" alt="website-homepage" /></p>
 
-<p>checking the website’s home page doesn’t show anything special except for this:</p>
+<p>checking the website’s home page doesn’t show anything special. Except for this:</p>
 
 <p><img src="/assets/Intelligence/document-links.jpg" alt="document-links" /></p>
 
@@ -164,7 +164,7 @@ Host script results:
 
 <ul>
   <li>we want to see if there were <em>other documents</em></li>
-  <li><em>And if there were more,</em> we want to check their <strong>content</strong> as well as their <strong>metadata</strong></li>
+  <li><em>And if there were,</em> we want to check their <strong>content</strong> as well as their <strong>metadata</strong></li>
 </ul>
 
 <p>we might get information we could use.</p>
@@ -281,7 +281,7 @@ Host script results:
 
 <p><img src="/assets/Intelligence/got-tiffany.jpg" alt="got-tiffany" /></p>
 
-<p>Tiffany hadn’t changed her default password. Lucky for us :D</p>
+<p>Tiffany hadn’t changed the default password. Lucky for us :D</p>
 
 <h3 id="exploiting-the-vulnerable-script">Exploiting the Vulnerable Script</h3>
 <p><em>When checking the readable</em> <strong>SMB</strong> <em>shares as Tiffany,</em> we find that she can read a certain share: <strong>IT</strong></p>
@@ -380,7 +380,7 @@ foreach($record in Get-ChildItem "AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=Doma
 
 <p><em>However, because the</em> <strong>service portion</strong> <em>in the granted</em> <strong>service ticket</strong> <em>is</em> <strong>unprotected</strong>, we may alter it for <strong>any service</strong> we want.</p>
 
-<p><strong>For example:</strong> we can get a ticket for the <strong>LDAP</strong> service and be granted <strong>DCSync</strong> rights.</p>
+<p><strong>For example:</strong> we can motidy the received ticket to be for the <strong>LDAP</strong> service and be granted <strong>DCSync</strong> rights.</p>
 
 <p>It was all mentioned on the <strong>Bloodhound</strong> help</p>
 

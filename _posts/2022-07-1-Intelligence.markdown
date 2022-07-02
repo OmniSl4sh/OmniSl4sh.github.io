@@ -14,7 +14,7 @@ title:  "HTB Writeup [Windows - Medium] - Intelligence"
 - *While checking Tiffany's* **SMB** *share access,* we come across a **PowerShell** script on the **"IT"** share that routinely queries **DNS** for record names starting with **"web"** and issues **authenticated** web requests to them.
 - *Knowing this information,* we use a tool called `dnstool.py` from the **Krbrelayx** toolkit to add a record that starts with **"web"** and points to our Kali machine's IP address.
 - *Having fired our* `responder` *to capture the* **HTTP** *request,* we wait for a couple of minutes and get the hash of a user called `ted.graves` who was running the script.
-- *After running a* `bloodhound` *collection and viewing exploit paths from the users we own,* we find that **Ted** can read the **gMSA** password of `SVC_INT` which has **contrained delegation** on the Domain Controller.
+- *After running a* `bloodhound` *collection and viewing exploit paths from the users we own,* we find that **Ted** can read the **gMSA** password of `SVC_INT` which has **constrained delegation** on the Domain Controller.
 - We use the `gMSADumper` python tool to get the **NTLM hash** of `SVC_INT` and use it to request a **silver ticket** impersonating the `Administrator` for a full domain takeover.
 
 ---
@@ -88,7 +88,7 @@ Host script results:
 ### The Website
 ![website-homepage](/assets/Intelligence/website-homepage.jpg)
 
-checking the website's home page doesn't show anything special except for this:
+checking the website's home page doesn't show anything special. Except for this:
 
 ![document-links](/assets/Intelligence/document-links.jpg)
 
@@ -101,7 +101,7 @@ The content is some filler text. But we notice the naming of the documents is ba
 This is interesting because:
 
 - we want to see if there were *other documents*
-- *And if there were more,* we want to check their **content** as well as their **metadata**
+- *And if there were,* we want to check their **content** as well as their **metadata**
 
 we might get information we could use.
 
@@ -222,7 +222,7 @@ We do this and we're now in sync with the **DC** :]
 
 ![got-tiffany](/assets/Intelligence/got-tiffany.jpg)
 
-Tiffany hadn't changed her default password. Lucky for us :D
+Tiffany hadn't changed the default password. Lucky for us :D
 
 ### Exploiting the Vulnerable Script
 *When checking the readable* **SMB** *shares as Tiffany,* we find that she can read a certain share: **IT**
@@ -316,7 +316,7 @@ We know so by inspecting the account on `bloodhound`
 
 *However, because the* **service portion** *in the granted* **service ticket** *is* **unprotected**, we may alter it for **any service** we want.
 
-**For example:** we can get a ticket for the **LDAP** service and be granted **DCSync** rights.
+**For example:** we can motidy the received ticket to be for the **LDAP** service and be granted **DCSync** rights.
 
 It was all mentioned on the **Bloodhound** help
 
