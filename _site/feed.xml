@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-07-08T14:49:07+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="https://omnisl4sh.github.io/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/01/Intelligence</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-07-08T14:51:26+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="https://omnisl4sh.github.io/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/01/Intelligence</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -316,7 +316,7 @@ Host script results:
 
 <p><em>However, because the</em> <strong>service portion</strong> <em>in the granted</em> <strong>service ticket</strong> <em>is</em> <strong>unprotected</strong>, we may alter it for <strong>any service</strong> we want.</p>
 
-<p><strong>For example:</strong> we can motify the received ticket to be for the <strong>LDAP</strong> service and be granted <strong>DCSync</strong> rights.</p>
+<p><strong>For example:</strong> we can modify the received ticket to be for the <strong>LDAP</strong> service and be granted <strong>DCSync</strong> rights.</p>
 
 <p>It was all mentioned on the <strong>Bloodhound</strong> help</p>
 

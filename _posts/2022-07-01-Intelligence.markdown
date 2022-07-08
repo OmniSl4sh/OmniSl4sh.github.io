@@ -316,7 +316,7 @@ We know so by inspecting the account on `bloodhound`
 
 *However, because the* **service portion** *in the granted* **service ticket** *is* **unprotected**, we may alter it for **any service** we want.
 
-**For example:** we can motify the received ticket to be for the **LDAP** service and be granted **DCSync** rights.
+**For example:** we can modify the received ticket to be for the **LDAP** service and be granted **DCSync** rights.
 
 It was all mentioned on the **Bloodhound** help
 
