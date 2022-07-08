@@ -1,0 +1,199 @@
+---
+layout: post
+title:  "HTB Writeup [Windows - Insane] - APT"
+published: false
+---
+
+![APT](APT.png)
+
+### Summary
+- A Windows machine where a standard IPv4 full TCP port scan reveals only HTTP on port 80 and RPC Endpoint Mapper on port 135.
+- After checking out the website, it turns out to be just static content with no real abusable functionalities.
+- However, due to the many information that can be retrieved through the MSRPC protocol and because we have no other option, we decide to dig deeper into what can be done through port it.
+- We come across an amazing article where we find that we can (without authentication) access a specific function in the legacy DCOM interface (exported through RPC) that would let us enumerate all the network interfaces on the machine.
+- Thanks to a security researcher who has built a specific python script for that function, we can use it and are able to get the network interace information.
+- We find that the machine has an IPV6. And, when scanning it with nmap, we get the full list of available ports which indicate a Windows Domain Controller.
+- The anonymously accessible SMB share had a copy of the Active Directory Database file (NTDS.dit) as well as the SECURITY and SYSTEM registry hives in a folder structure similar to the output of the `ntdsutil` windows utility.
+- With the given files, and with impacket's `secretsdump.py`, we are able to get a list of all domain usernames and hashes.
+- We enumerate the users with `kerbrute` to only find 3 valid accounts (the default administrator, the Domain Controller's machine account and a user called `henry.vinson`).
+- We try to brute force the `henry` user with all the hashes we have over SMB but are blocked by the server when doing so.
+- However, since we didn't get a message indicating account lockout, we changed the method of authentication to kerberos preauth (since it doesn't leave a 4625 logon event in the logs) in hopes of bypassing the defenses in place.
+- Using impacket's silver ticket script `getST.py`, we manage to brute force using the NTLM hashes to find a match with the `henry.vinson` user.
+- The user had no WinRM access so we tried many things to enumerate the machine. When scanning the contents of the registry through the available remote registry service, we got a set of credentials for the `henry.vinson_adm` user.
+- That user turned out to have WinRM access and we could successfully get a shell. We then used `WinPEAS` to run a regular privesc check. We had to switch the basic version for the obfuscated one because AMSI was detecting it.
+- Looking at the tool's output, we find that the machine is misconfigured in a way that it can use the insecure and crackable NetNTLMv1 in network authentication. A vulnerabiltiy that can be exploited for privilege escalation.
+- Luckily, a tool like `PetitPotam.py` can coerce authentication back to our attacker machine. We use it after setting our `responder` to downgrade the authentication to NetNTLMv1 as well as send a specific challenge to capture the machine account' hash.
+- We submit it to the `crack.sh` website which cracks it and emails us the NTLM version. We then use it to perform a DCSync attack.
+- After retrieving the Administrator's NTLM hash from the dump, we use it to get complete access to the box in a typical pass-the-hash attack.
+- The machine author's intended way to achieve privilege escalation was through modifying the RoguePotato exploit to target IPV6, bypass AMSI then creating a special RPC server with impacket to respond with a challenge before capturing the NetNTLMv1 authentication.
+- However, due to that path's high complexity and due to the simpler tools currenly available, I'm postponing it for when I know enough about RPC to be able to decently write about it.
+
+---
+
+### NMAP
+```
+PORT    STATE SERVICE VERSION
+80/tcp  open  http    Microsoft IIS httpd 10.0
+|_http-title: Gigantic Hosting | Home
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/10.0
+135/tcp open  msrpc   Microsoft Windows RPC
+Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
+```
+
+The standard nmap full port scan shows:
+1. HTTP in port 80 served on IIS 10
+2. MSRPC on port 135
+
+### Checking Port 80
+Looking at the website, we find a bunch of static html pages
+
+![Website-homepage](Website-homepage.jpg)
+
+The linked web pages were:
+
+- index.html
+- services.html
+- clients.html
+- about.html
+- support.html
+- news.html
+
+The content was mostly filler stuff. We didn't find any usernames apart from the sales email or anything intersting in the source code.
+
+Directory and file bruteforcing with Gobuster didn't get us anything new either. So we moved on..
+
+### Diving into into MSRPC
+The Microsoft Remote Procedure Call is a protocol that allows a client program to request a service on another computer. Just like any typical client-server architecture.
+
+It is mainly about cross-process communication and object exchange over the network.
+
+There are many functionalities in RPC, so we're interested to know how to use it.
+
+Here are few terms we need to know before we can continue:
+
+- The RPC End Point Mapper: The RPC Endpoint Mapper (RpcEptMapper) service resolves RPC interface identifiers to transport endpoints. It can be queried for functionalities in a specific way.
+- Protocol Sequence Identifier: A numeric value that uniquely identifies an RPC transport protocol when describing a protocol in the context of a protocol towe
+- RPC Endpoint: A network-specific address of a server process for RPC.
+- Universally Unique Identifier (UUID): An identifier that can be used in identifying objects in cross-process communication. In our case, a specific interface providing a special function of interest.
+- The Microsoft Component Object Model (COM): is a platform-independent, distributed, object-oriented system for creating binary software components that can interact.
+- The Distributed Component Object Model (DCOM): The Microsoft Component Object Model (COM) specification that defines how components communicate over networks.
+- Interface: A specification in a Component Object Model (COM) server that describes how to access the methods of a class.
+- Method: A function that can be called to execute a desired output.
+- Authentication Level: A numeric value indicating the level of authentication or message protection that remote procedure call (RPC) will apply to a specific message exchange
+- Opnum: An operation number or numeric identifier that is used to identify a specific remote procedure call (RPC) method or a method in an interface.
+
+
+Alright, so here's what we're going to do:
+
+1. Talk to the RPC Endpoint Mapper service on port 135.
+2. List all RPC Endpoints available.
+3. Per endpoint, find the functionalities that don't require authentication.
+4. Through googling each endpoint's UUID, lookup Microsoft documentation for each function.
+5. If we find any, we would need to also look for a way to invoke those functionalities.
+
+Let's view the help for impacket's `rpcmap.py` script.
+
+![rpcmap-help](rpcmap-help.jpg)
+
+Seem that we have everything we need here.
+
+**Command:**
+
+```bash
+rpcmap.py ncacn_ip_tcp:10.10.10.213 -brute-opnums -auth-level 1
+```
+
+Looking at the output, we see that we get access denied on most UUIDs and for most opnums. Except for a couple on UUID 99FCFEC4-5260-101B-BBCB-00AA0021347A
+
+![rpcmap-output](rpcmap-output.jpg)
+
+Let's see what google can find us with that UUID:
+
+![google-uuid-search-results](google-uuid-search-results.jpg)
+
+As you may have noticed, I clicked all three links :D these resources would get us through the first part of this machine.
+
+But first, we're gonna look at the Microsoft Documentation:
+
+![object-exporter](object-exporter.jpg)
+
+Our UUID is that of the IID_IObjectExporter. Here's what we get when we click the link next to it:
+
+![object-exporter-methods](object-exporter-methods.jpg)
+
+If you remember from `rpcmap`'s output, we had access to only Opnums 3 & 5
+
+![object-exporter-available-opnums](object-exporter-available-opnums.jpg)
+
+let's look at opnum 5:
+
+![serveralive2-method](serveralive2-method.jpg)
+
+"It returns string and security bindings for the object resolver, which allows the client to choose the most appropriate, mutually compatible settings."
+
+Since we're the client, we should get string and security bindings back when calling this method. But I don't have a clue on how to do that XD
+
+So I went for the 2nd search result [here](https://airbus-cyber-security.com/the-oxid-resolver-part-1-remote-enumeration-of-network-interfaces-without-any-authentication/), that I should've clicked first thing XD
+
+![airbus-article](airbus-article.jpg)
+
+Promising! If the machine has an IPv6, we can try it for another port scan!
+
+
+
+The researcher is even kind evough to provide a python script for it :D
+
+```python
+#!/usr/bin/python
+
+import sys, getopt
+
+from impacket.dcerpc.v5 import transport
+from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_LEVEL_NONE
+from impacket.dcerpc.v5.dcomrt import IObjectExporter
+
+def main(argv):
+
+    try:
+        opts, args = getopt.getopt(argv,"ht:",["target="])
+    except getopt.GetoptError:
+        print 'IOXIDResolver.py -t <target>'
+        sys.exit(2)
+
+    target_ip = "192.168.1.1"
+
+    for opt, arg in opts:
+        if opt == '-h':
+            print 'IOXIDResolver.py -t <target>'
+            sys.exit()
+        elif opt in ("-t", "--target"):
+            target_ip = arg
+
+    authLevel = RPC_C_AUTHN_LEVEL_NONE
+
+    stringBinding = r'ncacn_ip_tcp:%s' % target_ip
+    rpctransport = transport.DCERPCTransportFactory(stringBinding)
+
+    portmap = rpctransport.get_dce_rpc()
+    portmap.set_auth_level(authLevel)
+    portmap.connect()
+
+    objExporter = IObjectExporter(portmap)
+    bindings = objExporter.ServerAlive2()
+
+    print "[*] Retrieving network interface of " + target_ip
+
+    #NetworkAddr = bindings[0]['aNetworkAddr']
+    for binding in bindings:
+        NetworkAddr = binding['aNetworkAddr']
+        print "Address: " + NetworkAddr
+
+if __name__ == "__main__":
+   main(sys.argv[1:])
+```
+
+When using it, we get a sweet output:
+
+![python-enum-interfaces-script-output](python-enum-interfaces-script-output.jpg)
