@@ -115,11 +115,13 @@ Let's see what google search can find us for that UUID:
 
 *As you may have noticed there,* I clicked all three links :D the second article is enough to get us through the first part of this machine.
 
-But we're going to take a brief look at Microsoft's documentation first:
+But we're going to take a brief look at Microsoft's documentation first.
+
+Our UUID is that of the **"IID_IObjectExporter"**.
 
 ![object-exporter](/assets/APT/object-exporter.jpg)
 
-Our UUID is that of the **"IID_IObjectExporter"**. Here's what we get when we click the link next to it:
+Here's what we get when we click the link next to it:
 
 ![object-exporter-methods](/assets/APT/object-exporter-methods.jpg)
 
@@ -149,7 +151,7 @@ The 2nd search result [here](/assets/APT/https://airbus-cyber-security.com/the-o
 
 ![airbus-article](/assets/APT/airbus-article.jpg)
 
-The amazing **Impacket** library had the necessary code and the researcher was kind enough to provide a **python** script for it.
+The **Impacket** library had the necessary code and the researcher was kind enough to provide a **python** script for it.
 
 ```python
 #!/usr/bin/python
@@ -205,7 +207,7 @@ if __name__ == "__main__":
 ![python-enum-interfaces-script-output](/assets/APT/python-enum-interfaces-script-output.jpg)
 
 ### IPv6 NMAP
-We run another nmap on the IPv6 using the `-6` flag after placing an entry for it in our `/etc/hosts` file. Look at what we got :D
+After placing an entry for it in our `/etc/hosts` file, we run another nmap on the IPv6 using the `-6` flag. Look at what we got :D
 ```
 PORT      STATE SERVICE      VERSION
 53/tcp    open  domain       Simple DNS Plus
@@ -312,14 +314,14 @@ A full-fledged windows domain controller :D
 
 Looks like a firewall was configured to only allow port 80 and 135 on IPv4 but allowed everything on IPv6.
 
-**Lesson learned:** Always enumerate network interfaces before diving in to exploit. There could be way more information to be learned about the network by doing this.
+**Lesson learned:** Always enumerate network interfaces as part of the recon. There could be way more information to be learned about the network by doing this.
 
 ### SMB Enumeration
 We start with SMB and run `crackmapexec` to check the available shares:
 
 ![cme-smb-shares](/assets/APT/cme-smb-shares.jpg)
 
-we find a file called `backup.zip` which we try to unzip. But we find a password.
+we find a password when trying to unzip the file called `backup.zip` which we found.
 
 ![backup-zip](/assets/APT/backup-zip.jpg)
 
@@ -331,13 +333,13 @@ we could successfully crack it with john's `zip2john` script (It gave us an erro
 
 ![unzipping-backup-zip](/assets/APT/unzipping-backup-zip.jpg)
 
-We dump the contents with `secretsdump.py` using the `-history` flag to get previous password hashes and the `-just-dc-ntlm` to limit the output to what we can use in a pass-the-hash attack.
+We dump the contents with `secretsdump.py` using the `-history` flag to get previous password hashes and `-just-dc-ntlm` to limit the output to what we can use in a pass-the-hash attack.
 
 ![secrets_dump](/assets/APT/secrets_dump.jpg)
 
 Something is off here.. it can't be that easy :D
 
-We tried logging in with the Administrator and the Domain Controller machine hashes as well a golden ticket with the krbtgt hash since those would be instant kills.
+We tried logging in with the Administrator and the Domain Controller machine hashes as well as create a golden ticket with the krbtgt hash since those would be instant kills.
 
 *But of course,* none worked XD
 
@@ -354,7 +356,7 @@ Aaround 2k unique users and 4k unique NTLM hashes.
 
 We have to first validate that these users exist. We do so using `kerbrute`
 
-Only 3 users were really there.
+Only 3 users were valid.
 
 ![kerberute-userenum](/assets/APT/kerberute-userenum.jpg)
 
@@ -362,7 +364,7 @@ Only 3 users were really there.
 
 ![bruteforce-defenses](/assets/APT/bruteforce-defenses.jpg)
 
-But did you notice something? *even with that many attempts,* the account didn't get locked out ;] we know so because locking out accounts gives a different error message.
+But did you notice something? *even with that many attempts,* the account didn't get locked out ;] we know so because locked out accounts give a different error message.
 
 We're going to try bruteforcing using **Kerberos**. It's different from using SMB because it doesn't leave a 4625 logon event behind.
 
@@ -435,9 +437,9 @@ and we start it with the `--lm` flag to force LM hashing downgrade.
 
 We then trigger the authentication using `PetitPotam.py`. Here's what it looks like:
 
-![forced-auth-netNTLMv1](/assets/APT/forced-auth-netNTLMv1.hog)
+![forced-auth-netNTLMv1](/assets/APT/forced-auth-netNTLMv1.jpg)
 
-We got the NetNTLMv1 hash. Which we will then submit to the website `crack.sh` after formatting it according to their requirements.
+We got the NetNTLMv1 hash. Which we will then submit to the website `crack.sh` after formatting it according to their requirements. The hash should be like this:
 
 ```
 NTHASH:95ACA8C7248774CB427E1AE5B8D5CE6830A49B5BB858D384
