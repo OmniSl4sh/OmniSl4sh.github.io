@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "HTB Writeup [Windows - Insane] - APT"
-published: false
+published: true
 ---
 
 ![APT](/assets/APT/APT.png)
@@ -12,20 +12,20 @@ published: false
 - *However, due to the many information that can be retrieved through the MSRPC protocol and because we have no other option,* we decide to dig deeper into what can be done through it.
 - We come across an amazing article where we find that we can (*without authentication*) access a specific function in the legacy **DCOM interface** exported through RPC that would let us enumerate all the network interfaces on the machine.
 - *Thanks to a security researcher who has built a specific* **python script** *for that function,* we can use it and are able to get the network interace information.
-- We find that the machine has an **IPV6** that when scanned with nmap reveals the full list of available ports which indicate a Windows Domain Controller.
-- The anonymously accessible SMB share had a copy of the Active Directory database file **NTDS.dit** as well as the **security** and **system** registry hives in a folder structure similar to the output of the `ntdsutil` utility.
+- We find that the machine has an **IPV6** that when scanned with nmap reveals the full list of available ports which indicate a **Windows Domain Controller.**
+- The anonymously-accessible SMB share had a copy of the Active Directory database file **NTDS.dit** as well as the **security** and **system** registry hives in a folder structure similar to the output of the `ntdsutil` utility.
 - *With the given files, and using impacket's* `secretsdump.py`, we are able to get a list of all domain usernames and hashes.
 - We enumerate the users with `kerbrute` to only find 3 valid accounts (the default Administrator, the Domain Controller's machine account and a user called `henry.vinson`).
-- We try to brute force the user accounts with all the hashes from the dump over SMB but are blocked by the server when doing so.
-- *However, since we didn't get a message indicating account lockout,* we changed the method of authentication to **Kerberos** (*since it doesn't leave a 4625 logon event in the logs*) in hopes of bypassing the defenses in place.
-- *By building a bash wrapper around impacket's silver ticket script* `getST.py`, we manage to brute force using the NTLM hashes to find a match with the `henry.vinson` user.
-- The user had no **WinRM** access so we tried many things to enumerate the machine. *When scanning the contents of the registry through the available remote registry service,* we got a set of credentials for the `henry.vinson_adm` user.
+- We try to brute force the user accounts with all the hashes from the dump over **SMB** but are **blocked** by the server when doing so.
+- *However, since we didn't get a message indicating account lockout,* we changed the method of authentication to **Kerberos** (*as it doesn't leave a 4625 logon event in the logs*) in hopes of bypassing the defenses in place.
+- *By building a bash wrapper around impacket's silver ticket script* `getST.py`, we manage to brute force using the **NTLM** hashes to find a match with the `henry.vinson` user.
+- The user had no **WinRM** access so we tried many things to enumerate the machine. *When scanning the contents of the* **registry** *through the available* **remote registry service**, we got a set of credentials for the `henry.vinson_adm` user.
 - That user turned out to have **WinRM** access and we could successfully get a shell. We then used `WinPEAS` to run a regular privesc check. We had to switch the basic version for the obfuscated one because **AMSI** was detecting it.
-- *Looking at the tool's output,* we find that the machine is misconfigured in a way that it can use the insecure and crackable **NetNTLMv1** in network authentication. A vulnerabiltiy that can be exploited for privilege escalation.
-- *Luckily,* a tool like `PetitPotam.py` can coerce authentication back to our attacker machine. We use it after setting up our `responder` to *downgrade* the authentication to **NetNTLMv1** as well as send a specific challenge to capture the machine account's hash.
+- *Looking at the tool's output,* we find that the machine is misconfigured and uses the insecure and crackable **NetNTLMv1** in network authentication. A vulnerabiltiy that can be exploited for **privilege escalation**.
+- *Luckily,* a tool like `PetitPotam.py` can **coerce authentication** back to our attacker machine. We use it after setting up our `responder` to *downgrade* the authentication to **NetNTLMv1** as well as send a specific challenge to capture the machine account's hash.
 - We submit it to the `crack.sh` website which cracks it and emails us the NTLM version. We then use it to perform a **DCSync** attack.
-- *After retrieving the Administrator's NTLM hash from the dump,* we use it to get complete access to the box in a typical pass-the-hash attack.
-- The machine author's intended way to achieve privilege escalation was through modifying the RoguePotato exploit to target IPV6, bypass AMSI then creating a special RPC server with impacket to respond with a challenge before capturing the NetNTLMv1 authentication.
+- *After retrieving the Administrator's NTLM hash from the dump,* we use it to get **complete access** to the box in a typical pass-the-hash attack.
+- The machine author's intended way to achieve privilege escalation was through modifying the **RoguePotato** exploit to target IPV6, bypass AMSI then creating a special RPC server with impacket to respond with a challenge before capturing the NetNTLMv1 authentication.
 - *However, due to that path's high complexity and due to the simpler tools currenly available,* I'm postponing it for when I know enough about RPC to be able to *decently* write about it.
 
 ---
@@ -62,9 +62,11 @@ The linked web pages were:
 
 The content was mostly filler. We didn't find anything of interest in the source code. No usernames were there apart from the sales email.
 
-Directory and file bruteforcing with `gobuster` didn't get us anything new either. So we moved on..
+**Directory and file bruteforcing** with `gobuster` didn't get us anything new either.
 
-### Diving into into MSRPC
+*Being left with port 135,* we decide to dive in.
+
+### Diggin deep into MSRPC
 The **Microsoft Remote Procedure Call** is a protocol that allows a client program to request a service on another computer. Just like any typical client-server architecture.
 
 It is mainly about **Cross-Process Communication** and **Object Exchange** over the network.
@@ -73,8 +75,8 @@ It is mainly about **Cross-Process Communication** and **Object Exchange** over 
 
 Here are few terms we need to know before we can continue:
 
-- **The RPC End Point Mapper:** The RPC Endpoint Mapper (RpcEptMapper) service resolves RPC interface identifiers to transport endpoints. It can be queried for functionalities in a specific way.
-- **Protocol Sequence Identifier:** A numeric value that uniquely identifies an RPC transport protocol when describing a protocol in the context of a protocol towe
+- **The RPC End Point Mapper:** The RPC Endpoint Mapper (RpcEptMapper) service resolves RPC interface identifiers to transport endpoints. It can be queried for functionalities.
+- **Protocol Sequence Identifier:** A numeric value that uniquely identifies an RPC transport protocol when describing a protocol in the context of a protocol stack.
 - **RPC Endpoint:** A network-specific address of a server process for RPC.
 - **Universally Unique Identifier (UUID):** An identifier that can be used in identifying objects in cross-process communication. In our case, a specific interface providing a special function of interest.
 - **The Microsoft Component Object Model (COM):** is a platform-independent, distributed, object-oriented system for creating binary software components that can interact.
@@ -93,11 +95,11 @@ Here are few terms we need to know before we can continue:
 4. *By googling each endpoint's UUID,* lookup Microsoft's documentation on the **available methods** through it.
 5. *If we find any,* we would also need to look for a way to invoke those functionalities.
 
-Let's view the help for impacket's `rpcmap.py` script.
+*Since it's the most relevant tool for the job,* let's view the help for impacket's `rpcmap.py` script.
 
 ![rpcmap-help](/assets/APT/rpcmap-help.jpg)
 
-*As far as points 1-3 go,* it seems that we have everything we need in this tool. we even have an example of what to use as a string binding value.
+*As far as points 1-3 go,* it seems that we have everything we need in this tool. we even have an example of what to use as a string binding value as indicated above.
 
 **Command:**
 
@@ -105,19 +107,19 @@ Let's view the help for impacket's `rpcmap.py` script.
 rpcmap.py ncacn_ip_tcp:10.10.10.213 -brute-opnums -auth-level 1
 ```
 
-*Looking at the output,* we see that we get **"access denied"** on most UUIDs and for most opnums. Except for a couple on **"UUID 99FCFEC4-5260-101B-BBCB-00AA0021347A"**
+*Looking at the output,* we see that we get **"access denied"** on most **UUIDs** and for most **opnums**. Except for a couple on **"UUID 99FCFEC4-5260-101B-BBCB-00AA0021347A"**
 
 ![rpcmap-output](/assets/APT/rpcmap-output.jpg)
 
-Let's see what google search can find us for that UUID:
+Let's see what google search can find us for that **UUID:**
 
 ![google-uuid-search-results](/assets/APT/google-uuid-search-results.jpg)
 
-*As you may have noticed there,* I clicked all three links :D the second article is enough to get us through the first part of this machine.
+*As you may have noticed from the link coloring,* I clicked all three links :D the second article is enough to get us through the first part of this machine.
 
 But we're going to take a brief look at Microsoft's documentation first.
 
-Our UUID is that of the **"IID_IObjectExporter"**.
+Our **UUID** is that of the **"IID_IObjectExporter"**.
 
 ![object-exporter](/assets/APT/object-exporter.jpg)
 
@@ -125,7 +127,7 @@ Here's what we get when we click the link next to it:
 
 ![object-exporter-methods](/assets/APT/object-exporter-methods.jpg)
 
-*If you remember from* `rpcmap`*'s output,* we had access to only Opnums 3 & 5
+*If you remember from* `rpcmap`*'s output,* we had access to only **opnums** 3 & 5
 
 ![object-exporter-available-opnums](/assets/APT/object-exporter-available-opnums.jpg)
 
@@ -135,15 +137,15 @@ when looking at opnum3, we see nothing significant:
 
 It just checks if the other host is up.
 
-let's look at opnum 5:
+let's look at **opnum** 5:
 
 ![serveralive2-method](/assets/APT/serveralive2-method.jpg)
 
-"It returns string and security bindings for the object resolver, which allows the client to choose the most appropriate, mutually compatible settings."
+**"It returns string and security bindings for the object resolver, which allows the client to choose the most appropriate, mutually compatible settings."**
 
 *Since in our case, we're the client,* we should get string and security bindings back when calling this method.
 
-This would mean **all the IP addresses** on the box including a potential **IPv6** can be leaked.
+This would mean **all the IP addresses** on the box (including a potential **IPv6**) can be leaked.
 
 But I don't have much of a clue on how to do that XD
 
@@ -151,7 +153,7 @@ The 2nd search result [here](/assets/APT/https://airbus-cyber-security.com/the-o
 
 ![airbus-article](/assets/APT/airbus-article.jpg)
 
-The **Impacket** library had the necessary code and the researcher was kind enough to provide a **python** script for it.
+The **Impacket** library had the necessary code and the researcher was kind enough to provide a **python** script to get the job done.
 
 ```python
 #!/usr/bin/python
@@ -207,7 +209,7 @@ if __name__ == "__main__":
 ![python-enum-interfaces-script-output](/assets/APT/python-enum-interfaces-script-output.jpg)
 
 ### IPv6 NMAP
-After placing an entry for it in our `/etc/hosts` file, we run another nmap on the IPv6 using the `-6` flag. Look at what we got :D
+After placing an entry for it in our `/etc/hosts` file, we run another nmap on the **IPv6** using the `-6` flag. Look at what we got :D
 ```
 PORT      STATE SERVICE      VERSION
 53/tcp    open  domain       Simple DNS Plus
@@ -317,11 +319,11 @@ Looks like a firewall was configured to only allow port 80 and 135 on IPv4 but a
 **Lesson learned:** Always enumerate network interfaces as part of the recon. There could be way more information to be learned about the network by doing this.
 
 ### SMB Enumeration
-We start with SMB and run `crackmapexec` to check the available shares:
+We start with SMB and run `crackmapexec` to check the available shares. And we find a readable one called **"backup"**
 
 ![cme-smb-shares](/assets/APT/cme-smb-shares.jpg)
 
-we find a password when trying to unzip the file called `backup.zip` which we found.
+we find a password when trying to unzip the file called `backup.zip`
 
 ![backup-zip](/assets/APT/backup-zip.jpg)
 
@@ -329,7 +331,7 @@ we could successfully crack it with john's `zip2john` script (It gave us an erro
 
 ![cracking-zip-hash](/assets/APT/cracking-zip-hash.jpg)
 
-*After unzipping the archive,* we get something very interesting. What appears to be an **Active Directory** database dump. This is exactly the output of a utility called `ntdsutil`
+*After unzipping the archive,* we get something very interesting. What appears to be an **Active Directory Database Dump**. This is exactly the output of a utility called `ntdsutil`
 
 ![unzipping-backup-zip](/assets/APT/unzipping-backup-zip.jpg)
 
@@ -339,7 +341,10 @@ We dump the contents with `secretsdump.py` using the `-history` flag to get prev
 
 Something is off here.. it can't be that easy :D
 
-We tried logging in with the Administrator and the Domain Controller machine hashes as well as create a golden ticket with the krbtgt hash since those would be instant kills.
+*Since those would be instant kills,* We tried:
+- Logging in with the Administrator's hash
+- Use the Domain Controller's machine hash
+- Create a golden ticket with the krbtgt hash
 
 *But of course,* none worked XD
 
@@ -352,11 +357,11 @@ cat dump.txt | cut -d':' -f1 | grep -v 'history' | sort -u > users.txt
 cat dump.txt | grep ':::' | cut -d':' -f4 | sort -u > hashes.txt
 ```
 
-Aaround 2k unique users and 4k unique NTLM hashes.
+We found around **2k unique users** and **4k unique NTLM hashes**.
 
 We have to first validate that these users exist. We do so using `kerbrute`
 
-Only 3 users were valid.
+Only 3 users were valid:
 
 ![kerberute-userenum](/assets/APT/kerberute-userenum.jpg)
 
@@ -364,15 +369,15 @@ Only 3 users were valid.
 
 ![bruteforce-defenses](/assets/APT/bruteforce-defenses.jpg)
 
-But did you notice something? *even with that many attempts,* the account didn't get locked out ;] we know so because locked out accounts give a different error message.
+But did you notice something? *even with that many attempts,* the account **didn't get locked out ;]** we know so because locked out accounts give a **different error message**.
 
-We're going to try bruteforcing using **Kerberos**. It's different from using SMB because it doesn't leave a 4625 logon event behind.
+We're going to try bruteforcing using **Kerberos**. It's different from using SMB because **it doesn't leave a 4625 logon event behind.**
 
 I had to reset the machine to get the block removed. Perhaps it was configured for a ban time that was too long.
 
 We're going to do this using impacket's `getST.py` script. By building a bash wrapper around it to enable bruteforcing with a hash since that feature isn't in `kerbrute` at the moment.
 
-here's what it looks like:
+Here's what it looks like:
 
 ```bash
 index=1
@@ -385,26 +390,26 @@ for hash in $(cat hashes.txt); do
 done
 ```
 
-*In the script,* we request a ticket for SMB access and clear out any unnecessary output as well as print out some progress messages.
+*In the script,* we request a ticket for SMB access, clear out any unnecessary output as well as print out some progress messages.
 
-**Note:** To speed things up, you are advised to break down the hashes list into smaller chunks and run multiple instances in parallel. Or else that process would take significantly much more time.
+**Note:** To speed things up, you are advised to break down the hashes list into smaller chunks and run multiple instances of the script in parallel. Or else that process would take significantly much more time.
 
-The Kerberos bruteforce worked well and we didn't get blocked. We got a working hash right near the end of the list (at line 3558).
+The **Kerberos bruteforce** worked well and we didn't get blocked. We got a working hash right near the end of the list (the 3558th entry).
 
 ![kerberos-hash-brute](/assets/APT/kerberos-hash-brute.jpg)
 
-**Side Note:** *After checking the official writeup,* I found that this wasn't the indended way. But hey! it worked XD
+**Side Note:** *After checking the official writeup,* I found that this *wasn't the indended way*. But hey! it worked XD
 
 ![auth-with-henry](/assets/APT/auth-with-henry.jpg)
 
 ### Finding creds via Remote Registry
 Alright. *After finally getting our first set of credentials,* we sadly don't find anything to get us further using conventional methods.
 
-- Henry didn't have WinRM access
-- Bloodhound didn't return anything we could exploit
-- No kerberoastable or ASREProastable accounts were there
+- Henry didn't have *8* access
+- **Bloodhound** didn't return anything we could exploit
+- No **Kerberoastable** or **ASREProastable** accounts were there
 
-*However, when were looking for information in the registry using impacket's* `reg.py`, we found creds for `henry.vinsdon_adm` under `HKU\Software\GiganticHostingManagementSystem` which seemed like his administrator account.
+*However, when were looking for information in the registry using impacket's* `reg.py`, we found creds for `henry.vinsdon_adm` under `HKU\Software\GiganticHostingManagementSystem`. It seemed like his administrator account.
 
 ![creds-in-registry](/assets/APT/creds-in-registry.jpg)
 
@@ -413,11 +418,11 @@ And he turned out to have **WinRM** access when we checked.
 ![winrm-shell-access](/assets/APT/winrm-shell-access.jpg)
 
 ### Privilege Escalation via NetNTLMv1
-*When running the standard* `WinPEAS.exe`, it got caught by AV.
+*When running the standard* `WinPEAS.exe`, it got caught by **AV.**
 
 ![normal-winpeas-caught](/assets/APT/normal-winpeas-caught.jpg)
 
-It worked alright when we switched to the obfuscated version.
+It worked alright when we switched to the **obfuscated version.** (you can find that on the releases page on GitHub)
 
 ![obfuscated-peas-worked](/assets/APT/obfuscated-peas-worked.jpg)
 
@@ -425,9 +430,9 @@ It worked alright when we switched to the obfuscated version.
 
 ![netNTLMv1-enabled](/assets/APT/netNTLMv1-enabled.jpg)
 
-*Basically,* exploiting this aims at forcing a network authentication from the Domain Controller's machine account back to our machine where `responder` will capture it for a crackable NetNTLMv1 hash.
+*Basically,* exploiting this aims at **forcing a network authentication from the Domain Controller's machine account back to our machine** where `responder` will capture it for a **crackable NetNTLMv1** hash.
 
-We will first set up our responder's configuration to send a certain challenge. This is for making the hash cracking easier.
+We will first set up our **responder's configuration** to send a certain challenge. This is for making the hash cracking easier.
 
 *in* `/etc/responder/Responder.conf`, we set the challenge to **112233445566778899**
 
@@ -439,7 +444,7 @@ We then trigger the authentication using `PetitPotam.py`. Here's what it looks l
 
 ![forced-auth-netNTLMv1](/assets/APT/forced-auth-netNTLMv1.jpg)
 
-We got the NetNTLMv1 hash. Which we will then submit to the website `crack.sh` after formatting it according to their requirements. The hash should be like this:
+We got the NetNTLMv1 hash. Which we will then submit to the website `crack.sh` after **formatting it according to their requirements**. The hash should be like this:
 
 ```
 NTHASH:95ACA8C7248774CB427E1AE5B8D5CE6830A49B5BB858D384
@@ -447,10 +452,10 @@ NTHASH:95ACA8C7248774CB427E1AE5B8D5CE6830A49B5BB858D384
 
 ![crack-sh](/assets/APT/crack-sh.jpg)
 
-*After a few minutes,* we got back the NTLM hash for the machine in our inbox.
+*A few minutes after sumbitting,* we got back the NTLM hash for the machine in our inbox.
 
 ![crack-sh-results](/assets/APT/crack-sh-results.jpg)
 
-*Of course,* we use the machine hash to do a **DCSync** and grab the Administrator's hash to root the box :D
+*Of course,* we used the machine hash to do a **DCSync** and grabbed the Administrator's hash to finish the box :D
 
 ![dcsync-and-rooting-the-box](/assets/APT/dcsync-and-rooting-the-box.jpg)
