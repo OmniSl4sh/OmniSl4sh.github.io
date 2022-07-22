@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-07-22T14:50:44+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="https://omnisl4sh.github.io/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/07/APT</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-07-22T14:54:41+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="https://omnisl4sh.github.io/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/07/APT</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -65,7 +65,7 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
 
 <p><em>Being left with port 135,</em> we decide to dive in.</p>
 
-<h3 id="diggin-deep-into-msrpc">Diggin deep into MSRPC</h3>
+<h3 id="digging-deep-into-msrpc">Digging deep into MSRPC</h3>
 <p>The <strong>Microsoft Remote Procedure Call</strong> is a protocol that allows a client program to request a service on another computer. Just like any typical client-server architecture.</p>
 
 <p>It is mainly about <strong>Cross-Process Communication</strong> and <strong>Object Exchange</strong> over the network.</p>

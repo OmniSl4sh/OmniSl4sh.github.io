@@ -66,7 +66,7 @@ The content was mostly filler. We didn't find anything of interest in the source
 
 *Being left with port 135,* we decide to dive in.
 
-### Diggin deep into MSRPC
+### Digging deep into MSRPC
 The **Microsoft Remote Procedure Call** is a protocol that allows a client program to request a service on another computer. Just like any typical client-server architecture.
 
 It is mainly about **Cross-Process Communication** and **Object Exchange** over the network.
