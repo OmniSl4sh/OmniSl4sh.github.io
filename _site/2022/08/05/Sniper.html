@@ -265,19 +265,9 @@ Completed after 19.76 seconds
   <li><strong>Password:</strong> <code class="language-plaintext highlighter-rouge">"a"</code></li>
 </ul>
 
+<p>and the registration suceeded!</p>
+
 <p><strong><em>This user has a special type of security. No one could ever guess creds like these :D :D</em></strong></p>
-
-<p><em>Jokes aside,</em> here are the <strong>requests and responses for both the registration and login</strong>.</p>
-
-<p><em>Upon submitting the registration request,</em> the response we got was a <strong>302 redirection to the initial login page</strong></p>
-
-<p><img src="/assets/Sniper/registratio-initial-request.jpg" alt="registratio-initial-request" /></p>
-
-<p><em>When trying to login,</em> we get a <strong>302 redirect followed by a 200 OK</strong></p>
-
-<p><img src="/assets/Sniper/login-success-redirect.jpg" alt="login-success-redirect" /></p>
-
-<p><img src="/assets/Sniper/login-success-response.jpg" alt="login-success-response" /></p>
 
 <p><em>After logging in,</em> the page looked like this:</p>
 
@@ -324,6 +314,18 @@ Completed after 19.76 seconds
 
 <h3 id="finding-the-allowed-special-characters">Finding the allowed special characters</h3>
 <p>We’re going to <strong>brute force all the special characters</strong> at the <strong>registration form</strong> using <strong>Burp</strong> and find out what’s allowed and what’s not.</p>
+
+<p>Here are the <strong>requests and responses for both the registration and login</strong>.</p>
+
+<p><em>Upon submitting the registration request,</em> the response we got was a <strong>302 redirection to the initial login page</strong></p>
+
+<p><img src="/assets/Sniper/registratio-initial-request.jpg" alt="registratio-initial-request" /></p>
+
+<p><em>When trying to login,</em> we get a <strong>302 redirect followed by a 200 OK</strong></p>
+
+<p><img src="/assets/Sniper/login-success-redirect.jpg" alt="login-success-redirect" /></p>
+
+<p><img src="/assets/Sniper/login-success-response.jpg" alt="login-success-response" /></p>
 
 <p>I <strong>searched for a way to get all the special characters</strong> and found one using <code class="language-plaintext highlighter-rouge">python</code></p>
 <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">string</span>

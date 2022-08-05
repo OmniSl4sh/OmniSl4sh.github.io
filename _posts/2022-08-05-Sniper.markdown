@@ -198,19 +198,9 @@ We used:
 - **Username:** `"a"`
 - **Password:** `"a"`
 
+and the registration suceeded!
+
 ***This user has a special type of security. No one could ever guess creds like these :D :D***
-
-*Jokes aside,* here are the **requests and responses for both the registration and login**.
-
-*Upon submitting the registration request,* the response we got was a **302 redirection to the initial login page**
-
-![registratio-initial-request](/assets/Sniper/registratio-initial-request.jpg)
-
-*When trying to login,* we get a **302 redirect followed by a 200 OK**
-
-![login-success-redirect](/assets/Sniper/login-success-redirect.jpg)
-
-![login-success-response](/assets/Sniper/login-success-response.jpg)
 
 *After logging in,* the page looked like this:
 
@@ -254,6 +244,18 @@ So we move on to the next step.
 
 ### Finding the allowed special characters
 We're going to **brute force all the special characters** at the **registration form** using **Burp** and find out what's allowed and what's not.
+
+Here are the **requests and responses for both the registration and login**.
+
+*Upon submitting the registration request,* the response we got was a **302 redirection to the initial login page**
+
+![registratio-initial-request](/assets/Sniper/registratio-initial-request.jpg)
+
+*When trying to login,* we get a **302 redirect followed by a 200 OK**
+
+![login-success-redirect](/assets/Sniper/login-success-redirect.jpg)
+
+![login-success-response](/assets/Sniper/login-success-response.jpg)
 
 I **searched for a way to get all the special characters** and found one using `python`
 ```python
