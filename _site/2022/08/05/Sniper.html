@@ -380,7 +380,7 @@ Completed after 19.76 seconds
 
 <p><strong>We have a couple of challenges here:</strong></p>
 <ul>
-  <li>the <strong>dollar sign</strong> (<code class="language-plaintext highlighter-rouge">$</code>), the <strong>brackets</strong> <code class="language-plaintext highlighter-rouge">(</code> and <code class="language-plaintext highlighter-rouge">[</code> along with the <strong>underscore</strong> (<code class="language-plaintext highlighter-rouge">_</code>) are blocked, which enable the standard <strong>PHP backdoor</strong> <code class="language-plaintext highlighter-rouge">&lt;?php exec($_REQUEST["cmd"]);?&gt;</code></li>
+  <li>the <strong>dollar sign</strong> (<code class="language-plaintext highlighter-rouge">$</code>), the <strong>semi-colon</strong> (<code class="language-plaintext highlighter-rouge">;</code>), the <strong>brackets</strong> <code class="language-plaintext highlighter-rouge">(</code> and <code class="language-plaintext highlighter-rouge">[</code> along with the <strong>underscore</strong> (<code class="language-plaintext highlighter-rouge">_</code>) are blocked, which enable the standard <strong>PHP backdoor</strong> <code class="language-plaintext highlighter-rouge">&lt;?php exec($_REQUEST["cmd"]);?&gt;</code></li>
   <li><em>also,</em> the <strong>dot</strong> (<code class="language-plaintext highlighter-rouge">.</code>) is blocked, so we can’t use our <strong>ip address</strong> in the payload to download something.</li>
   <li><em>And, with the</em> <strong>backslash</strong> <code class="language-plaintext highlighter-rouge">\</code> <em>blocked as well,</em> it means <strong>writing to paths other that the current directory isn’t allowed</strong></li>
 </ul>

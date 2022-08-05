@@ -311,7 +311,7 @@ we can craft a **payload** like this:
 *with* **RCE** *achieved,* we have to find a way to **execute a reverse shell with the allowed characters we have.**
 
 **We have a couple of challenges here:**
-- the **dollar sign** (`$`), the **brackets** `(` and `[` along with the **underscore** (`_`) are blocked, which enable the standard **PHP backdoor** `<?php exec($_REQUEST["cmd"]);?>`
+- the **dollar sign** (`$`), the **semi-colon** (`;`), the **brackets** `(` and `[` along with the **underscore** (`_`) are blocked, which enable the standard **PHP backdoor** `<?php exec($_REQUEST["cmd"]);?>`
 - *also,* the **dot** (`.`) is blocked, so we can't use our **ip address** in the payload to download something.
 - *And, with the* **backslash** `\` *blocked as well,* it means **writing to paths other that the current directory isn't allowed**
 
