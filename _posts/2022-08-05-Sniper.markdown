@@ -408,7 +408,7 @@ We don't know if this information would be handy or not. But we take note of it 
 ![docs-and-note-txt](/assets/Sniper/docs-and-note-txt.jpg)
 
 *Apart from the CEO bullying the chris guy,*  
-*and even leaving him a copy of* `"php for dummies-trial.pdf"` *as further insult XD*  
+*and even leaving him a copy of* `"php for dummies-trial.pdf"` *as a further insult XD*  
 
 - he is **asking about the documentation for the new app** (*very possibly referring to the android project in development*).
 - and **wants him to drop it into this folder** `"c:\Docs"` once done.

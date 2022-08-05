@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-05T20:30:44+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="https://omnisl4sh.github.io/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/08/05/Sniper</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-05T22:50:07+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="https://omnisl4sh.github.io/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/08/05/Sniper</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -412,7 +412,7 @@ Completed after 19.76 seconds
 <p><img src="/assets/Sniper/docs-and-note-txt.jpg" alt="docs-and-note-txt" /></p>
 
 <p><em>Apart from the CEO bullying the chris guy,</em><br />
-<em>and even leaving him a copy of</em> <code class="language-plaintext highlighter-rouge">"php for dummies-trial.pdf"</code> <em>as further insult XD</em></p>
+<em>and even leaving him a copy of</em> <code class="language-plaintext highlighter-rouge">"php for dummies-trial.pdf"</code> <em>as a further insult XD</em></p>
 
 <ul>
   <li>he is <strong>asking about the documentation for the new app</strong> (<em>very possibly referring to the android project in development</em>).</li>
