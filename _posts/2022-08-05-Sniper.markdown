@@ -296,7 +296,7 @@ and the allowed ones:
 ```
 
 this is good! Because:
-- `<`, `>` and `?` are need for the **tags** needed to **inject PHP**
+- `<`, `>` and `?` are needed for the **tags** needed to **inject PHP**
 - and the **backtick** can be used for **code execution** (*just like in* **Bash**)
 
 we can craft a **payload** like this:
