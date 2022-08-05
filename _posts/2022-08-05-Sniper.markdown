@@ -188,7 +188,7 @@ So we need to:
 2. **Login with that username** and **get a cookie**
 3. **Reference that cookie file** *using the* **LFI vulnerability we found**
 
-Sounds like a lot ... and it is a lot XD
+***Sounds like a lot ... and it is a lot XD***
 
 ### User Registration
 We do a **quick registration attempt** to **find out the limitations in user creation**.
