@@ -310,7 +310,7 @@ we can craft a **payload** like this:
 
 ![rce-achieved](/assets/Sniper/rce-achieved.jpg)
 
-### Bypassing the blacklisting to get a reverse shell
+### Stomping the blacklisting with a PowerShell Encoded Command
 *with* **RCE** *achieved,* we have to find a way to **execute a reverse shell with the allowed characters we have.**
 
 **We have a couple of challenges here:**
