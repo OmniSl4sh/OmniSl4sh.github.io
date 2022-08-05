@@ -330,7 +330,7 @@ we test out a simple **PowerShell** command `get-date`
 
 ![powershell-encoding](/assets/Sniper/powershell-encoding.jpg)
 
-notice the encoding type is **UTF-16LE**. That's what PowerShell accepts when using that parameter.
+notice the encoding type is set to **UTF-16LE**. That's what **PowerShell** expects when using that parameter.
 
 ![powershell-encoded-execution](/assets/Sniper/powershell-encoded-execution.jpg)
 
