@@ -434,7 +434,7 @@ We confirm with `crackmapexec`
 
 **Pretty fun box :]**
 
-### Unintended Path: RFI though SMB
+### Unintended Path: RFI through SMB
 *When checking the ability of adding network paths as the file inclusion payload,* we got **PHP code execution:**
 
 ![rfi-php-info](/assets/Sniper/rfi-php-info.jpg)
