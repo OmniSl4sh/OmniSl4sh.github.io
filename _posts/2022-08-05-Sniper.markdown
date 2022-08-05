@@ -348,7 +348,7 @@ which is:
 
 ![shell-as-iusr](/assets/Sniper/shell-as-iusr.jpg)
 
-### Finding creds in the database settings file (like always)
+### Finding creds in the database settings file (*like always*)
 *The first thing I did after getting the shell,* was **check the files in the web root.**
 
 I found a file called `db.php` in the `C:\inetpub\wwwroot\user` directory.
