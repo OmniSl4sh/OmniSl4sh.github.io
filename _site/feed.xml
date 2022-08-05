@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-05T20:25:26+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="https://omnisl4sh.github.io/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/08/05/Sniper</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-05T20:26:13+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="https://omnisl4sh.github.io/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/08/05/Sniper</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -314,7 +314,7 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/rce-achieved.jpg" alt="rce-achieved" /></p>
 
-<h3 id="stomping-the-blacklisting-with-a-powershell-encoded-command">Stomping the blacklisting with a PowerShell Encoded Command</h3>
+<h3 id="stomping-the-blacklisting-with-powershell">Stomping the blacklisting with PowerShell</h3>
 <p><em>with</em> <strong>RCE</strong> <em>achieved,</em> we have to find a way to <strong>execute a reverse shell with the allowed characters we have.</strong></p>
 
 <p><strong>We have a couple of challenges here:</strong></p>
