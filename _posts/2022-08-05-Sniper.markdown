@@ -181,7 +181,7 @@ and try including it
 **Cookies** are a good place to start because:
 - **PHP stores the username inside them** & **we have the ability to register users**
 - *Also, In Windows, by default,* they are kept in a *likely accessible* directory `"c:\windows\temp"`
-- Their file name has a known format: "`sess_<PHP_SESSID_COOKIE_VALUE>`"
+- Their file name has a known format: "`sess_<PHPSESSID_COOKIE_VALUE>`"
 
 So we need to:
 1. Be able to **write PHP code** into the **username field** in the **registration form**

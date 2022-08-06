@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-05T22:50:07+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="https://omnisl4sh.github.io/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/08/05/Sniper</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-06T21:11:06+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="https://omnisl4sh.github.io/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/08/05/Sniper</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -179,7 +179,7 @@ Completed after 19.76 seconds
 <ul>
   <li><strong>PHP stores the username inside them</strong> &amp; <strong>we have the ability to register users</strong></li>
   <li><em>Also, In Windows, by default,</em> they are kept in a <em>likely accessible</em> directory <code class="language-plaintext highlighter-rouge">"c:\windows\temp"</code></li>
-  <li>Their file name has a known format: “<code class="language-plaintext highlighter-rouge">sess_&lt;PHP_SESSID_COOKIE_VALUE&gt;</code>”</li>
+  <li>Their file name has a known format: “<code class="language-plaintext highlighter-rouge">sess_&lt;PHPSESSID_COOKIE_VALUE&gt;</code>”</li>
 </ul>
 
 <p>So we need to:</p>
