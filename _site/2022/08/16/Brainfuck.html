@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Linux - Insane] - Brainfuck | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Linux - Insane] - Brainfuck" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="http://localhost:4000/2022/08/16/Brainfuck.html" />
+<meta property="og:url" content="http://localhost:4000/2022/08/16/Brainfuck.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-08-16T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Linux - Insane] - Brainfuck" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-08-16T00:00:00+02:00","datePublished":"2022-08-16T00:00:00+02:00","headline":"HTB Writeup [Linux - Insane] - Brainfuck","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/08/16/Brainfuck.html"},"url":"http://localhost:4000/2022/08/16/Brainfuck.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Linux - Insane] - Brainfuck</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-08-16T00:00:00+02:00" itemprop="datePublished">Aug 16, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><img src="Brainfuck.png" alt="Sniper" /></p>
+
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>A Linux box where find email ports (SMTP/POP/IMAP) open as well as two https websites (we discovered them from the SSL certificate Subject Alternative Name field)</li>
+  <li>One website had a Wordpress blog which happened to have a vulnerable component that enabled us to impersonate the <code class="language-plaintext highlighter-rouge">admin</code> user.</li>
+  <li>After failing to get code execution using traditional ways (Editing Wordpress themes and Uploading malicious plugins), we search more to find email credentials for the <code class="language-plaintext highlighter-rouge">orestis</code> user in the SMTP plugin installed in Wordpress.</li>
+  <li>We configure a mail client with IMAP and retrieve the mailbox contents for the <code class="language-plaintext highlighter-rouge">orestis</code> user to a set of credentials for the other website which was a forum.</li>
+  <li>After logging in, we find a discussion between the <code class="language-plaintext highlighter-rouge">administrator</code> and <code class="language-plaintext highlighter-rouge">orestis</code> about him losing SSH access and wanting his key.</li>
+  <li>The <code class="language-plaintext highlighter-rouge">administrator</code> says he won’t provide the SSH key in the discussion thread because it would be visible to all forum members. So they switch over to an encrypted one.</li>
+  <li>We do some research on recognizing the Cipher in use to find out it’s a Keyed Vigenere Cipher and are able to figure out the key.</li>
+  <li>After decrypting the messages on the thread, we get a passphrase-protected SSH key. Which we crack using john.</li>
+  <li>We finally login as the <code class="language-plaintext highlighter-rouge">orestis</code> user and find out he’s a member of the <code class="language-plaintext highlighter-rouge">lxd</code> group which enables us to escalate our privileges to <code class="language-plaintext highlighter-rouge">root</code>.</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap-for-the-roadmap">NMAP for the roadmap</h3>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT    STATE SERVICE  VERSION
+22/tcp  open  ssh      OpenSSH 7.2p2 Ubuntu 4ubuntu2.1 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   2048 94:d0:b3:34:e9:a5:37:c5:ac:b9:80:df:2a:54:a5:f0 (RSA)
+|   256 6b:d5:dc:15:3a:66:7a:f4:19:91:5d:73:85:b2:4c:b2 (ECDSA)
+|_  256 23:f5:a3:33:33:9d:76:d5:f2:ea:69:71:e3:4e:8e:02 (ED25519)
+25/tcp  open  smtp     Postfix smtpd
+|_smtp-commands: brainfuck, PIPELINING, SIZE 10240000, VRFY, ETRN, STARTTLS, ENHANCEDSTATUSCODES, 8BITMIME, DSN
+110/tcp open  pop3     Dovecot pop3d
+|_pop3-capabilities: SASL(PLAIN) USER TOP PIPELINING CAPA UIDL RESP-CODES AUTH-RESP-CODE
+143/tcp open  imap     Dovecot imapd
+|_imap-capabilities: post-login Pre-login IMAP4rev1 have LOGIN-REFERRALS ID capabilities IDLE more OK SASL-IR ENABLE AUTH=PLAINA0001 listed LITERAL+
+443/tcp open  ssl/http nginx 1.10.0 (Ubuntu)
+| ssl-cert: Subject: commonName=brainfuck.htb/organizationName=Brainfuck Ltd./stateOrProvinceName=Attica/countryName=GR
+| Subject Alternative Name: DNS:www.brainfuck.htb, DNS:sup3rs3cr3t.brainfuck.htb
+| Not valid before: 2017-04-13T11:19:29
+|_Not valid after:  2027-04-11T11:19:29
+|_http-title: Welcome to nginx!
+|_http-server-header: nginx/1.10.0 (Ubuntu)
+|_ssl-date: TLS randomness does not represent time
+| tls-nextprotoneg: 
+|_  http/1.1
+| tls-alpn: 
+|_  http/1.1
+Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+<p>Looking at the nmap scan results, we notice:</p>
+<ol>
+  <li>SSH version &lt; 7.7 which allows for user enumeration (we might need that to confirm some users’ existence on the box)</li>
+  <li>Mail ports: 25, 110 &amp; 143 for SMTP, POP and IMAP (SMTP = we can send malicious emails and launch client-side attacks while IMAP and POP3 can give us access to user mailboxes if we have credentials)</li>
+  <li>HTTPs on port 443 is a web-based attack surface for us to explore</li>
+</ol>
+
+<p>But we notice that the nmap default script gave us a couple of host names in the commonName and Subject Alternative Name fields:</p>
+<ul>
+  <li>brainfuck.htb</li>
+  <li>www.brainfuck.htb</li>
+  <li>sup3rs3cr3t.brainfuck.htb</li>
+</ul>
+
+<p>Adding those to our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> shouldn’t take much time:</p>
+
+<p><img src="setting-etc-hosts.jpg" alt="setting-etc-hosts" /></p>
+
+<h3 id="taking-a-look-at-the-websites">Taking a look at the websites</h3>
+<p>We take a look at www.brainfuck.htb to find a Wordpress Blog</p>
+
+<p><img src="wordpress-first-look.jpg" alt="wordpress-first-look" /></p>
+
+<p>It’s rich with information:</p>
+<ol>
+  <li>we find two usernames: <code class="language-plaintext highlighter-rouge">admin</code> and <code class="language-plaintext highlighter-rouge">orestis</code></li>
+  <li>we find a note about integration with SMTP. which could be a hint</li>
+  <li>we notice a link to “open a ticket” which could be a Wordpress plugin and maybe more functionality to be exploited</li>
+</ol>
+
+<h3 id="enumerating-wordpress">Enumerating Wordpress</h3>
+<p>At this point, it’s both a quick and easy check to run <code class="language-plaintext highlighter-rouge">wpscan</code>. It’s specialized for scanning Wordpress and would give us tons of information on it.</p>
+
+<p>we run it the below command:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wpscan <span class="nt">--url</span> https://brainfuck.htb/ <span class="nt">-e</span> ap,at,tt,cb,dbe,u <span class="nt">--disable-tls-checks</span>
+</code></pre></div></div>
+
+<p>this would enable us to enumerate <code class="language-plaintext highlighter-rouge">-e</code>:</p>
+<ul>
+  <li>All plugins <code class="language-plaintext highlighter-rouge">ap</code></li>
+  <li>All themes <code class="language-plaintext highlighter-rouge">at</code></li>
+  <li>Timthumbs <code class="language-plaintext highlighter-rouge">tt</code></li>
+  <li>Config backups <code class="language-plaintext highlighter-rouge">cb</code></li>
+  <li>Database exports <code class="language-plaintext highlighter-rouge">dbe</code></li>
+  <li>And, Wordpress users <code class="language-plaintext highlighter-rouge">u</code></li>
+</ul>
+
+<p>Looking at the results, we find something interesting:</p>
+
+<p><img src="wp-plugin-discovered.jpg" alt="wp-plugin-discovered" /></p>
+
+<p>We do a search on <a href="https://www.exploit-db.com/">Exploit-DB</a> to find that there is couple of verified exploits that match the version we have:</p>
+
+<p><img src="exploit-db-plugin.jpg" alt="exploit-db-plugin" /></p>
+
+<p>At first, we check out the SQL injection one. But we find out that it requires at least one valid user:</p>
+
+<p><img src="vuln1-user-access-required.jpg" alt="vuln1-user-access-required" /></p>
+
+<p>Luckily however, the second one doesn’t require authentication:</p>
+
+<p><img src="vuln2-user-access-not-required.jpg" alt="" /></p>
+
+<p>And the PoC seems straightforward. Just a form we have to submit:</p>
+
+<p><img src="/Assets/Brainfuck/vuln2-poc.jpg" alt="" /></p>
+
+
+  </div><a class="u-url" href="/2022/08/16/Brainfuck.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>
