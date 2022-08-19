@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://omnisl4sh.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://omnisl4sh.github.io/" rel="alternate" type="text/html" /><updated>2022-08-19T13:39:53+02:00</updated><id>https://omnisl4sh.github.io/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Insane] - Brainfuck</title><link href="https://omnisl4sh.github.io/2022/08/17/Brainfuck.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Insane] - Brainfuck" /><published>2022-08-17T00:00:00+02:00</published><updated>2022-08-17T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/08/17/Brainfuck</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/08/17/Brainfuck.html"><![CDATA[<p><img src="/assets/Brainfuck/Brainfuck.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-08-20T00:54:32+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Insane] - Brainfuck</title><link href="http://localhost:4000/2022/08/17/Brainfuck.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Insane] - Brainfuck" /><published>2022-08-17T00:00:00+02:00</published><updated>2022-08-17T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/17/Brainfuck</id><content type="html" xml:base="http://localhost:4000/2022/08/17/Brainfuck.html"><![CDATA[<p><img src="/assets/Brainfuck/Brainfuck.png" alt="" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -331,7 +331,7 @@ lxc <span class="nb">exec </span>brainfucked /bin/sh
 
 <p><img src="/assets/Brainfuck/rooted.jpg" alt="" /></p>
 
-<p><strong>A piece of cake :D</strong></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="https://omnisl4sh.github.io/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/08/05/Sniper</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
+<p><strong>A piece of cake :D</strong></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="http://localhost:4000/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/05/Sniper</id><content type="html" xml:base="http://localhost:4000/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -808,7 +808,7 @@ Completed after 19.76 seconds
 <span class="p">}</span>
 
 <span class="cp">?&gt;</span>
-</code></pre></div></div>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="https://omnisl4sh.github.io/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/07/APT</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
+</code></pre></div></div>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="http://localhost:4000/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/07/APT</id><content type="html" xml:base="http://localhost:4000/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1268,7 +1268,7 @@ Host script results:
 
 <p><em>Of course,</em> we used the machine hash to do a <strong>DCSync</strong> and grabbed the Administrator’s hash to finish the box :D</p>
 
-<p><img src="/assets/APT/dcsync-and-rooting-the-box.jpg" alt="dcsync-and-rooting-the-box" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="https://omnisl4sh.github.io/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/07/01/Intelligence</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
+<p><img src="/assets/APT/dcsync-and-rooting-the-box.jpg" alt="dcsync-and-rooting-the-box" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="http://localhost:4000/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/01/Intelligence</id><content type="html" xml:base="http://localhost:4000/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1609,7 +1609,7 @@ psexec.py <span class="nt">-k</span> <span class="nt">-no-pass</span> intelligen
 
 <p><img src="/assets/Intelligence/box-owned.jpg" alt="box-owned" /></p>
 
-<p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Search</title><link href="https://omnisl4sh.github.io/2022/06/28/Search.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Search" /><published>2022-06-28T00:00:00+02:00</published><updated>2022-06-28T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/06/28/Search</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/06/28/Search.html"><![CDATA[<p><img src="/assets/Search/Search.png" alt="Search" /></p>
+<p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Search</title><link href="http://localhost:4000/2022/06/28/Search.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Search" /><published>2022-06-28T00:00:00+02:00</published><updated>2022-06-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/06/28/Search</id><content type="html" xml:base="http://localhost:4000/2022/06/28/Search.html"><![CDATA[<p><img src="/assets/Search/Search.png" alt="Search" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -1918,7 +1918,7 @@ Host script results:
 
 <p><img src="/assets/Search/tristan-web-access.jpg" alt="tristan-web-access" /></p>
 
-<p>And this wraps up the path :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Monteverde</title><link href="https://omnisl4sh.github.io/2022/06/24/Monteverde.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Monteverde" /><published>2022-06-24T00:00:00+02:00</published><updated>2022-06-24T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/06/24/Monteverde</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/06/24/Monteverde.html"><![CDATA[<p><img src="/assets/Monteverde/Monteverde.png" alt="Monteverde" /></p>
+<p>And this wraps up the path :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Monteverde</title><link href="http://localhost:4000/2022/06/24/Monteverde.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Monteverde" /><published>2022-06-24T00:00:00+02:00</published><updated>2022-06-24T00:00:00+02:00</updated><id>http://localhost:4000/2022/06/24/Monteverde</id><content type="html" xml:base="http://localhost:4000/2022/06/24/Monteverde.html"><![CDATA[<p><img src="/assets/Monteverde/Monteverde.png" alt="Monteverde" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2230,7 +2230,7 @@ Host script results:
 
 <p>The creds are good and the box is <strong>owned</strong> :D</p>
 
-<p><img src="/assets/Monteverde/rooted.jpg" alt="rooted" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="https://omnisl4sh.github.io/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/13/Certifried</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
+<p><img src="/assets/Monteverde/rooted.jpg" alt="rooted" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="http://localhost:4000/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/13/Certifried</id><content type="html" xml:base="http://localhost:4000/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
 
 <h1 id="the-attack-in-brief">The Attack In Brief</h1>
 <ol>
@@ -2323,7 +2323,7 @@ Host script results:
   <li><strong>Will Schroeder</strong> and <strong>Lee Christensen</strong> who wrote the paper that started it all <a href="https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf">here</a></li>
   <li><a href="https://twitter.com/ly4k_">Oliver Lyak</a> who discovered, reported and explained the vulnerability <a href="https://research.ifcr.dk/certifried-active-directory-domain-privilege-escalation-cve-2022-26923-9e098fe298f4">here</a> as well as created the <code class="language-plaintext highlighter-rouge">Certipy</code> tool.</li>
   <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts of course :D</li>
-</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="https://omnisl4sh.github.io/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/07/Cascade</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
+</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)</title><link href="http://localhost:4000/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/07/Cascade</id><content type="html" xml:base="http://localhost:4000/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -2703,7 +2703,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/got-admin-at-last.jpg" alt="got-admin-at-last" /></p>
 
-<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="https://omnisl4sh.github.io/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/06/Mantis</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/06/Mantis.html"><![CDATA[<p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
+<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)</title><link href="http://localhost:4000/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/06/Mantis</id><content type="html" xml:base="http://localhost:4000/2022/05/06/Mantis.html"><![CDATA[<p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -3051,7 +3051,7 @@ Host script results:
 
 <p><img src="/assets/Mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
 
-<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="https://omnisl4sh.github.io/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>https://omnisl4sh.github.io/2022/05/02/Sizzle</id><content type="html" xml:base="https://omnisl4sh.github.io/2022/05/02/Sizzle.html"><![CDATA[<p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
+<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)</title><link href="http://localhost:4000/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle (AD Pentesting Track #7)" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/02/Sizzle</id><content type="html" xml:base="http://localhost:4000/2022/05/02/Sizzle.html"><![CDATA[<p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
