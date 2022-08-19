@@ -1,0 +1,14 @@
+---
+layout: post
+title:  "HTB Writeup [Windows - Medium] - Fuse"
+published: false
+---
+
+![](Fuse.png)
+
+### Summary
+-
+
+---
+
+### NMAP

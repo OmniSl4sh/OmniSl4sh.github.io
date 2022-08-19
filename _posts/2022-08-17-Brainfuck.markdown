@@ -1,10 +1,10 @@
 ---
 layout: post
 title:  "HTB Writeup [Linux - Insane] - Brainfuck"
-published: false
+published: true
 ---
 
-![Sniper](/assets/Brainfuck/Brainfuck.png)
+![](/assets/Brainfuck/Brainfuck.png)
 
 ### Summary
 - A **Linux** box where we find **email ports (SMTP/POP/IMAP)** open as well as **two https websites** (we discovered them from the **SSL certificate Subject Alternative Name** field)
