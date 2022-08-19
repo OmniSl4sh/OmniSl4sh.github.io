@@ -66,7 +66,7 @@
 
 <h3 id="summary">Summary</h3>
 <ul>
-  <li>A <strong>Linux</strong> box where we find <strong>email ports (SMTP/POP/IMAP)</strong> open as well as <strong>two https websites</strong> (we discovered them from the <strong>SSL certificate Subject Alternative Name</strong> field)</li>
+  <li>A <strong>Linux</strong> box where we find <strong>email ports (SMTP/POP/IMAP)</strong> open as well as <strong>two HTTPS websites</strong> (we discovered them from the <strong>SSL certificate Subject Alternative Name</strong> field)</li>
   <li>One website had a <strong>Wordpress blog</strong> which happened to have a <strong><em>vulnerable component</em></strong> that enabled us to impersonate the <code class="language-plaintext highlighter-rouge">admin</code> user.</li>
   <li><em>After failing to get code execution using traditional ways</em> (<strong><em>editing Wordpress themes and uploading malicious plugins</em></strong>), we search more to <strong>find email credentials for the <code class="language-plaintext highlighter-rouge">orestis</code> user in the installed SMTP plugin.</strong></li>
   <li>We <strong>configure a mail client with IMAP</strong> and <strong>retrieve the mailbox contents</strong> for the <code class="language-plaintext highlighter-rouge">orestis</code> user to <strong>gain another set of credentials for the other website (a forum)</strong>.</li>

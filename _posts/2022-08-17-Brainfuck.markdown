@@ -7,7 +7,7 @@ published: true
 ![](/assets/Brainfuck/Brainfuck.png)
 
 ### Summary
-- A **Linux** box where we find **email ports (SMTP/POP/IMAP)** open as well as **two https websites** (we discovered them from the **SSL certificate Subject Alternative Name** field)
+- A **Linux** box where we find **email ports (SMTP/POP/IMAP)** open as well as **two HTTPS websites** (we discovered them from the **SSL certificate Subject Alternative Name** field)
 - One website had a **Wordpress blog** which happened to have a ***vulnerable component*** that enabled us to impersonate the `admin` user.
 - *After failing to get code execution using traditional ways* (***editing Wordpress themes and uploading malicious plugins***), we search more to **find email credentials for the `orestis` user in the installed SMTP plugin.**
 - We **configure a mail client with IMAP** and **retrieve the mailbox contents** for the `orestis` user to **gain another set of credentials for the other website (a forum)**.
