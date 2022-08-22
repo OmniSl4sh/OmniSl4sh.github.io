@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "HTB Writeup [Windows - Easy] - Active (AD Pentesting Track #3)"
+title:  "HTB Writeup [Windows - Easy] - Active"
 ---
 
 ![Active](/assets/Active/Active.png)

@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "HTB Writeup [Windows - Medium] - Resolute (AD Pentesting Track #5)"
+title:  "HTB Writeup [Windows - Medium] - Resolute"
 ---
 
 ![Resolute](/assets/Resolute/Resolute.png)

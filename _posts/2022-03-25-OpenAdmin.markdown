@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "HTB Writeup [Linux - Easy] - OpenAdmin (Intro to Dante Track #2)"
+title:  "HTB Writeup [Linux - Easy] - OpenAdmin"
 ---
 
 ![OpenAdmin](/assets/OpenAdmin/OpenAdmin.png)

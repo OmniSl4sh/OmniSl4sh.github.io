@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "HTB Writeup [Windows - Easy] - Forest (AD Pentesting Track #1)"
+title:  "HTB Writeup [Windows - Easy] - Forest"
 ---
 
 ![forest](/assets/Forest/Forest.png)

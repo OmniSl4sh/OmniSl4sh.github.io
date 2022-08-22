@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "HTB Writeup [Windows - Hard] - Blackfield (AD Pentesting Track #4)"
+title:  "HTB Writeup [Windows - Hard] - Blackfield"
 ---
 
 ![BlackField](/assets/Blackfield/Blackfield.png)

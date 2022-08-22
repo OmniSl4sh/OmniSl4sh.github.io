@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "HTB Writeup [Windows - Medium] - Cascade (AD Pentesting Track #9)"
+title:  "HTB Writeup [Windows - Medium] - Cascade"
 ---
 
 ![Cascade](/assets/Cascade/Cascade.png)

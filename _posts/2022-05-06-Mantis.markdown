@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "HTB Writeup [Windows - Hard] - Mantis (AD Pentesting Track #8)"
+title:  "HTB Writeup [Windows - Hard] - Mantis"
 ---
 
 ![Mantis](/assets/Mantis/Mantis.png)
