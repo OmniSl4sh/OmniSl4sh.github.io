@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/OpenAdmin/OpenAdmin.png" alt="OpenAdmin" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Linux machine</strong> with port 80 that reveals a <em>vulnerable web application</em>.</li>
   <li><em>Exploiting the application,</em> we gain access as <code class="language-plaintext highlighter-rouge">www-data</code>.</li>
@@ -76,7 +76,7 @@
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <p>We start off with the usual nmap scan and we find two open ports:</p>
 <ol>
   <li>SSH</li>
@@ -98,7 +98,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/OpenAdmin/Apache-Default-Page.jpg" alt="Apache-Default-Page" /></p>
 
-<h3 id="web-directory-bruteforcing">Web Directory Bruteforcing</h3>
+<h2 id="web-directory-bruteforcing">Web Directory Bruteforcing</h2>
 
 <p><em>using the dirb <code class="language-plaintext highlighter-rouge">common.txt</code> wordlist with gobuster,</em> we find two directories:</p>
 <ol>
@@ -110,7 +110,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p>This is because burp would log all the traffic and will show us all the requests made by the website. This can show us a lot of hidden directories.</p>
 
-<h3 id="finding-hidden-content">Finding hidden content</h3>
+<h2 id="finding-hidden-content">Finding hidden content</h2>
 
 <p><em>after pressing <code class="language-plaintext highlighter-rouge">login</code> on the <code class="language-plaintext highlighter-rouge">music</code> directory web page,</em> we get redirected to <code class="language-plaintext highlighter-rouge">/ona</code></p>
 
@@ -118,7 +118,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/OpenAdmin/ona-home.jpg" alt="ona-home" /></p>
 
-<h3 id="version-based-exploit-search">Version-based Exploit Search</h3>
+<h2 id="version-based-exploit-search">Version-based Exploit Search</h2>
 
 <p>we take note of the version <code class="language-plaintext highlighter-rouge">18.1.1</code> and search for exploits right away!</p>
 
@@ -151,7 +151,7 @@ while true;do
 done
 </code></pre></div></div>
 
-<h3 id="basic-exploit-analysis">Basic Exploit Analysis</h3>
+<h2 id="basic-exploit-analysis">Basic Exploit Analysis</h2>
 
 <p><em>Analyzing the exploit,</em> it looks like a bash script given the shebang <code class="language-plaintext highlighter-rouge">#!/bin/bash</code>.</p>
 
@@ -166,7 +166,7 @@ done
 
 <p><img src="/assets/OpenAdmin/RCE.jpg" alt="RCE" /></p>
 
-<h3 id="trying-to-get-a-real-shell">Trying to get a real shell</h3>
+<h2 id="trying-to-get-a-real-shell">Trying to get a real shell</h2>
 
 <p>we try to get a full-fledged shell using the standard reverse shell payloads:</p>
 <ol>
@@ -187,14 +187,14 @@ done
 
 <p><img src="/assets/OpenAdmin/rev-connect-2.jpg" alt="rev-connect-2" /></p>
 
-<h3 id="improving-our-shell">Improving our shell</h3>
+<h2 id="improving-our-shell">Improving our shell</h2>
 
 <p>we then upgrade our shell to full tty as normal</p>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/bash")'</span><span class="sb">`</span> <span class="o">&gt;</span> <span class="sb">`</span>CTRL + Z<span class="sb">`</span> <span class="o">&gt;</span> <span class="sb">`</span><span class="nb">stty </span>raw <span class="nt">-echo</span><span class="sb">`</span> <span class="o">&gt;</span> <span class="sb">`</span><span class="nb">fg</span><span class="sb">`</span> <span class="o">&gt;</span> <span class="sb">`</span><span class="nb">export </span><span class="nv">SHELL</span><span class="o">=</span>/bin/bash <span class="o">&amp;&amp;</span> <span class="nb">export </span><span class="nv">TERM</span><span class="o">=</span>xterm-256color
 </code></pre></div></div>
 
-<h3 id="searching-for-custom-content">Searching for custom content</h3>
+<h2 id="searching-for-custom-content">Searching for custom content</h2>
 
 <p>we start by enumerating the web root and find a folder called <code class="language-plaintext highlighter-rouge">internal</code> owned by the user <code class="language-plaintext highlighter-rouge">jimmy</code> which we cannot access. This gets me to think that we probably would have to <strong>pivot to that user</strong> if we were to read the contents.</p>
 
@@ -210,7 +210,7 @@ lrwxrwxrwx  1 www-data www-data   12 Nov 21  2019 ona -&gt; /opt/ona/www
 <p><em>looking at the number of files inside the <code class="language-plaintext highlighter-rouge">ona</code> directory,</em> they turn out to be 1324 files :D
 taking a look in every one of them is not feasable by any means. so we look for stuff that might contain something useful.</p>
 
-<h3 id="creds-in-db-settings-config-file">Creds in DB settings config file</h3>
+<h2 id="creds-in-db-settings-config-file">Creds in DB settings config file</h2>
 
 <p><em>after some considerable time,</em> we find the file <code class="language-plaintext highlighter-rouge">database_settings.inc.php</code> inside <code class="language-plaintext highlighter-rouge">/var/www/ona/local/config</code>. It contained the username and password for the database user:</p>
 
@@ -242,7 +242,7 @@ taking a look in every one of them is not feasable by any means. so we look for 
 <p>This looks promising :D
 The <code class="language-plaintext highlighter-rouge">n1nj4W4rri0R!</code> password worked with the <code class="language-plaintext highlighter-rouge">ona_sys</code> and we start our enumerating the database.</p>
 
-<h3 id="local-db-enumeration">Local DB Enumeration</h3>
+<h2 id="local-db-enumeration">Local DB Enumeration</h2>
 
 <p>we find a table called <code class="language-plaintext highlighter-rouge">users</code> inside that contained both the username and password hashes of <code class="language-plaintext highlighter-rouge">admin</code> and <code class="language-plaintext highlighter-rouge">guest</code></p>
 
@@ -339,7 +339,7 @@ Database changed
   <li>user <code class="language-plaintext highlighter-rouge">guest</code> has a password of <code class="language-plaintext highlighter-rouge">test</code></li>
 </ol>
 
-<h3 id="the-usernames-and-passwords-we-have">The usernames and passwords we have</h3>
+<h2 id="the-usernames-and-passwords-we-have">The usernames and passwords we have</h2>
 
 <p>we now have 3 passwords on our list:</p>
 <ol>
@@ -397,7 +397,7 @@ drwxr-xr-x 4 root  root     4096 Nov 22  2019 ..
 -rwxrwxr-x 1 jimmy internal  339 Mar 19 13:54 main.php
 </code></pre></div></div>
 
-<h3 id="finding-unusual-files">Finding unusual files</h3>
+<h2 id="finding-unusual-files">Finding unusual files</h2>
 
 <p>it contained those php files.</p>
 
@@ -437,13 +437,13 @@ Click here to logout <span class="nt">&lt;a</span> <span class="na">href=</span>
 
 <p>getting the ssh key for the <code class="language-plaintext highlighter-rouge">joanna</code> user should be interesting. but we won’t be able to access those webpages unless they were in the <code class="language-plaintext highlighter-rouge">/var/www/html</code> directory and were both <strong>readable and executable</strong> by the <code class="language-plaintext highlighter-rouge">www-data</code> user. There has to be some other way…</p>
 
-<h3 id="moving-along-other-privesc-paths-looking-for-information">Moving along other privesc paths looking for information</h3>
+<h2 id="moving-along-other-privesc-paths-looking-for-information">Moving along other privesc paths looking for information</h2>
 
 <p>I don’t get any ideas right off the bat. so I go ahead and use <code class="language-plaintext highlighter-rouge">linpeas.sh</code> to search for other ways to escalate my privileges.</p>
 
 <p>we go down many different paths, including cracking the <code class="language-plaintext highlighter-rouge">sha512</code> hash inside the <code class="language-plaintext highlighter-rouge">index.php</code> file within the <code class="language-plaintext highlighter-rouge">internal</code> directory (the password was <code class="language-plaintext highlighter-rouge">Revealed</code>). and re-using it with all the users. but no dice :\</p>
 
-<h3 id="finding-another-high-port-listening-locally">Finding another high port listening <em>locally</em></h3>
+<h2 id="finding-another-high-port-listening-locally">Finding another high port listening <em>locally</em></h2>
 
 <p><em>but we do notice something we haven’t paid attention to the first time,</em> port <strong>52846</strong> is listening <em>internally</em>. <em>on our first look,</em> we were pre-occupied with the <code class="language-plaintext highlighter-rouge">mysql</code> port and missed that high one.</p>
 
@@ -463,7 +463,7 @@ tcp    LISTEN   0        128                  [::]:22                [::]:*
 
 <p><strong>And, if we didn’t,</strong> we had <code class="language-plaintext highlighter-rouge">write</code> access to the php authentication file and could modify it ;)</p>
 
-<h3 id="ssh-tunneling-to-expose-the-internal-port">SSH Tunneling to expose the internal port</h3>
+<h2 id="ssh-tunneling-to-expose-the-internal-port">SSH Tunneling to expose the internal port</h2>
 
 <p>so we create an <code class="language-plaintext highlighter-rouge">SSH tunnel</code> to bring out that internal <code class="language-plaintext highlighter-rouge">52846</code> port to our <code class="language-plaintext highlighter-rouge">localhost</code> on port <code class="language-plaintext highlighter-rouge">8888</code></p>
 
@@ -474,7 +474,7 @@ tcp    LISTEN   0        128                  [::]:22                [::]:*
 
 <p><img src="/assets/OpenAdmin/hidden-port.jpg" alt="hidden-port" /></p>
 
-<h3 id="ssh-key-for-joanna">SSH Key for <code class="language-plaintext highlighter-rouge">Joanna</code></h3>
+<h2 id="ssh-key-for-joanna">SSH Key for <code class="language-plaintext highlighter-rouge">Joanna</code></h2>
 
 <p>after logging in, we get the ssh key for the <code class="language-plaintext highlighter-rouge">joanna</code> user!</p>
 
@@ -484,7 +484,7 @@ tcp    LISTEN   0        128                  [::]:22                [::]:*
 
 <p>and we use it to log in. but it requires a passphrase :D</p>
 
-<h3 id="cracking-the-ssh-passphrase-using-john">Cracking the SSH passphrase using <code class="language-plaintext highlighter-rouge">John</code></h3>
+<h2 id="cracking-the-ssh-passphrase-using-john">Cracking the SSH passphrase using <code class="language-plaintext highlighter-rouge">John</code></h2>
 
 <p>we use the tool <code class="language-plaintext highlighter-rouge">ssh2john</code> to change the ssh key into a format that’s crackable by <code class="language-plaintext highlighter-rouge">john</code>. we crack the password using the <code class="language-plaintext highlighter-rouge">rockyou.txt</code> wordlist.</p>
 
@@ -525,7 +525,7 @@ Failed to connect to https://changelogs.ubuntu.com/meta-release-lts. Check your 
 Last login: Tue Jul 27 06:12:07 2021 from 10.10.14.15
 </code></pre></div></div>
 
-<h3 id="joanna-can-root-the-box-sudo-style-d">Joanna can root the box. SUDO style :D</h3>
+<h2 id="joanna-can-root-the-box-sudo-style-d">Joanna can root the box. SUDO style :D</h2>
 
 <p><em>after logging in,</em> we find no interesting files in her home directory. but she shows to have interesting permissions using <code class="language-plaintext highlighter-rouge">sudo -l -l</code></p>
 

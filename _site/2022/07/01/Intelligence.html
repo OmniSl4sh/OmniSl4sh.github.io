@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> that’s hosting a static website on port 80.</li>
   <li><em>While browsing the site,</em> we notice two links to <strong>PDF</strong> files that exist on a web directory for documents.</li>
@@ -80,7 +80,7 @@
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Simple DNS Plus
 80/tcp    open  http          Microsoft IIS httpd 10.0
@@ -147,7 +147,7 @@ Host script results:
   <li><em>On the last line,</em> the <strong>Clock Skew</strong> between our host and the DC is 7 hours (which is something we must take care of to make sure anything <strong>Kerberos-related</strong> works well)</li>
 </ol>
 
-<h3 id="the-website">The Website</h3>
+<h2 id="the-website">The Website</h2>
 <p><img src="/assets/Intelligence/website-homepage.jpg" alt="website-homepage" /></p>
 
 <p>checking the website’s home page doesn’t show anything special. Except for this:</p>
@@ -169,7 +169,7 @@ Host script results:
 
 <p>we might get information we could use.</p>
 
-<h3 id="searching-documents">Searching Documents</h3>
+<h2 id="searching-documents">Searching Documents</h2>
 <p>We’re going to create a script that generates a list of <strong>PDF</strong> file names following the scheme we found.</p>
 
 <p>We’ll make the script generate dates between 2018 to 2022. That’s 2 years before and after the date of the found documents.</p>
@@ -241,7 +241,7 @@ Host script results:
 
 <p>And it also mentions <strong>“locking down service accounts”</strong> which hints at a <strong>possible security concern</strong> in that area.</p>
 
-<h3 id="interesting-information-in-metadata">Interesting Information in Metadata</h3>
+<h2 id="interesting-information-in-metadata">Interesting Information in Metadata</h2>
 <p>Now we need a list of usernames..</p>
 
 <p><em>With all those</em> <strong>PDF</strong>s <em>lying around,</em> we’re tempted to look for information in <strong>metadata.</strong></p>
@@ -283,7 +283,7 @@ Host script results:
 
 <p>Tiffany hadn’t changed the default password. Lucky for us :D</p>
 
-<h3 id="exploiting-the-vulnerable-script">Exploiting the Vulnerable Script</h3>
+<h2 id="exploiting-the-vulnerable-script">Exploiting the Vulnerable Script</h2>
 <p><em>When checking the readable</em> <strong>SMB</strong> <em>shares as Tiffany,</em> we find that she can read a certain share: <strong>IT</strong></p>
 
 <p><img src="/assets/Intelligence/smb-shares-tiffany.jpg" alt="smb-shares-tiffany" /></p>
@@ -349,7 +349,7 @@ Host script results:
 
 <p><img src="/assets/Intelligence/teddys-hash-cracked.jpg" alt="teddys-hash-cracked" /></p>
 
-<h3 id="bloodhound-and-the-path-to-domain-admin">Bloodhound and the Path to Domain Admin</h3>
+<h2 id="bloodhound-and-the-path-to-domain-admin">Bloodhound and the Path to Domain Admin</h2>
 <p><em>After running the</em> <strong>Bloodhound</strong> <em>python Ingestor</em> <a href="/assets/Intelligence/https://github.com/fox-it/BloodHound.py"><code class="language-plaintext highlighter-rouge">Bloodhound.py</code></a>, we mark our user <code class="language-plaintext highlighter-rouge">Ted.Graves</code> as owned.</p>
 
 <p>We see a <strong>clear exploit path</strong> to <strong>Domain Admin</strong> when we view the results of the <code class="language-plaintext highlighter-rouge">Shortest Path from Owned Principals</code> built-in query:</p>
@@ -369,7 +369,7 @@ Host script results:
 
 <p>We’re now good for the next step.</p>
 
-<h3 id="abusing-constrained-delegation">Abusing Constrained Delegation</h3>
+<h2 id="abusing-constrained-delegation">Abusing Constrained Delegation</h2>
 <p><em>In our case,</em> <code class="language-plaintext highlighter-rouge">SVC_INT$</code> is allowed delegation to the Domain Controller.</p>
 
 <p>This means that it can <strong>impersonate any user</strong> (even Administrators) when interacting with the DC as the <strong>WWW</strong> service.</p>

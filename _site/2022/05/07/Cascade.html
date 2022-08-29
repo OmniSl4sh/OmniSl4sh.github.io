@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li><em>Noticing the open ports</em>: <strong>DNS, Kerberos, LDAP &amp; SMB</strong>, we know we’re up against a <strong>Windows Domain Controller</strong>.</li>
   <li><strong>LDAP Enumeration</strong> reveals a <em>base-64 encoded</em> password which was <em>embedded</em> in a unique <strong>Active Directory</strong> user attribute.</li>
@@ -82,7 +82,7 @@
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Microsoft DNS 6.1.7601 (1DB15D39) (Windows Server 2008 R2 SP1)
 | dns-nsid: 
@@ -124,12 +124,12 @@ Host script results:
   <li><strong>Host name:</strong> CASC-DC1</li>
 </ul>
 
-<h3 id="checkpoint-listing-possible-enumerationexploitation-paths">Checkpoint: Listing Possible Enumeration/Exploitation Paths</h3>
+<h2 id="checkpoint-listing-possible-enumerationexploitation-paths">Checkpoint: Listing Possible Enumeration/Exploitation Paths</h2>
 <p><em>Having the port data,</em> we go over our <strong>game plan</strong>:</p>
 
 <p><img src="/assets/Cascade/ad-gameplan-map.jpg" alt="ad-gameplan-map" /></p>
 
-<h3 id="down-to-business-rpc">Down to business: RPC</h3>
+<h2 id="down-to-business-rpc">Down to business: RPC</h2>
 <p><code class="language-plaintext highlighter-rouge">enum4linux-ng</code> (https://github.com/cddmp/enum4linux-ng) is a really nice revamp of the old <code class="language-plaintext highlighter-rouge">enum4linux</code> tool.</p>
 
 <p>we run it using the <code class="language-plaintext highlighter-rouge">-A</code> switch as well as <code class="language-plaintext highlighter-rouge">-oY</code> to output into <strong>YAML format</strong>.</p>
@@ -160,7 +160,7 @@ Host script results:
 
 <p>This is great! We have a userlist that we can use to do <strong>ASREPRoasting</strong> and we can do <strong>Password Spraying</strong> without locking anyone out.</p>
 
-<h3 id="time-saving-1-asreproasting">Time Saving #1: ASREPRoasting</h3>
+<h2 id="time-saving-1-asreproasting">Time Saving #1: ASREPRoasting</h2>
 <p><em>To save time,</em> we’re going to do the <strong>ASREPRoast</strong> first because it’s a quick check and has a high chance of giving us creds (<em>if we crack the hash</em>).</p>
 
 <p><strong>Command:</strong></p>
@@ -175,7 +175,7 @@ Host script results:
 
 <p>we also notice some accounts got another type of error: <code class="language-plaintext highlighter-rouge">KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)</code>. <em>more on those later :)</em></p>
 
-<h3 id="time-saving-2-password-spraying-in-the-background">Time Saving #2: Password Spraying in the background</h3>
+<h2 id="time-saving-2-password-spraying-in-the-background">Time Saving #2: Password Spraying in the background</h2>
 <p><em>Since the password policy contained no user lockout,</em> we’re good to go spraying :D</p>
 
 <p><strong>Command:</strong></p>
@@ -196,7 +196,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/locked-out-users.jpg" alt="locked-out-users" /></p>
 
-<h3 id="smb-enumeration">SMB Enumeration</h3>
+<h2 id="smb-enumeration">SMB Enumeration</h2>
 <p><em>While we leave our spray running,</em> we’re going to enumerate <strong>SMB shares</strong> using <code class="language-plaintext highlighter-rouge">crackmapexec</code></p>
 
 <p><img src="/assets/Cascade/crackmapexec-smb-enum.jpg" alt="crackmapexec-smb-enum" /></p>
@@ -207,7 +207,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/casc-guest.jpg" alt="casc-guest" /></p>
 
-<h3 id="ldap">LDAP</h3>
+<h2 id="ldap">LDAP</h2>
 <p>We’re going to enumerate <strong>LDAP</strong> and see if we can find something there.</p>
 
 <p><strong>Command:</strong></p>
@@ -246,14 +246,14 @@ Host script results:
 
 <p><img src="/assets/Cascade/ryan-creds-check.jpg" alt="ryan-creds-check" /></p>
 
-<h3 id="kerberoasting">Kerberoasting</h3>
+<h2 id="kerberoasting">Kerberoasting</h2>
 <p><em>Applying the same strategy as before,</em> we’re going to <strong>kerberoast.</strong></p>
 
 <p><img src="/assets/Cascade/kerberoasting.jpg" alt="kerberoasting" /></p>
 
 <p>No results there.</p>
 
-<h3 id="smb-access-with-rthompson">SMB Access with <code class="language-plaintext highlighter-rouge">R.Thompson</code></h3>
+<h2 id="smb-access-with-rthompson">SMB Access with <code class="language-plaintext highlighter-rouge">R.Thompson</code></h2>
 <p>We’re going to use a <code class="language-plaintext highlighter-rouge">crackmapexec</code> module called <code class="language-plaintext highlighter-rouge">spider_plus</code>.</p>
 
 <p>It essentially crawls the <code class="language-plaintext highlighter-rouge">SMB</code> share and returns a list of files that we have access to.</p>
@@ -280,7 +280,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/tight-vnc-password.jpg" alt="tight-vnc-password" /></p>
 
-<h3 id="cracking-vnc-passwords">Cracking VNC Passwords</h3>
+<h2 id="cracking-vnc-passwords">Cracking VNC Passwords</h2>
 <p>We’re interested in cracking this <strong>VNC</strong> password and reusing it.</p>
 
 <p><em>Luckily,</em> a tool called <code class="language-plaintext highlighter-rouge">vncpwd</code> (https://github.com/jeroennijhof/vncpwd) can easily do that.</p>
@@ -291,7 +291,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/vnc-pwd-cracked.jpg" alt="vnc-pwd-cracked" /></p>
 
-<h3 id="password-reuse">Password Reuse</h3>
+<h2 id="password-reuse">Password Reuse</h2>
 <p><em>Having a new password</em> <code class="language-plaintext highlighter-rouge">sT333ve2</code>, we’re going to to spray it all over the domain users we’ve collected.</p>
 
 <p><img src="/assets/Cascade/steve-ad-user-owned.jpg" alt="steve-ad-user-owned" /></p>
@@ -306,7 +306,7 @@ Host script results:
 
 <p>Running <strong>WinPeas</strong> didn’t pick up anything either. So we took a step back to check his <strong>SMB</strong> access.</p>
 
-<h3 id="steves-smb-access-the-audit-share">Steve’s SMB access: The <code class="language-plaintext highlighter-rouge">Audit$</code> Share</h3>
+<h2 id="steves-smb-access-the-audit-share">Steve’s SMB access: The <code class="language-plaintext highlighter-rouge">Audit$</code> Share</h2>
 <p>Using <code class="language-plaintext highlighter-rouge">crackmapexec</code> with the <code class="language-plaintext highlighter-rouge">--shares</code> flag, we get the below:</p>
 
 <p><img src="/assets/Cascade/steve-smb-access.jpg" alt="steve-smb-access" /></p>
@@ -331,7 +331,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/check-out-the-db.jpg" alt="check-out-the-db" /></p>
 
-<h3 id="db-enumeration">DB Enumeration</h3>
+<h2 id="db-enumeration">DB Enumeration</h2>
 <p>We’re going to use the <code class="language-plaintext highlighter-rouge">sqlite3</code> command-line utility to check out the database contents.</p>
 
 <ol>
@@ -350,7 +350,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/ark-svc-b64-attempt.jpg" alt="ark-svc-b64-attempt" /></p>
 
-<h3 id="reversing-the-cascauditexe-and-dll-files">Reversing the <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> and <code class="language-plaintext highlighter-rouge">.dll</code> files</h3>
+<h2 id="reversing-the-cascauditexe-and-dll-files">Reversing the <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> and <code class="language-plaintext highlighter-rouge">.dll</code> files</h2>
 <p><em>Since the</em> <code class="language-plaintext highlighter-rouge">.bat</code> <em>file showed the</em> <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> <em>processing the Audit database,</em> we’re interested to know how it works.</p>
 
 <p>The same goes for <code class="language-plaintext highlighter-rouge">CascCrypto.dll</code>. <em>Judging by its name,</em> it’s very likely related to the encryption.</p>
@@ -384,12 +384,12 @@ Host script results:
 
 <p><em>Looking at the code,</em> it seems that the <code class="language-plaintext highlighter-rouge">.exe</code> reads the encrypted password from the database and decrypts it using the <code class="language-plaintext highlighter-rouge">DecryptString</code> function before moving on to carry out its tasks.</p>
 
-<h3 id="aes-cbc-128-decryption">AES-CBC-128 Decryption</h3>
+<h2 id="aes-cbc-128-decryption">AES-CBC-128 Decryption</h2>
 <p><em>Adding the details we found into an</em> <strong>online decryption tool</strong> (https://www.devglan.com/online-tools/aes-encryption-decryption), we get the plaintext: <code class="language-plaintext highlighter-rouge">w3lc0meFr31nd</code></p>
 
 <p><img src="/assets/Cascade/aes-cbc-128-decryption.jpg" alt="aes-cbc-128-decryption" /></p>
 
-<h3 id="arksvc-and-the-ad-recycle-bin">ArkSvc and the AD Recycle Bin</h3>
+<h2 id="arksvc-and-the-ad-recycle-bin">ArkSvc and the AD Recycle Bin</h2>
 <p>The user <code class="language-plaintext highlighter-rouge">ArkSvc</code> authenticates successfully with the <code class="language-plaintext highlighter-rouge">w3lc0meFr31nd</code> password and also has <code class="language-plaintext highlighter-rouge">WinRM</code> access.</p>
 
 <p><img src="/assets/Cascade/ark-svc-got-winrm.jpg" alt="ark-svc-got-winrm" /></p>

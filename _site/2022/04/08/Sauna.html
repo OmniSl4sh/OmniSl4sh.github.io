@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Sauna/Sauna.png" alt="Sauna" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>We find a <strong>domain controller</strong> with <strong>IIS</strong> running on port 80.</li>
   <li>It turns out to be the <strong>company website</strong> and we create a <strong>list of usernames</strong> from the <strong>‘Meet the Team’ page</strong>.</li>
@@ -74,7 +74,7 @@
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <p>We start off with an <code class="language-plaintext highlighter-rouge">nmap</code> scan for <code class="language-plaintext highlighter-rouge">all ports</code> and using <code class="language-plaintext highlighter-rouge">service detection</code> and <code class="language-plaintext highlighter-rouge">default scripts</code></p>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Simple DNS Plus
@@ -116,7 +116,7 @@ Host script results:
 <p><em>Right off the bat,</em> we see <code class="language-plaintext highlighter-rouge">IIS 10.0</code> on port 80 which indicates either Windows Server 2016 or 2019.
 We also see a collection of ports (DNS, Kerberos, LDAP, SMB, Secure LDAP and WinRM) along with <code class="language-plaintext highlighter-rouge">nmap</code> telling us that this box is more likely a <strong>Domain Controller</strong>. The domain name is <code class="language-plaintext highlighter-rouge">EGOTISTICAL-BANK.LOCAL</code></p>
 
-<h3 id="basic-osint-pulling-usernames-from-the-website-and-wordlist-generation">Basic OSINT: Pulling usernames from the website and Wordlist Generation</h3>
+<h2 id="basic-osint-pulling-usernames-from-the-website-and-wordlist-generation">Basic OSINT: Pulling usernames from the website and Wordlist Generation</h2>
 
 <p>we go and check out the website. And, we find mostly static content there that doesn’t give us much indication of an exploit. <em>However,</em> we do find a couple of potential usernames in the <code class="language-plaintext highlighter-rouge">/about.html</code> page at the bottom:</p>
 
@@ -160,13 +160,13 @@ SurnameN
 Surname.N
 </code></pre></div></div>
 
-<h3 id="user-enumeration-using-kerbrute">User Enumeration using <code class="language-plaintext highlighter-rouge">kerbrute</code></h3>
+<h2 id="user-enumeration-using-kerbrute">User Enumeration using <code class="language-plaintext highlighter-rouge">kerbrute</code></h2>
 
 <p><em>using</em> <code class="language-plaintext highlighter-rouge">kerbrute</code> <em>for user enumeration,</em> we find that the user <code class="language-plaintext highlighter-rouge">fsmith</code> exists:</p>
 
 <p><img src="/assets/Sauna/fsmith-exists.jpg" alt="fsmith-exists" /></p>
 
-<h3 id="asreproast-attack">ASREPRoast Attack</h3>
+<h2 id="asreproast-attack">ASREPRoast Attack</h2>
 
 <p><em>Having only this one user,</em> we decide to <code class="language-plaintext highlighter-rouge">ASREPRoast</code> him to see if he doesn’t have <code class="language-plaintext highlighter-rouge">Kerberos Pre-Authentication</code> enabled. And he does! :D</p>
 
@@ -178,13 +178,13 @@ Surname.N
 
 <p>The wordlist I used <code class="language-plaintext highlighter-rouge">gegalist.txt</code> is just a combination of all the wordlists in <strong>Seclists</strong>.</p>
 
-<h3 id="powershell-remoting-with-fsmith">PowerShell Remoting with <code class="language-plaintext highlighter-rouge">fsmith</code></h3>
+<h2 id="powershell-remoting-with-fsmith">PowerShell Remoting with <code class="language-plaintext highlighter-rouge">fsmith</code></h2>
 
 <p>we want to get <strong>remote code execution</strong> on the box, so we try <strong>PowerShell Remoting</strong> using a tool called <code class="language-plaintext highlighter-rouge">evil-winrm</code> (https://github.com/Hackplayers/evil-winrm). And are lucky :D</p>
 
 <p><img src="/assets/Sauna/we-can-winrm.jpg" alt="we-can-winrm" /></p>
 
-<h3 id="autologon-creds-for-svc_loanmgr">Autologon creds for <code class="language-plaintext highlighter-rouge">svc_loanmgr</code></h3>
+<h2 id="autologon-creds-for-svc_loanmgr">Autologon creds for <code class="language-plaintext highlighter-rouge">svc_loanmgr</code></h2>
 
 <p><em>Looking around the box in the user profile and in the root directory,</em> we don’t see much intersting information. <em>However, when we check for autlogon creds,</em> we do find interesting credentials for the <code class="language-plaintext highlighter-rouge">svc_loanmgr</code> user:</p>
 
@@ -196,7 +196,7 @@ Surname.N
 
 <p>This is amazing :D we now got two accounts!</p>
 
-<h3 id="enumeration-with-bloodhound">Enumeration with <code class="language-plaintext highlighter-rouge">BloodHound</code></h3>
+<h2 id="enumeration-with-bloodhound">Enumeration with <code class="language-plaintext highlighter-rouge">BloodHound</code></h2>
 
 <p><em>Since this is an AD environment,</em> it’s only natural that we run <code class="language-plaintext highlighter-rouge">BloodHound</code>. <em>This time,</em> we’re going to use a python-based version called <code class="language-plaintext highlighter-rouge">bloodhound-python</code> (https://github.com/fox-it/BloodHound.py).</p>
 
@@ -283,7 +283,7 @@ INFO: Done in 00M 28S
 
 <p><img src="/assets/Sauna/Zipping-them-jsons.jpg" alt="Zipping-them-jsons" /></p>
 
-<h3 id="abusing-dangerous-rights-dcsync">Abusing Dangerous Rights (DCSync)</h3>
+<h2 id="abusing-dangerous-rights-dcsync">Abusing Dangerous Rights (DCSync)</h2>
 
 <p><em>trying a standard</em> <code class="language-plaintext highlighter-rouge">bloodhound</code> <em>query,</em> we find that the user that own <code class="language-plaintext highlighter-rouge">svc_loanmgr</code> happens to have a very dangerous right <code class="language-plaintext highlighter-rouge">DCSync</code> on the domain.</p>
 
@@ -291,7 +291,7 @@ INFO: Done in 00M 28S
 
 <p>Having this right means we can act as if we were <em>another domain controller</em> and ask for a <strong>full synchronization of all the password hashes of the domain.</strong></p>
 
-<h3 id="full-domain-hash-dump">Full domain hash dump</h3>
+<h2 id="full-domain-hash-dump">Full domain hash dump</h2>
 
 <p>This can be achieved using <code class="language-plaintext highlighter-rouge">impacket</code>’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> tool:</p>
 

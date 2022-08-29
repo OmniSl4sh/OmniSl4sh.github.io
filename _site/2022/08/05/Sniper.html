@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>The box is a <strong>Windows</strong> machine <strong>hosting a PHP website</strong> which had both a <strong>LFI</strong> (intended) and a <strong>RFI</strong> (unintended) vulnerabilities.</li>
   <li><em>Down the LFI path, and after working around some</em> <strong>blacklisting</strong> <em>and</em> <strong>hardening</strong>, we manage to <strong>inject PHP code into the cookies</strong> and <strong>include them to gain RCE.</strong></li>
@@ -78,7 +78,7 @@
 
 <hr />
 
-<h3 id="nmap">NMAP</h3>
+<h2 id="nmap">NMAP</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 80/tcp    open  http          Microsoft IIS httpd 10.0
 |_http-title: Sniper Co.
@@ -110,11 +110,11 @@ Host script results:
 
 <p>We start with <strong>SMB</strong> and <strong>RPC</strong> since they are a quick check.</p>
 
-<h3 id="smb-enumeration">SMB Enumeration</h3>
+<h2 id="smb-enumeration">SMB Enumeration</h2>
 <p>we check the usual <strong>null, anonymous and guest authentication</strong> with <code class="language-plaintext highlighter-rouge">crackmapexec</code> but don’t get much past the <strong>OS</strong> and the <strong>hostname</strong>.
 <img src="/assets/Sniper/SMB-Enum.jpg" alt="SMB-Enum" /></p>
 
-<h3 id="rpc-enumeration">RPC Enumeration</h3>
+<h2 id="rpc-enumeration">RPC Enumeration</h2>
 <p>we use <code class="language-plaintext highlighter-rouge">enum4linux-ng</code> but don’t get much information here either</p>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>enum4linux-ng.py <span class="nt">-A</span> sniper
@@ -202,7 +202,7 @@ Server type string: null
 Completed after 19.76 seconds 
 </code></pre></div></div>
 
-<h3 id="web-enumeration">Web Enumeration</h3>
+<h2 id="web-enumeration">Web Enumeration</h2>
 <p><em>On port 80,</em> we find a website
 <img src="/assets/Sniper/website.jpg" alt="website" /></p>
 
@@ -213,7 +213,7 @@ Completed after 19.76 seconds
 
 <p>We run <code class="language-plaintext highlighter-rouge">sqlmap</code> on both forms but don’t find any <strong>SQL injection</strong> :/</p>
 
-<h3 id="finding-a-file-inclusion-vulnerability">Finding a File Inclusion Vulnerability</h3>
+<h2 id="finding-a-file-inclusion-vulnerability">Finding a File Inclusion Vulnerability</h2>
 <p><em>However, when we go to the</em> <strong>services page</strong> <em>and check the</em> <strong>url for the language</strong> <em>in the dropdown menu,</em> we notice something interesting:</p>
 
 <p><img src="/assets/Sniper/spotting-lfi-param.jpg" alt="spotting-lfi-param" /></p>
@@ -238,7 +238,7 @@ Completed after 19.76 seconds
   <li>Be able to <strong>reference it through the vulnerability to get code execution</strong></li>
 </ol>
 
-<h3 id="targeting-cookies">Targeting Cookies</h3>
+<h2 id="targeting-cookies">Targeting Cookies</h2>
 <p><strong>Cookies</strong> are a good place to start because:</p>
 <ul>
   <li><strong>PHP stores the username inside them</strong> &amp; <strong>we have the ability to register users</strong></li>
@@ -255,7 +255,7 @@ Completed after 19.76 seconds
 
 <p><strong><em>Sounds like a lot … and it is a lot XD</em></strong></p>
 
-<h3 id="user-registration">User Registration</h3>
+<h2 id="user-registration">User Registration</h2>
 <p>We do a <strong>quick registration attempt</strong> to <strong>find out the limitations in user creation</strong>.</p>
 
 <p>We used:</p>
@@ -273,7 +273,7 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/login-success.jpg" alt="login-success" /></p>
 
-<h3 id="including-the-cookie">Including the cookie</h3>
+<h2 id="including-the-cookie">Including the cookie</h2>
 <p><em>Before going further,</em> we need to <strong>confirm we can reference the cookie on disk</strong>.</p>
 
 <p>we can get the cookie from the <strong>Firefox developer tools.</strong></p>
@@ -312,7 +312,7 @@ Completed after 19.76 seconds
 
 <p>So we move on to the next step.</p>
 
-<h3 id="finding-the-allowed-special-characters">Finding the allowed special characters</h3>
+<h2 id="finding-the-allowed-special-characters">Finding the allowed special characters</h2>
 <p>We’re going to <strong>brute force all the special characters</strong> at the <strong>registration form</strong> using <strong>Burp</strong> and find out what’s allowed and what’s not.</p>
 
 <p>Here are the <strong>requests and responses for both the registration and login</strong>.</p>
@@ -378,7 +378,7 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/rce-achieved.jpg" alt="rce-achieved" /></p>
 
-<h3 id="stomping-the-blacklisting-with-powershell">Stomping the blacklisting with PowerShell</h3>
+<h2 id="stomping-the-blacklisting-with-powershell">Stomping the blacklisting with PowerShell</h2>
 <p><em>with</em> <strong>RCE</strong> <em>achieved,</em> we have to find a way to <strong>execute a reverse shell with the allowed characters we have.</strong></p>
 
 <p><strong>We have a couple of challenges here:</strong></p>
@@ -416,7 +416,7 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/shell-as-iusr.jpg" alt="shell-as-iusr" /></p>
 
-<h3 id="finding-creds-in-the-database-settings-file-like-always">Finding creds in the database settings file (<em>like always</em>)</h3>
+<h2 id="finding-creds-in-the-database-settings-file-like-always">Finding creds in the database settings file (<em>like always</em>)</h2>
 <p><em>The first thing I did after getting the shell,</em> was <strong>check the files in the web root.</strong></p>
 
 <p>I found a file called <code class="language-plaintext highlighter-rouge">db.php</code> in the <code class="language-plaintext highlighter-rouge">C:\inetpub\wwwroot\user</code> directory.</p>
@@ -433,7 +433,7 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/got-chris.jpg" alt="got-chris" /></p>
 
-<h3 id="getting-a-shell-as-chris">Getting a shell as Chris</h3>
+<h2 id="getting-a-shell-as-chris">Getting a shell as Chris</h2>
 <p>The situation is that we want to pivot to the <code class="language-plaintext highlighter-rouge">chris</code> user <strong>without losing the shell</strong> <em>if possible</em></p>
 
 <p>We can do so from our <strong>PowerShell</strong> prompt using the below method:</p>
@@ -448,7 +448,7 @@ Completed after 19.76 seconds
 
 <p><strong>Neat :)</strong></p>
 
-<h3 id="privilege-escalation-scanning-the-file-system">Privilege Escalation: Scanning the file system</h3>
+<h2 id="privilege-escalation-scanning-the-file-system">Privilege Escalation: Scanning the file system</h2>
 <p><em>When checking the folders in chris’s user profile,</em> we find a file called <code class="language-plaintext highlighter-rouge">intructions.chm</code> in his <code class="language-plaintext highlighter-rouge">Downloads</code> folder.</p>
 
 <p>We <strong>copy it over to our Kali using the SMB share.</strong></p>
@@ -487,7 +487,7 @@ Completed after 19.76 seconds
 
 <p><em>if the CEO happens to be the local <code class="language-plaintext highlighter-rouge">administrator</code> and opens the file,</em> we should root the box.</p>
 
-<h3 id="chm-files-for-the-win">CHM Files for the win</h3>
+<h2 id="chm-files-for-the-win">CHM Files for the win</h2>
 <p><em>Searching</em> <strong>Google</strong>, we come accross this <a href="https://medium.com/r3d-buck3t/weaponize-chm-files-with-powershell-nishang-c98b93f79f1e">blog</a> explaining exactly <strong>how to execute a payload using a <code class="language-plaintext highlighter-rouge">.chm</code> file</strong> using a script from the <strong>Nishang script suite.</strong></p>
 
 <p><em>Following the article,</em> we download the <strong>“HTML Help Workshop and Documentation program”</strong> and <strong>get the script</strong> from the <a href="https://github.com/samratashok/nishang/blob/master/Client/Out-CHM.ps1">Github Repository</a>.</p>
@@ -504,14 +504,14 @@ Completed after 19.76 seconds
 
 <p><strong>Pretty fun box :]</strong></p>
 
-<h3 id="unintended-path-rfi-through-smb">Unintended Path: RFI through SMB</h3>
+<h2 id="unintended-path-rfi-through-smb">Unintended Path: RFI through SMB</h2>
 <p><em>When checking the ability of adding network paths as the file inclusion payload,</em> we got <strong>PHP code execution:</strong></p>
 
 <p><img src="/assets/Sniper/rfi-php-info.jpg" alt="rfi-php-info" /></p>
 
 <p>This path is <strong>much easier</strong> but also <strong>teaches way less than the LFI one.</strong></p>
 
-<h3 id="out-of-curiousity-a-look-at-the-php-within-the-blog-directorys-indexphp">Out of Curiousity: A look at the PHP within the blog directory’s <code class="language-plaintext highlighter-rouge">index.php</code></h3>
+<h2 id="out-of-curiousity-a-look-at-the-php-within-the-blog-directorys-indexphp">Out of Curiousity: A look at the PHP within the blog directory’s <code class="language-plaintext highlighter-rouge">index.php</code></h2>
 <p><img src="/assets/Sniper/lfi-hardening.jpg" alt="lfi-hardening" /></p>
 
 <p>in <code class="language-plaintext highlighter-rouge">index.php</code>, we the code <strong>looks for <code class="language-plaintext highlighter-rouge">..</code> and <code class="language-plaintext highlighter-rouge">C:</code> within the included file path</strong> and <strong>throws an error if it detects any.</strong></p>

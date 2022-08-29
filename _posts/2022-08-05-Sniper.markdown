@@ -6,7 +6,7 @@ published: true
 
 ![Sniper](/assets/Sniper/Sniper.png)
 
-### Summary
+## Summary
 - The box is a **Windows** machine **hosting a PHP website** which had both a **LFI** (intended) and a **RFI** (unintended) vulnerabilities.
 - *Down the LFI path, and after working around some* **blacklisting** *and* **hardening**, we manage to **inject PHP code into the cookies** and **include them to gain RCE.**
 - We gain initial access as `NT Authority\iusr`. And, *as we are taking a look around the* **web root**, we find **credentials** for a local user called `chris` in the **database settings file.**
@@ -18,7 +18,7 @@ published: true
 
 ---
 
-### NMAP
+## NMAP
 ```
 PORT      STATE SERVICE       VERSION
 80/tcp    open  http          Microsoft IIS httpd 10.0
@@ -49,11 +49,11 @@ Nmap gives us a few things to check:
 
 We start with **SMB** and **RPC** since they are a quick check.
 
-### SMB Enumeration
+## SMB Enumeration
 we check the usual **null, anonymous and guest authentication** with `crackmapexec` but don't get much past the **OS** and the **hostname**.
 ![SMB-Enum](/assets/Sniper/SMB-Enum.jpg)
 
-### RPC Enumeration
+## RPC Enumeration
 we use `enum4linux-ng` but don't get much information here either
 
 ```bash
@@ -143,7 +143,7 @@ Server type string: null
 Completed after 19.76 seconds 
 ```
 
-### Web Enumeration
+## Web Enumeration
 *On port 80,* we find a website
 ![website](/assets/Sniper/website.jpg)
 
@@ -154,7 +154,7 @@ We get a **login and registration form** when we click the **"User Portal"**
 
 We run `sqlmap` on both forms but don't find any **SQL injection** :/
 
-### Finding a File Inclusion Vulnerability
+## Finding a File Inclusion Vulnerability
 *However, when we go to the* **services page** *and check the* **url for the language** *in the dropdown menu,* we notice something interesting:
 
 ![spotting-lfi-param](/assets/Sniper/spotting-lfi-param.jpg)
@@ -177,7 +177,7 @@ and try including it
 1. Find a file where we can **inject PHP code**
 2. Be able to **reference it through the vulnerability to get code execution**
 
-### Targeting Cookies
+## Targeting Cookies
 **Cookies** are a good place to start because:
 - **PHP stores the username inside them** & **we have the ability to register users**
 - *Also, In Windows, by default,* they are kept in a *likely accessible* directory `"c:\windows\temp"`
@@ -190,7 +190,7 @@ So we need to:
 
 ***Sounds like a lot ... and it is a lot XD***
 
-### User Registration
+## User Registration
 We do a **quick registration attempt** to **find out the limitations in user creation**.
 
 We used:
@@ -206,7 +206,7 @@ and the registration suceeded!
 
 ![login-success](/assets/Sniper/login-success.jpg)
 
-### Including the cookie
+## Including the cookie
 *Before going further,* we need to **confirm we can reference the cookie on disk**.
 
 we can get the cookie from the **Firefox developer tools.**
@@ -242,7 +242,7 @@ We now know that **we can include the input of the username field into the HTML.
 
 So we move on to the next step.
 
-### Finding the allowed special characters
+## Finding the allowed special characters
 We're going to **brute force all the special characters** at the **registration form** using **Burp** and find out what's allowed and what's not.
 
 Here are the **requests and responses for both the registration and login**.
@@ -310,7 +310,7 @@ we can craft a **payload** like this:
 
 ![rce-achieved](/assets/Sniper/rce-achieved.jpg)
 
-### Stomping the blacklisting with PowerShell
+## Stomping the blacklisting with PowerShell
 *with* **RCE** *achieved,* we have to find a way to **execute a reverse shell with the allowed characters we have.**
 
 **We have a couple of challenges here:**
@@ -348,7 +348,7 @@ which is:
 
 ![shell-as-iusr](/assets/Sniper/shell-as-iusr.jpg)
 
-### Finding creds in the database settings file (*like always*)
+## Finding creds in the database settings file (*like always*)
 *The first thing I did after getting the shell,* was **check the files in the web root.**
 
 I found a file called `db.php` in the `C:\inetpub\wwwroot\user` directory.
@@ -365,7 +365,7 @@ The password works for `chris`
 
 ![got-chris](/assets/Sniper/got-chris.jpg)
 
-### Getting a shell as Chris
+## Getting a shell as Chris
 The situation is that we want to pivot to the `chris` user **without losing the shell** *if possible*
 
 We can do so from our **PowerShell** prompt using the below method:
@@ -382,7 +382,7 @@ we're basically **creating a** `credential` **object** for the `chris` user and 
 
 **Neat :)**
 
-### Privilege Escalation: Scanning the file system
+## Privilege Escalation: Scanning the file system
 *When checking the folders in chris's user profile,* we find a file called `intructions.chm` in his `Downloads` folder.
 
 We **copy it over to our Kali using the SMB share.**
@@ -417,7 +417,7 @@ Sounds like we need to **create a malicious** `.chm` file and put it there.
 
 *if the CEO happens to be the local `administrator` and opens the file,* we should root the box.
 
-### CHM Files for the win
+## CHM Files for the win
 *Searching* **Google**, we come accross this [blog](https://medium.com/r3d-buck3t/weaponize-chm-files-with-powershell-nishang-c98b93f79f1e) explaining exactly **how to execute a payload using a `.chm` file** using a script from the **Nishang script suite.**
 
 *Following the article,* we download the **"HTML Help Workshop and Documentation program"** and **get the script** from the [Github Repository](https://github.com/samratashok/nishang/blob/master/Client/Out-CHM.ps1).
@@ -434,14 +434,14 @@ We confirm with `crackmapexec`
 
 **Pretty fun box :]**
 
-### Unintended Path: RFI through SMB
+## Unintended Path: RFI through SMB
 *When checking the ability of adding network paths as the file inclusion payload,* we got **PHP code execution:**
 
 ![rfi-php-info](/assets/Sniper/rfi-php-info.jpg)
 
 This path is **much easier** but also **teaches way less than the LFI one.**
 
-### Out of Curiousity: A look at the PHP within the blog directory's `index.php`
+## Out of Curiousity: A look at the PHP within the blog directory's `index.php`
 ![lfi-hardening](/assets/Sniper/lfi-hardening.jpg)
 
 in `index.php`, we the code **looks for `..` and `C:` within the included file path** and **throws an error if it detects any.**

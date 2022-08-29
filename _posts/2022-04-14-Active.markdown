@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Easy] - Active"
 
 ![Active](/assets/Active/Active.png)
 
-### Summary
+## Summary
 - A Domain Controller Machine. We first find an SMB share called `Replication` which we can `read` using `null authentication`.
 - *Going through the share,* we find a `Groups.xml` file containing the encrypted password of the `svc_tgs` account.
 - This password can be *easily* decrypted using the `gpp-decrypt` built-in tool and we can authenticate as `svc_tgs`.
@@ -14,7 +14,7 @@ title:  "HTB Writeup [Windows - Easy] - Active"
 
 ---
 
-### Nmap
+## Nmap
 we start off by doing a complete `nmap` with default scripts `-sC` and service detection `-sV`
 ```
 PORT      STATE SERVICE       VERSION          
@@ -55,7 +55,7 @@ Host script results:
 |   date: 2022-04-14T20:58:13                   
 |_  start_date: 2022-04-14T20:53:18  
 ```
-### Domain Controller Identification
+## Domain Controller Identification
 and we notice a set of open ports than indicate a domain controller:
 - **DNS:** TCP 53
 - **Kerberos:** TCP 88
@@ -97,7 +97,7 @@ dighost_shutdown()
 unlock_lookup dighost.c:4091
 ```
 
-### SMB Share enumeration
+## SMB Share enumeration
 first, we check **SMB shares** using **null authenticaion** with `crackmapexec`. And, we find that we have **READ access** to the `Replication` share.
 ```bash
 └─# crackmapexec smb 10.10.10.100 -u '' -p '' --shares
@@ -122,7 +122,7 @@ doing so gets us all the files over the `Replication` share. we can now view the
 
 ![repl-share-files](/assets/Active/repl-share-files.jpg)
 
-### Group Policy Preferences
+## Group Policy Preferences
 
 The first file `Groups.xml` is a **Group Policy Preferences** file. This was used back in the day by system admins to create local administrator accounts on domain machines using **Group Policy**. *Looking at its contents:*
 
@@ -138,7 +138,7 @@ It reveals an encrypted password of the user `active.htb\svc_tgs`. This can easi
 
 Great! They are valid. But, we aren't local administrator. Neither can we use **WinRM** because port 5985 isn't open on this box and we don't know if we have this privilege or not. We can however do a number of things.
 
-### Options with a valid AD user
+## Options with a valid AD user
 1. enumerate SMB shares with the new user
 2. pull all AD users
 3. do ASREPRoasting
@@ -168,7 +168,7 @@ we get `No entries found`
 
 ![kerberoasting](/assets/Active/kerberoasting.jpg)
 
-### Kerberoasted :D
+## Kerberoasted :D
 
 We get really **LUCKY!** this is the **TGS** hash for the **Administrator** account. Cracking that hash means we can get his password!
 

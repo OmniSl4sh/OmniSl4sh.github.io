@@ -6,7 +6,7 @@ published: false
 
 ![](/assets/TartarSauce/TartarSauce.png)
 
-### Summary
+## Summary
 - **TartarSauce** is a **Linux** machine where *only port 80 was open.*
 - *On the webroot*, the `robots.txt` file had entries for a **CMS** called **"Monstra"** where we could log on using **weak credentials.**
 - *Even though the* ***CMS had plenty of exploitable functionalities***, we **couldn't exploit** any **due to the restrictions in place**. so we looked elsewhere.
@@ -21,7 +21,7 @@ published: false
 
 ---
 
-### NMAP
+## NMAP
 ```
 PORT   STATE SERVICE VERSION
 80/tcp open  http    Apache httpd 2.4.18 ((Ubuntu))
@@ -49,7 +49,7 @@ for url in `curl -s http://tartarsauce/robots.txt | tail -n 6 | sed 's/Disallow:
 
 Only `http://tartarsauce/webservices/monstra-3.0.4/` was valid. So we check it out.
 
-### The Monstra CMS
+## The Monstra CMS
 
 Here's what the home page looked like:
 
@@ -83,7 +83,7 @@ we could log in with `admin:admin`
 
 ![](/assets/TartarSauce/monstra-exploit-db-fail.jpg)
 
-### Finding a Wordpress Instance
+## Finding a Wordpress Instance
 
 *After running a quick* `gobuster`, we found ***another web directory:*** `wp`
 
@@ -132,7 +132,7 @@ the `Gwolle Guestbook` plugin turned out to have **a Remote File Inclusion vulne
 
 Sweet :D
 
-### Pivoting to Onuma
+## Pivoting to Onuma
 *After* ***optimizing our shell,*** we get to work.
 
 ![](/assets/TartarSauce/shell-pimping.jpg)
@@ -149,7 +149,7 @@ Legit. we're now interacting as `onuma`
 
 ![](/assets/TartarSauce/shell-as-onuma.jpg)
 
-### Detecting system operations
+## Detecting system operations
 *When running a quick* [linpeas.sh](https://github.com/carlospolop/PEASS-ng), we spot a **unique system timer:**
 
 ![](/assets/TartarSauce/system-timers.jpg)
@@ -233,7 +233,7 @@ fi
 ```
 *removing the excess lines and comments,* it's around **30 lines of code**. not too bad I guess :)
 
-### Breaking down "Backuperer"
+## Breaking down "Backuperer"
 Let's first tear down all the variables for **absolute paths**
 ```bash
 # Set Vars Here
@@ -326,7 +326,7 @@ else
 fi
 ```
 
-### Exploiting tar to root the box
+## Exploiting tar to root the box
 
 There's **a way to escalate our privileges** to `root`
 

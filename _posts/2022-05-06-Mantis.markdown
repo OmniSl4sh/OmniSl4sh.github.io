@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Hard] - Mantis"
 
 ![Mantis](/assets/Mantis/Mantis.png)
 
-### Summary
+## Summary
 - A **Windows Domain Controller** machine. We find a *hidden credentials file* when directory bruteforcing **IIS** on a *custom* port.
 - The file gives us information about the **MSSQL database** (the username and DB name) in plain text while the password is present in the file name as a *base-64 encoded hex* string.
 - *Using the credentials found,* we gain access to the **MSSQL database** which contains the password for a user called `james` who is an AD user.
@@ -14,7 +14,7 @@ title:  "HTB Writeup [Windows - Hard] - Mantis"
 
 ---
 
-### Nmap
+## Nmap
 ```
 PORT      STATE SERVICE      VERSION
 53/tcp    open  domain       Microsoft DNS 6.1.7601 (1DB15CD4) (Windows Server 2008 R2 SP1)
@@ -121,7 +121,7 @@ Host script results:
 - We also see **MSSQL** on its standard port: 1443
 - We take note that **IIS 7.5** is running on both port 1337 (*which is interesting*) and on port 8080.
 
-### SMB Enumeration
+## SMB Enumeration
 We try enumerating **SMB** with *different authentication methods* using `crackmapexec`:
 1. Null
 2. Anonymous
@@ -131,22 +131,22 @@ We try enumerating **SMB** with *different authentication methods* using `crackm
 
 without success.
 
-### LDAP Enumeration
+## LDAP Enumeration
 Using `ldapsearch`, we don't get much information either :/
 
 ![ldapsearch-output](/assets/Mantis/ldapsearch-output.jpg)
 
-### Kerberos Enumeration
+## Kerberos Enumeration
 Enumerating kerberos with `kerbrute` gave us one user: `james`
 
 ![kerbrute-userenum](/assets/Mantis/kerbrute-userenum.jpg)
 
-### ASREPRoasting James
+## ASREPRoasting James
 `james` wasn't asreproastable.
 
 ![james-not-asreproastable](/assets/Mantis/james-not-asreproastable.jpg)
 
-### Port 8080
+## Port 8080
 Checking out port 8080 showed a **CMS** called **Orchard CMS**  as detected by `wappalyzer`.
 
 ![orchard-cms](/assets/Mantis/orchard-cms.jpg)
@@ -155,7 +155,7 @@ Checking out port 8080 showed a **CMS** called **Orchard CMS**  as detected by `
 
 ![orchard-test-default-creds](/assets/Mantis/orchard-test-default-creds.jpg)
 
-### Port 1337
+## Port 1337
 This port was interesting because of its number.
 
 *And, since it was* **IIS 7.5**, I wanted to test out a certain vulnerability called the **IIS Tilde Vulnerability**.
@@ -190,7 +190,7 @@ and...
 
 *By taking a closer look at the file name,* the string `NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx` could be the *missing piece of the puzzle*: the password for the `orcharddb`'s `admin` user.
 
-### CyberChef knew the recipe :D
+## CyberChef knew the recipe :D
 `CyberChef` is an amazing tool that is intelligent enough to discover if a string of text has undergone encryption/encoding.
 
 Using it revealed that the text was **base64-encoded** after being converted into **hexadecimal**:
@@ -203,7 +203,7 @@ Using it revealed that the text was **base64-encoded** after being converted int
 
 The password turned out to be `m$$ql_S@_P@ssW0rd!`
 
-### Interacting with MSSQL and DB Enumeration
+## Interacting with MSSQL and DB Enumeration
 *Using another awesome* **Impacket** *python script:* `mssqlclient.py`, we are able to interact with the **MSSQL DB** command prompt from our Linux machine:
 
 ![mssql-client-py-help](/assets/Mantis/mssql-client-py-help.jpg)
@@ -220,7 +220,7 @@ The table `blog_Orchard_Users_UserPartRecord` seemed interesting. So, we did a s
 
 and we're greeted with a clear-text password for james :D
 
-### Post-Cred Checks
+## Post-Cred Checks
 *Having tested the creds from the* `james` *user,* and found them valid and we went on to more enumeration/attacks.
 
 ![james-creds-validated-cme](/assets/Mantis/james-creds-validated-cme.jpg)
@@ -291,7 +291,7 @@ We find nothing special there apart from **RDP Privilege** to the DC:
 
 ![james-can-rdp-the-dc](/assets/Mantis/james-can-rdp-the-dc.jpg)
 
-### MS14-068 a.k.a Pykek (The Kill :D)
+## MS14-068 a.k.a Pykek (The Kill :D)
 **MS14-068** is a vulnerability that affects most Domain Controllers before Server 2016.
 
 In short, it gives us the ability to forge our own kerberos ticket allowing us to have group memberships in whatever high-privilege groups we want (*ex: Domain Admins, Enterprise Admins etc.*)

@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine. We find an <strong>SMB share</strong> containing a <em>writable</em> folder called <code class="language-plaintext highlighter-rouge">Public</code>. We place an <code class="language-plaintext highlighter-rouge">SCF</code> file there that <em>directs the visiting user’s computer</em> to our listening <code class="language-plaintext highlighter-rouge">responder</code> where we capture his <code class="language-plaintext highlighter-rouge">NTLMv2</code> hash.</li>
   <li><em>After cracking it,</em> we get the password for the <code class="language-plaintext highlighter-rouge">amanda</code> user which we use to enumerate the domain using <code class="language-plaintext highlighter-rouge">BloodHound</code>.</li>
@@ -83,7 +83,7 @@
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <p>The nmap output gives some good information:</p>
 <ul>
   <li><strong>Machine Name:</strong> Sizzle</li>
@@ -184,12 +184,12 @@ Host script results:
 |_    Message signing enabled and required
 </code></pre></div></div>
 
-<h3 id="anonymous-ftp">Anonymous FTP</h3>
+<h2 id="anonymous-ftp">Anonymous FTP</h2>
 <p>No files were there, and we’re not granted <code class="language-plaintext highlighter-rouge">write</code> access either. So we move on.</p>
 
 <p><img src="/assets/Sizzle/Anon-FTP-no-write.jpg" alt="Anon-FTP-no-write" /></p>
 
-<h3 id="httphttps">HTTP/HTTPs</h3>
+<h2 id="httphttps">HTTP/HTTPs</h2>
 <p>The home page just shows a <code class="language-plaintext highlighter-rouge">GIF</code> of bacon sizzling…</p>
 
 <p><img src="/assets/Sizzle/http-homepage.jpg" alt="http-homepage" /></p>
@@ -200,14 +200,14 @@ Host script results:
 
 <p>the <strong>HTTPS</strong> website is similar in structure. so we move along.</p>
 
-<h3 id="ldap">LDAP</h3>
+<h2 id="ldap">LDAP</h2>
 <p>The output of <code class="language-plaintext highlighter-rouge">ldapsearch</code> didn’t show much information.</p>
 
 <p><img src="/assets/Sizzle/ldapsearch-output.jpg" alt="ldapsearch-output" /></p>
 
 <p>(<em>I grepped out some unnecessary lines from the output to make it smaller.</em>)</p>
 
-<h3 id="smb">SMB</h3>
+<h2 id="smb">SMB</h2>
 <p>Enumerating SMB with <code class="language-plaintext highlighter-rouge">crackmapexec</code> reveals that we have <code class="language-plaintext highlighter-rouge">read</code> access to the <code class="language-plaintext highlighter-rouge">Department Shares</code> folder.</p>
 
 <p><img src="/assets/Sizzle/cme-smb-share-enum.jpg" alt="cme-smb-share-enum" /></p>
@@ -258,7 +258,7 @@ done</span>
 
 <p>Having this access would allow us to <em>plant a malicious type of file</em> that would enable us to <em>steal</em> <strong>NTLMv2 hashes</strong> from users who access these locations.</p>
 
-<h3 id="scf-file-attacks-for-hash-theft">SCF File Attacks for Hash Theft</h3>
+<h2 id="scf-file-attacks-for-hash-theft">SCF File Attacks for Hash Theft</h2>
 <p>SCF (Shell Command Files) are files that can perform actions in <strong>Windows Explorer</strong>. One functionality can be <em>abused</em> to have the <em>share-visiting</em> user <em>directed</em> to our kali machine.</p>
 
 <p>This can be done using a file with the below content:</p>
@@ -286,7 +286,7 @@ Command=ToggleDesktop
 
 <p>the password turns out to be <code class="language-plaintext highlighter-rouge">Ashare1972</code></p>
 
-<h3 id="the-winrm-situation">The WinRM situation</h3>
+<h2 id="the-winrm-situation">The WinRM situation</h2>
 <p>We first validate the creds for <code class="language-plaintext highlighter-rouge">amanda</code> with <code class="language-plaintext highlighter-rouge">crackmapexec</code> via SMB and they work.</p>
 
 <p>So we try WinRM after but end up with a weird error message:</p>
@@ -295,7 +295,7 @@ Command=ToggleDesktop
 
 <p>at this moment, I wasn’t quite sure what to do. So I moved on to try other things.</p>
 
-<h3 id="domain-enumeration-with-bloodhoundpy">Domain Enumeration With BloodHound.py</h3>
+<h2 id="domain-enumeration-with-bloodhoundpy">Domain Enumeration With BloodHound.py</h2>
 <p><em>Since I didn’t have code execution,</em> I turned to the <strong>Python</strong> version of <code class="language-plaintext highlighter-rouge">BloodHound</code> to do enumeration with all collection methods:</p>
 
 <p><img src="/assets/Sizzle/bloodhound-py.jpg" alt="bloodhound-py" /></p>
@@ -304,7 +304,7 @@ Command=ToggleDesktop
 
 <p><img src="/assets/Sizzle/amanda-can-ps-remote.jpg" alt="amanda-can-ps-remote" /></p>
 
-<h3 id="getting-winrm-to-work">Getting WinRM to work</h3>
+<h2 id="getting-winrm-to-work">Getting WinRM to work</h2>
 <p><em>Since we have access to the</em> <code class="language-plaintext highlighter-rouge">amanda</code> <em>user’s credentials,</em> we can <em>request</em> a <strong>User Certificate</strong> from <strong>AD Certificate Services.</strong></p>
 
 <p>This can be done after authenticating to <code class="language-plaintext highlighter-rouge">http://10.10.10.103/certsrv</code> and submitting a <strong>Certificate Signing Request</strong> (<strong>CSR</strong> for short).</p>
@@ -348,7 +348,7 @@ Command=ToggleDesktop
 
 <p>Note: the PEM pass phrase is the one you were asked to enter when generating the private key and CSR with <code class="language-plaintext highlighter-rouge">openssl</code></p>
 
-<h3 id="back-to-bloodhound-graphs-kerberoastable-users">Back to <code class="language-plaintext highlighter-rouge">BloodHound</code> graphs: Kerberoastable Users</h3>
+<h2 id="back-to-bloodhound-graphs-kerberoastable-users">Back to <code class="language-plaintext highlighter-rouge">BloodHound</code> graphs: Kerberoastable Users</h2>
 <p>Inspecting the query <code class="language-plaintext highlighter-rouge">List all Kerberoastable Accounts</code> shows us that a user called <code class="language-plaintext highlighter-rouge">mrlky</code> is vulnerable.</p>
 
 <p><img src="/assets/Sizzle/mrlky-kerberoastable.jpg" alt="mrlky-kerberoastable" /></p>
@@ -363,7 +363,7 @@ Command=ToggleDesktop
 
 <p><em>Hence,</em> we need to kerberoast this guy and get his TGS hash :D</p>
 
-<h3 id="roasting-with-rubeus-bypassing-applocker-and-performing-network-authentication">Roasting with Rubeus: Bypassing Applocker and Performing Network Authentication</h3>
+<h2 id="roasting-with-rubeus-bypassing-applocker-and-performing-network-authentication">Roasting with Rubeus: Bypassing Applocker and Performing Network Authentication</h2>
 <p><em>After copying</em> <code class="language-plaintext highlighter-rouge">Rubeus.exe</code> <em>from our kali machine over to</em> <code class="language-plaintext highlighter-rouge">amanda</code>‘<em>s documents folder</em>, we find that we can’t execute due to <strong>Applocker.</strong></p>
 
 <p><img src="/assets/Sizzle/rubeus-applocked.jpg" alt="rubeus-applocked" /></p>
@@ -388,7 +388,7 @@ Command=ToggleDesktop
 
 <p><img src="/assets/Sizzle/mrlky-cracked.jpg" alt="mrlky-cracked" /></p>
 
-<h3 id="dcsync">DCSync</h3>
+<h2 id="dcsync">DCSync</h2>
 <p><em>Having the password for</em> <code class="language-plaintext highlighter-rouge">mrkly</code>: <code class="language-plaintext highlighter-rouge">Football#7</code>, we’re going to use <code class="language-plaintext highlighter-rouge">Impacket</code>’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> python script to do a <code class="language-plaintext highlighter-rouge">DCSync</code> attack:</p>
 
 <p><img src="/assets/Sizzle/dcsynced.jpg" alt="dcsynced" /></p>
@@ -397,7 +397,7 @@ Command=ToggleDesktop
 
 <p><img src="/assets/Sizzle/got-system.jpg" alt="got-system" /></p>
 
-<h3 id="bonus-powershell-constrained-language-mode-bypassing-it-along-with-applocker-and-kerberoasting-without-touching-disk-all-in-a-powershell-one-liner-d">Bonus: PowerShell Constrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D</h3>
+<h2 id="bonus-powershell-constrained-language-mode-bypassing-it-along-with-applocker-and-kerberoasting-without-touching-disk-all-in-a-powershell-one-liner-d">Bonus: PowerShell Constrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D</h2>
 <p>After I initially got the WinRM shell, It kept asking for my PEM pass phrase after each command.</p>
 
 <p>I wanted to get a <code class="language-plaintext highlighter-rouge">nishang</code> shell but couldn’t do the <code class="language-plaintext highlighter-rouge">IEX</code> command (<code class="language-plaintext highlighter-rouge">Invoke-Expression</code>). This was because of <strong>PowerShell’s Contrained Language Mode</strong>.</p>
@@ -430,7 +430,7 @@ Command=ToggleDesktop
 
 <p><img src="/assets/Sizzle/bonus-kill.jpg" alt="bonus-kill" /></p>
 
-<h3 id="joke-section-pwning-the-box-with-zerologon-xd">Joke Section: Pwning the box with <code class="language-plaintext highlighter-rouge">ZeroLogon</code> XD</h3>
+<h2 id="joke-section-pwning-the-box-with-zerologon-xd">Joke Section: Pwning the box with <code class="language-plaintext highlighter-rouge">ZeroLogon</code> XD</h2>
 
 <p>You could do all of the above.</p>
 

@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Heist/Heist.png" alt="Heist" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>We find a website on port 80 that <strong>lets us login as a guest</strong>.</li>
   <li><em>On the first page,</em> we find a conversation between a user and a support admin about checking an <strong>attached Cisco router configuration file</strong>.</li>
@@ -77,7 +77,7 @@
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <p>we first start by doing a quick nmap top 10 tcp ports:</p>
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nmap <span class="nt">--top-ports</span> <span class="nt">--open</span> 10.10.10.149
 </code></pre></div></div>
@@ -88,7 +88,7 @@
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nmap <span class="nt">-p-</span> <span class="nt">-T4</span> <span class="nt">-sC</span> <span class="nt">-sV</span> 10.10.10.149
 </code></pre></div></div>
 
-<h3 id="guest-login">Guest login</h3>
+<h2 id="guest-login">Guest login</h2>
 
 <p>we immediately see the login page of a web app that gives us the options to <em>Login as guest</em></p>
 
@@ -102,7 +102,7 @@
 
 <p><img src="/assets/Heist/Issues.jpg" alt="Issues" /></p>
 
-<h3 id="cisco-router-configuration-file">Cisco Router Configuration File</h3>
+<h2 id="cisco-router-configuration-file">Cisco Router Configuration File</h2>
 
 <p>we go ahead and click the attachment link and see <strong>3 different hashes</strong>:</p>
 
@@ -114,7 +114,7 @@
   <li><code class="language-plaintext highlighter-rouge">username admin privilege 15 password 7 02375012182C1A1D751618034F36415408</code></li>
 </ol>
 
-<h3 id="cracking-cisco-hashes">Cracking Cisco Hashes</h3>
+<h2 id="cracking-cisco-hashes">Cracking Cisco Hashes</h2>
 
 <p>cracking those hashes might give us a set of passwords to try to gain more access with. So we use <code class="language-plaintext highlighter-rouge">john</code> to crack the first one</p>
 
@@ -149,7 +149,7 @@
   <li>SMB Signing and SMBv1: False</li>
 </ol>
 
-<h3 id="testing-password-variations">Testing password variations</h3>
+<h2 id="testing-password-variations">Testing password variations</h2>
 
 <p>we try our luck with the administrator account using variations of the <code class="language-plaintext highlighter-rouge">stealth1agent</code> password as well as the other passwords we found. But we don’t have a success:</p>
 
@@ -157,7 +157,7 @@
 
 <p>we get similar results when trying other probable users like admin, supportadmin, supportdesk etc.</p>
 
-<h3 id="listing-our-options">Listing our options</h3>
+<h2 id="listing-our-options">Listing our options</h2>
 
 <p>we take a step back and think about all the information we can get from having a valid user:</p>
 <ol>
@@ -172,7 +172,7 @@
 
 <p><img src="/assets/Heist/smb-shares.jpg" alt="smb-shares" /></p>
 
-<h3 id="rid-brute-forcing">RID Brute Forcing</h3>
+<h2 id="rid-brute-forcing">RID Brute Forcing</h2>
 
 <p>we also get nothing from enumerating sessions, logged on users or localgroups. <em>However, when enumerating local users using RID bruteforce,</em> we get a nice list of users to try! :D</p>
 
@@ -185,7 +185,7 @@
   <li>jason</li>
 </ol>
 
-<h3 id="password-reuse">Password Reuse</h3>
+<h2 id="password-reuse">Password Reuse</h2>
 
 <p>and we give it another shot with <code class="language-plaintext highlighter-rouge">crackmapexec</code> while telling it to <code class="language-plaintext highlighter-rouge">continue on success</code>. we want to know if any passwords were being reused.</p>
 
@@ -216,7 +216,7 @@ Q4)sJu\Y8qz*A3?d
 
 <p><img src="/assets/Heist/chase-owned.jpg" alt="chase-owned" /></p>
 
-<h3 id="getting-code-execution">Getting Code Execution</h3>
+<h2 id="getting-code-execution">Getting Code Execution</h2>
 
 <p><em>trying to execute commands using <code class="language-plaintext highlighter-rouge">crackmapexec</code>,</em> we don’t get command execution. It seems chase also isn’t an administrator on the machine :/</p>
 
@@ -234,7 +234,7 @@ Q4)sJu\Y8qz*A3?d
 
 <p><img src="/assets/Heist/chase-groups.jpg" alt="chase-groups" /></p>
 
-<h3 id="lets-privesc">Let’s privesc</h3>
+<h2 id="lets-privesc">Let’s privesc</h2>
 
 <p><em>now on the machine,</em> we go into privilege escalation mode :D we try many things:</p>
 
@@ -301,14 +301,14 @@ Done:
   </li>
 </ol>
 
-<h3 id="printnightmare-would-be-too-easy">PrintNightmare would be too easy</h3>
+<h2 id="printnightmare-would-be-too-easy">PrintNightmare would be too easy</h2>
 
 <p><em>given that print nightmare would be too easy,</em> I take a shot at the 1st option and search for stored passwords for <strong>Firefox</strong> :D
 the path should be <code class="language-plaintext highlighter-rouge">C:\Users\Chase\AppData\Roaming\Mozilla\Firefox\Profiles\</code> for chase. Which we find that it contains a password file <code class="language-plaintext highlighter-rouge">key4.db</code> but notice that <em>there was no <code class="language-plaintext highlighter-rouge">logins.json</code> to be used in pulling those credentials :/</em></p>
 
 <p><img src="/assets/Heist/no-json-logins.jpg" alt="no-json-logins" /></p>
 
-<h3 id="the-firefox-rabbit-hole">The Firefox Rabbit Hole</h3>
+<h2 id="the-firefox-rabbit-hole">The Firefox Rabbit Hole</h2>
 
 <p>the process of hunting for those firefox passwords took way longer than you would expect :)</p>
 <ol>
@@ -317,7 +317,7 @@ the path should be <code class="language-plaintext highlighter-rouge">C:\Users\C
   <li>I found a final tool called <code class="language-plaintext highlighter-rouge">HarvestBrowserPasswords.exe</code> (https://github.com/Apr4h/HarvestBrowserPasswords) which threw the error of <em>not being able to find the <code class="language-plaintext highlighter-rouge">logins.json</code> file</em> which was the sign that this privesc path wasn’t valid.</li>
 </ol>
 
-<h3 id="trying-to-move-laterally">Trying to move <em>laterally</em></h3>
+<h2 id="trying-to-move-laterally">Trying to move <em>laterally</em></h2>
 
 <p>Afterwards, I think of pivoting to the hazard user and looking for something interesting. This would require using <code class="language-plaintext highlighter-rouge">runas.exe</code>, which needs a fully interactive tty. This is achievable in our case. Since this machine is a <strong>Windows 10.0 Build 17763 x64</strong>.</p>
 
@@ -325,7 +325,7 @@ the path should be <code class="language-plaintext highlighter-rouge">C:\Users\C
 
 <p><img src="/assets/Heist/run-as-failed.jpg" alt="run-as-failed" /></p>
 
-<h3 id="lets-just-use-printnightmare-xd">Let’s just use PrintNightmare XD</h3>
+<h2 id="lets-just-use-printnightmare-xd">Let’s just use PrintNightmare XD</h2>
 
 <p>I then decide maybe I should just privesc with Print Nightmare :D</p>
 

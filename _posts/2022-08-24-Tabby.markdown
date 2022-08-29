@@ -6,7 +6,7 @@ published: false
 
 ![](/assets/Tabby/Tabby.png)
 
-### Summary
+## Summary
 - **Tabby** is a **linux** machine hosting both **Apache web server** and **Tomcat**.
 - The website on port 80 had a **Directory Traversal vulnerability** which enabled us to **read a tomcat configuration file** that **contained valid credentials.**
 - *Using those,* we **get a user with enough privileges to upload a WAR file containing a reverse shell**. *And, with that*, we **access the box** as the `tomcat` user.
@@ -16,7 +16,7 @@ published: false
 
 ---
 
-### NMAP
+## NMAP
 ```
 PORT     STATE SERVICE VERSION
 22/tcp   open  ssh     OpenSSH 8.2p1 Ubuntu 4 (Ubuntu Linux; protocol 2.0)
@@ -33,7 +33,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 ```
 `nmap` gives us areas to check: the **website on port 80** and the **Tomcat instance on port 8080**
 
-### Port 80
+## Port 80
 The home page here was mostly **static content**.
 
 ![](/assets/Tabby/homepage-port-80.jpg)
@@ -70,7 +70,7 @@ that's because `fopen` just **reads a file's contents**. it **doesn't evaluate P
 
 ***Knowing this bit spares us the effort of trying to get code execution by including PHP.***
 
-### Reading sensitive files
+## Reading sensitive files
 *As a quick check,* I try to read the `ash` user's **private SSH key** from `/home/ash/.ssh/id_rsa`. But it's *not that easy* :)
 
 I then think "maybe I should check out the tomcat to avoid any rabbit holes". In case there's something to be found there.
@@ -87,7 +87,7 @@ and we get **creds for a user** with **very nice privileges** :]
 
 ![](/assets/Tabby/reading-tomcat-users-xml.jpg)
 
-### Exploiting the manager-script tomcat role to get RCE
+## Exploiting the manager-script tomcat role to get RCE
 The `manager-script` role has access to **upload WAR files.**
 
 which can be a **reverse shell** generated using `msfvenom`. we do that
@@ -120,7 +120,7 @@ curl http://tabby:8080/shell
 
 we're in as `tomcat` :)
 
-### Pivoting through Password Reuse
+## Pivoting through Password Reuse
 
 *Right after improving my shell,* I start with **checking the files** in `/var/www/html`
 
@@ -157,7 +157,7 @@ didn't work with `root`, but **did** with `ash` :)
 
 ![](/assets/Tabby/logged-in-as-ash.jpg)
 
-### LXD Privilege Escalation
+## LXD Privilege Escalation
 *As you may have noticed from the previous image,* `ash` is part of the `lxd` group
 
 ![](/assets/Tabby/lxd-group-membership.jpg)
@@ -194,7 +194,7 @@ chmod +s /mnt/root/bin/bash
 
 ![](/assets/Tabby/lxc-root-bash-script.jpg)
 
-### Cleaning Up
+## Cleaning Up
 
 *To clear out any remnants,* we have to **stop the container**, **delete it** along with **the image we imported.**
 

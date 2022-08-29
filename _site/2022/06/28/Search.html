@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Search/Search.png" alt="Search" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine where we don’t get any access using conventional methods. The key to gaining our initial set of credentials is by inspecting <em>the images</em> on the website where one turns out to have <strong>credentials</strong> for a user called <code class="language-plaintext highlighter-rouge">hope.sharp</code></li>
   <li><em>Using this authenticated access,</em> we run a <strong>Kerberoast</strong> attack which gets us the hash of the <code class="language-plaintext highlighter-rouge">web_svc</code> account that we crack to get a password.</li>
@@ -80,7 +80,7 @@
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Simple DNS Plus
 80/tcp    open  http          Microsoft IIS httpd 10.0
@@ -156,7 +156,7 @@ Host script results:
 
 <p>Port 5985 wasn’t open so that meant no <strong>WinRM</strong> for this box</p>
 
-<h3 id="stuff-we-tried-but-didnt-work">Stuff we tried but didn’t work</h3>
+<h2 id="stuff-we-tried-but-didnt-work">Stuff we tried but didn’t work</h2>
 <ol>
   <li><strong>SMB</strong> enumeration using anonymous, guest and null sessions.</li>
   <li><strong>RPC</strong> enumeration with <code class="language-plaintext highlighter-rouge">enum4linux-ng</code>.</li>
@@ -169,7 +169,7 @@ Host script results:
 
 <p>All of those didn’t yield any results. However..</p>
 
-<h3 id="when-you-use-a-magnifying-glass">When you use a magnifying glass..</h3>
+<h2 id="when-you-use-a-magnifying-glass">When you use a magnifying glass..</h2>
 <p><em>when looking really close at one of the images on the website,</em> something is there!</p>
 
 <p><img src="/assets/Search/secret-image-small.jpg" alt="secret-image-small" /></p>
@@ -180,7 +180,7 @@ Host script results:
 
 <p>It said: <strong>“Send password to Hope Sharp”</strong> then <strong>“IsolationIsKey?”</strong></p>
 
-<h3 id="first-set-of-credentials">First set of credentials</h3>
+<h2 id="first-set-of-credentials">First set of credentials</h2>
 <p><em>Earlier,</em> when extracted usernames from the website:</p>
 
 <p><img src="/assets/Search/website-users-2.jpg" alt="website-users" /></p>
@@ -210,7 +210,7 @@ Host script results:
 
 <p><img src="/assets/Search/auth-as-hope-sharp.jpg" alt="auth-as-hope-sharp" /></p>
 
-<h3 id="the-awesomeness-of-bloodhound">The Awesomeness of BloodHound</h3>
+<h2 id="the-awesomeness-of-bloodhound">The Awesomeness of BloodHound</h2>
 <p><em>Since port 5985 isn’t open,</em> we have no reason to check for <strong>WinRM</strong> capabilities. So we turn to using all the tools that don’t require a foothold on the box.</p>
 
 <p>We start with <a href="/assets/Search/https://github.com/fox-it/BloodHound.py"><code class="language-plaintext highlighter-rouge">BloodHound.py</code></a> to get an overview of the situation in the domain.</p>
@@ -233,7 +233,7 @@ Host script results:
 
 <p><img src="/assets/Search/web-svc-kerberoastable.jpg" alt="web-svc-kerberoastable" /></p>
 
-<h3 id="kerberoasting-web_svc">Kerberoasting <code class="language-plaintext highlighter-rouge">web_svc</code></h3>
+<h2 id="kerberoasting-web_svc">Kerberoasting <code class="language-plaintext highlighter-rouge">web_svc</code></h2>
 <p>we use impacket’s <code class="language-plaintext highlighter-rouge">GetUserSPNs.py</code></p>
 
 <p><strong>Command:</strong></p>
@@ -252,7 +252,7 @@ Host script results:
 
 <p>The password was <strong>“@3ONEmillionbaby”</strong></p>
 
-<h3 id="checking-for-password-reuse">Checking for Password Reuse</h3>
+<h2 id="checking-for-password-reuse">Checking for Password Reuse</h2>
 <p>It has turned into a habit for me to spray any password I get on all possible users xD</p>
 
 <p><em>In order to get a the full list of domain users,</em> I use <code class="language-plaintext highlighter-rouge">crackmapexec</code> with the <code class="language-plaintext highlighter-rouge">--users</code> flag.</p>
@@ -267,7 +267,7 @@ Host script results:
 
 <p><img src="/assets/Search/edgar-reusing.jpg" alt="edgar-reusing" /></p>
 
-<h3 id="enumerating-smb-access-for-edgar">Enumerating SMB access for Edgar</h3>
+<h2 id="enumerating-smb-access-for-edgar">Enumerating SMB access for Edgar</h2>
 <p>We use <code class="language-plaintext highlighter-rouge">crackmapexec</code>’s <code class="language-plaintext highlighter-rouge">spider_plus</code> module to get a <em>nicely-formatted</em> <strong>JSON</strong> output for <code class="language-plaintext highlighter-rouge">edgar</code>’s share access.</p>
 
 <p><strong>Command:</strong></p>
@@ -296,7 +296,7 @@ Host script results:
 
 <p><strong>PROFIT! :D</strong></p>
 
-<h3 id="access-as-sierra">Access as Sierra</h3>
+<h2 id="access-as-sierra">Access as Sierra</h2>
 <p><em>When using the obtained passwords throughout the domain,</em> we gain access to <code class="language-plaintext highlighter-rouge">seirra.frye</code></p>
 
 <p><img src="/assets/Search/got-sierra.jpg" alt="got-sierra" /></p>
@@ -305,7 +305,7 @@ Host script results:
 
 <p><img src="/assets/Search/path-to-da.jpg" alt="path-to-da" /></p>
 
-<h3 id="reading-the-gmsa-password--resetting-tristans-password">Reading the GMSA password &amp; Resetting <code class="language-plaintext highlighter-rouge">tristan</code>’s password</h3>
+<h2 id="reading-the-gmsa-password--resetting-tristans-password">Reading the GMSA password &amp; Resetting <code class="language-plaintext highlighter-rouge">tristan</code>’s password</h2>
 <p>We can obtain the <strong>NTLM</strong> hash of the <strong>GMSA</strong> <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> with a <strong>python</strong> tool called <a href="/assets/Search/https://github.com/micahvandeusen/gMSADumper"><code class="language-plaintext highlighter-rouge">gMSADumper</code></a></p>
 
 <p><strong>Command:</strong></p>
@@ -322,7 +322,7 @@ Host script results:
 
 <p><img src="/assets/Search/got-tristan.jpg" alt="got-tristan" /></p>
 
-<h3 id="an-alternate-route-cracking-the-pfx-certificate-on-sierras-share--using-it-for-powershell-web-access">An Alternate Route: cracking the <code class="language-plaintext highlighter-rouge">.pfx</code> certificate on <code class="language-plaintext highlighter-rouge">sierra</code>’s share + using it for PowerShell web access</h3>
+<h2 id="an-alternate-route-cracking-the-pfx-certificate-on-sierras-share--using-it-for-powershell-web-access">An Alternate Route: cracking the <code class="language-plaintext highlighter-rouge">.pfx</code> certificate on <code class="language-plaintext highlighter-rouge">sierra</code>’s share + using it for PowerShell web access</h2>
 <p><em>If we take some time to check</em> <code class="language-plaintext highlighter-rouge">sierra</code>’s <em>profile,</em> we see a file called <code class="language-plaintext highlighter-rouge">staff.pfx</code> in the <code class="language-plaintext highlighter-rouge">\Downloads\Backups</code> folder:</p>
 
 <p><img src="/assets/Search/pfx-found.jpg" alt="pfx-found" /></p>

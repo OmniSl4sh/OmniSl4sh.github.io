@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Medium] - Monteverde"
 
 ![Monteverde](/assets/Monteverde/Monteverde.png)
 
-### Summary
+## Summary
 - Another Windows Domain Controller Machine.
 - We get a full list of domain users by enumerating **RPC** and are able to login with a user called `SABatchJobs` whose password was his own username.
 - *Enumerating the* **SMB** *access for this user,* we find that he could read a certain **XML** file which contained a password.
@@ -20,7 +20,7 @@ title:  "HTB Writeup [Windows - Medium] - Monteverde"
 
 ---
 
-### Nmap
+## Nmap
 No special scan here. Just the standard `nmap` with `-sC` for default scripts and `-sV` for version detection on all ports.
 ```
 PORT      STATE SERVICE       VERSION
@@ -61,7 +61,7 @@ The domain name is **MEGABANK.LOCAL** and the hostname is **MONTEVERDE**
 
 We also have **WinRM** open on tcp 5985 which would be handy to get remote code execution for any user present in either **Administrators** or **Remote Management Users** local groups.
 
-### Username Enumeration
+## Username Enumeration
 *Using a tool called* `enum4linux-ng`, we are able to get a list of usernames via `RPC`:
 
 **Command:** 
@@ -83,7 +83,7 @@ We take note of that and get the **Domain Password Policy** from the output as w
 
 *With no account lockout configured,* we can spray like there's no tomorrow :D
 
-### ASREPRoasting then Password Spraying
+## ASREPRoasting then Password Spraying
 *Since* **ASREPRoasting** *is the first thing to do with a userlist,* we tried it but weren't awarded with any hashes. So we turned to **Password Spraying**.
 
 We make a quick list of common passwords to try like 'P@ssw0rd', 'Welcome1' etc. but don't get anything :/
@@ -99,7 +99,7 @@ where the `-e` flag with the `s` argument is the part instructing `hydra` to use
 
 ![hydra-attack](/assets/Monteverde/hydra-attack.jpg)
 
-### SMB Access
+## SMB Access
 After we verify that `SABatchJobs` doesn't have **WinRM** access, we enumerate **SMB** as him using `crackmapexec`'s `spider_plus` module.
 
 This module does as the name suggests: it *recursively* spiders **SMB** shares and outputs the results in a temp folder.
@@ -126,7 +126,7 @@ and we get a password!
 
 ![mhope-password](/assets/Monteverde/mhope-password.jpg)
 
-### Shell Access as `mhope`
+## Shell Access as `mhope`
 *After getting this password,* we immediately spray it over the domain users. We find that it's valid and that we have **WinRM** access as well!
 
 **Command:** 
@@ -147,7 +147,7 @@ evil-winrm -i 10.10.10.172 -u mhope -p '4n0therD4y@n0th3r$'
 
 ![evil-winrm-access](/assets/Monteverde/evil-winrm-access.jpg)
 
-### Enumeration before Privesc
+## Enumeration before Privesc
 Running a quick `whoami /groups` command shows that we are in an AD group called `Azure Admins`
 
 ![ad-group-membership](/assets/Monteverde/ad-group-membership.jpg)
@@ -169,7 +169,7 @@ And in the `c:\Program Files` directory, we find a whole bunch of software relev
 
 So we go ahead and do some googling :D
 
-### Research
+## Research
 We decide to use a broad term in our first search to make things easier for ourselves. We type in: "Azure AD Sync Privilege Escalation"
 
 and we get this awesome blog post [here](/assets/Monteverde/https://blog.xpnsec.com/azuread-connect-for-redteam/):
@@ -186,7 +186,7 @@ One more thing we notice: is that the credentials for the synchronization accoun
 
 *And, even though they are encrypted,* the key to **decrypt** them is also present on the same database.
 
-### Trying the PowerShell Script
+## Trying the PowerShell Script
 The researcher and blog author **"Adam Chester"** had thankfully created a script that takes care of all the above and dumps us the stored credentials *if we had access to the database.*
 
 We're going to use a brief command to try connecting to the local database to see if we can query it: `sqlcmd -Q "SELECT name FROM master.dbo.sysdatabases"`
@@ -199,7 +199,7 @@ Seems like we do!
 
 ![script-fail](/assets/Monteverde/script-fail.jpg)
 
-### Troubleshooting
+## Troubleshooting
 *Since the script isn't big (< 40 lines)*, It wouldn't be difficult to step through it line-by-line to find out what's wrong.
 
 we take a look at the first 5 lines:
@@ -247,7 +247,7 @@ Seems that the connection string doesn't use our `mhope` user credentials.
 
 ![correct-conn-string](/assets/Monteverde/correct-conn-string.jpg)
 
-### Enough Troubleshooting. Let me see some creds!
+## Enough Troubleshooting. Let me see some creds!
 *After modifying the connection string,* let's go over what the script does in brief:
 
 1. Defining the connection string: we're connecting to the **ADSync DB** on the **local computer** using **Windows Authentication**

@@ -6,7 +6,7 @@ published: false
 
 ![](/assets/Traverxec/Traverxec.png)
 
-### Summary
+## Summary
 - **Traverxec** is a **Linux** machine hosting a **web server** called **Nostromo** and has **SSH** port open.
 - The **response headers** from the webserver **reveal its version** which happens to be **vulnerable to a Remote Code Execution vulnerability.**
 - *After troubleshooting the exploit and making a few modifications,* we get **a shell** as the `www-data` user.
@@ -17,7 +17,7 @@ published: false
 
 ---
 
-### NMAP
+## NMAP
 ```
 PORT   STATE SERVICE VERSION
 22/tcp open  ssh     OpenSSH 7.9p1 Debian 10+deb10u1 (protocol 2.0)
@@ -35,12 +35,12 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 *but before we check for exploits,* we'll first take a look at the website.
 
-### The website
+## The website
 ![](/assets/Traverxec/website-home-page.jpg)
 
 **static content** for the most. Let's move on :D
 
-### Searching and Fixing Exploits
+## Searching and Fixing Exploits
 using `searchsploit` gets us **two identical matches.**
 
 ![](/assets/Traverxec/searchsploit.jpg)
@@ -140,7 +140,7 @@ export SHELL=/bin/bash && export TERM=xterm-256color
 stty rows 51 columns 228
 ```
 
-### The Nostromo config file
+## The Nostromo config file
 *Right after logging in,* we go into `/var/nostromo`. there was a **configuration file** in the `conf` folder.
 
 ![](/assets/Traverxec/nostromo-conf.jpg)
@@ -164,7 +164,7 @@ But that password *didn't work* for either `root` or `david`.
 
 we keep it around just in case..
 
-### Understanding the HOMEDIRS feature
+## Understanding the HOMEDIRS feature
 *previously,* we attempted to list the contents of `david`'s profile but got denied access.
 
 ![](/assets/Traverxec/david-perm-denied.jpg)
@@ -211,7 +211,7 @@ we **change the permissions** on the SSH key (`chmod 600 <KEY_FILE>`) and use it
 
 ![](/assets/Traverxec/ssh-as-david.jpg)
 
-### Exploiting SUDO journalctl for Privesc
+## Exploiting SUDO journalctl for Privesc
 *Right after logging in,* we see **a folder that sticks out**: `bin`
 
 it had a script `server-status.sh` and a file called `server-stats.head`
@@ -266,7 +266,7 @@ we get a `less` pager which we can be turned into a bash shell with `!/bin/bash`
 
 **Owned :D**
 
-### Rewriting the Nostromo exploit
+## Rewriting the Nostromo exploit
 *After some brief testing, and* ***for the sake of simplicity,*** we **re-wrote the the exploit** for Nostromo as a `curl` one-liner:
 
 ```bash

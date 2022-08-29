@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Easy] - Heist"
 
 ![Heist](/assets/Heist/Heist.png)
 
-### Summary
+## Summary
 - We find a website on port 80 that **lets us login as a guest**.
 - *On the first page,* we find a conversation between a user and a support admin about checking an **attached Cisco router configuration file**.
 - *Browsing the configuration file,* we find **hashes** that *we can easily crack* to get passwords.
@@ -16,7 +16,7 @@ title:  "HTB Writeup [Windows - Easy] - Heist"
 
 ---
 
-### Nmap
+## Nmap
 we first start by doing a quick nmap top 10 tcp ports: 
 ```bash
 nmap --top-ports --open 10.10.10.149
@@ -29,7 +29,7 @@ we find http and smb ports open, so we begin with HTTP after leaving a full port
 nmap -p- -T4 -sC -sV 10.10.10.149
 ```
 
-### Guest login
+## Guest login
 
 we immediately see the login page of a web app that gives us the options to *Login as guest*
 
@@ -41,7 +41,7 @@ we immediately see the login page of a web app that gives us the options to *Log
 
 ![Issues](/assets/Heist/Issues.jpg)
 
-### Cisco Router Configuration File
+## Cisco Router Configuration File
 
 we go ahead and click the attachment link and see **3 different hashes**:
 
@@ -51,7 +51,7 @@ we go ahead and click the attachment link and see **3 different hashes**:
 2. `username rout3r password 7 0242114B0E143F015F5D1E161713`
 3. `username admin privilege 15 password 7 02375012182C1A1D751618034F36415408`
 
-### Cracking Cisco Hashes
+## Cracking Cisco Hashes
 
 cracking those hashes might give us a set of passwords to try to gain more access with. So we use `john` to crack the first one
 
@@ -82,7 +82,7 @@ we gain some information about the host:
 3. Domain: SupportDesk
 4. SMB Signing and SMBv1: False
 
-### Testing password variations
+## Testing password variations
 
 we try our luck with the administrator account using variations of the `stealth1agent` password as well as the other passwords we found. But we don't have a success:
 
@@ -90,7 +90,7 @@ we try our luck with the administrator account using variations of the `stealth1
 
 we get similar results when trying other probable users like admin, supportadmin, supportdesk etc.
 
-### Listing our options
+## Listing our options
 
 we take a step back and think about all the information we can get from having a valid user:
 1. enumerate SMB shares
@@ -103,7 +103,7 @@ we take a step back and think about all the information we can get from having a
 
 ![smb-shares](/assets/Heist/smb-shares.jpg)
 
-### RID Brute Forcing
+## RID Brute Forcing
 
 we also get nothing from enumerating sessions, logged on users or localgroups. *However, when enumerating local users using RID bruteforce,* we get a nice list of users to try! :D
 
@@ -114,7 +114,7 @@ we update our **userlist** right away with those newly-found users:
 2. chase
 3. jason
 
-### Password Reuse
+## Password Reuse
 
 and we give it another shot with `crackmapexec` while telling it to `continue on success`. we want to know if any passwords were being reused.
 
@@ -147,7 +147,7 @@ Our attack dropped one more user: **chase!**
 
 ![chase-owned](/assets/Heist/chase-owned.jpg)
 
-### Getting Code Execution
+## Getting Code Execution
 
 *trying to execute commands using `crackmapexec`,* we don't get command execution. It seems chase also isn't an administrator on the machine :/
 
@@ -165,7 +165,7 @@ it works with **chase** *but not with hazard*, this is because he happens to be 
 
 ![chase-groups](/assets/Heist/chase-groups.jpg)
 
-### Let's privesc
+## Let's privesc
 
 *now on the machine,* we go into privilege escalation mode :D we try many things:
 
@@ -226,21 +226,21 @@ we get nothing also:
 	2. php-cgi --> maybe we can try to abuse this somehow
 	3. spoolsv --> **Print Nightmare Privesc!**
 
-### PrintNightmare would be too easy
+## PrintNightmare would be too easy
 
 *given that print nightmare would be too easy,* I take a shot at the 1st option and search for stored passwords for **Firefox** :D
 the path should be `C:\Users\Chase\AppData\Roaming\Mozilla\Firefox\Profiles\` for chase. Which we find that it contains a password file `key4.db` but notice that *there was no `logins.json` to be used in pulling those credentials :/*
 
 ![no-json-logins](/assets/Heist/no-json-logins.jpg)
 
-### The Firefox Rabbit Hole
+## The Firefox Rabbit Hole
 
 the process of hunting for those firefox passwords took way longer than you would expect :)
 1. I used a tool called `SharpWeb.exe` (https://github.com/djhohnstein/SharpWeb), only to find out from its source code that *it only handles `key3.db` files.* Changing the name of the file to match that didn't work. after all, if the number 4 refers to an improved version, that would mean that this version of the tool wouldn't work.
 2. I found another tool written in python, with which I had trouble transforimg to an exe using `pyinstaller`.
 3. I found a final tool called `HarvestBrowserPasswords.exe` (https://github.com/Apr4h/HarvestBrowserPasswords) which threw the error of *not being able to find the `logins.json` file* which was the sign that this privesc path wasn't valid.
 
-### Trying to move *laterally*
+## Trying to move *laterally*
 
 Afterwards, I think of pivoting to the hazard user and looking for something interesting. This would require using `runas.exe`, which needs a fully interactive tty. This is achievable in our case. Since this machine is a **Windows 10.0 Build 17763 x64**.
 
@@ -248,7 +248,7 @@ we use the very nice reverse shell from (https://github.com/antonioCoco/ConPtySh
 
 ![run-as-failed](/assets/Heist/run-as-failed.jpg)
 
-### Let's just use PrintNightmare XD
+## Let's just use PrintNightmare XD
 
 I then decide maybe I should just privesc with Print Nightmare :D
 

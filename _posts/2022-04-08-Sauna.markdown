@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Easy] - Sauna"
 
 ![Sauna](/assets/Sauna/Sauna.png)
 
-### Summary
+## Summary
 - We find a **domain controller** with **IIS** running on port 80.
 - It turns out to be the **company website** and we create a **list of usernames** from the **'Meet the Team' page**.
 - We try **ASREPRoasing** and get **creds for a user with PowerShell Remoting capabilities**.
@@ -13,7 +13,7 @@ title:  "HTB Writeup [Windows - Easy] - Sauna"
 
 ---
 
-### Nmap
+## Nmap
 We start off with an `nmap` scan for `all ports` and using `service detection` and `default scripts`
 ```
 PORT      STATE SERVICE       VERSION
@@ -56,7 +56,7 @@ Host script results:
 *Right off the bat,* we see `IIS 10.0` on port 80 which indicates either Windows Server 2016 or 2019.
 We also see a collection of ports (DNS, Kerberos, LDAP, SMB, Secure LDAP and WinRM) along with `nmap` telling us that this box is more likely a **Domain Controller**. The domain name is `EGOTISTICAL-BANK.LOCAL`
 
-### Basic OSINT: Pulling usernames from the website and Wordlist Generation
+## Basic OSINT: Pulling usernames from the website and Wordlist Generation
 
 we go and check out the website. And, we find mostly static content there that doesn't give us much indication of an exploit. *However,* we do find a couple of potential usernames in the `/about.html` page at the bottom:
 
@@ -102,13 +102,13 @@ SurnameN
 Surname.N
 ```
 
-### User Enumeration using `kerbrute`
+## User Enumeration using `kerbrute`
 
 *using* `kerbrute` *for user enumeration,* we find that the user `fsmith` exists:
 
 ![fsmith-exists](/assets/Sauna/fsmith-exists.jpg)
 
-### ASREPRoast Attack
+## ASREPRoast Attack
 
 *Having only this one user,* we decide to `ASREPRoast` him to see if he doesn't have `Kerberos Pre-Authentication` enabled. And he does! :D
 
@@ -120,13 +120,13 @@ we go on and crack the hash using `john`. The password turns out to be `Thestrok
 
 The wordlist I used `gegalist.txt` is just a combination of all the wordlists in **Seclists**.
 
-### PowerShell Remoting with `fsmith`
+## PowerShell Remoting with `fsmith`
 
 we want to get **remote code execution** on the box, so we try **PowerShell Remoting** using a tool called `evil-winrm` (https://github.com/Hackplayers/evil-winrm). And are lucky :D
 
 ![we-can-winrm](/assets/Sauna/we-can-winrm.jpg)
 
-### Autologon creds for `svc_loanmgr`
+## Autologon creds for `svc_loanmgr`
 
 *Looking around the box in the user profile and in the root directory,* we don't see much intersting information. *However, when we check for autlogon creds,* we do find interesting credentials for the `svc_loanmgr` user:
 
@@ -139,7 +139,7 @@ $ErrorActionPreference='SilentlyContinue';'DefaultDomainName', 'DefaultUserName'
 
 This is amazing :D we now got two accounts!
 
-### Enumeration with `BloodHound`
+## Enumeration with `BloodHound`
 
 *Since this is an AD environment,* it's only natural that we run `BloodHound`. *This time,* we're going to use a python-based version called `bloodhound-python` (https://github.com/fox-it/BloodHound.py).
 
@@ -227,7 +227,7 @@ this leaves us a couple of `.json` files which we can zip before uploading to `b
 
 ![Zipping-them-jsons](/assets/Sauna/Zipping-them-jsons.jpg)
 
-### Abusing Dangerous Rights (DCSync)
+## Abusing Dangerous Rights (DCSync)
 
 *trying a standard* `bloodhound` *query,* we find that the user that own `svc_loanmgr` happens to have a very dangerous right `DCSync` on the domain.
 
@@ -235,7 +235,7 @@ this leaves us a couple of `.json` files which we can zip before uploading to `b
 
 Having this right means we can act as if we were *another domain controller* and ask for a **full synchronization of all the password hashes of the domain.**
 
-### Full domain hash dump
+## Full domain hash dump
 
 This can be achieved using `impacket`'s `secretsdump.py` tool:
 

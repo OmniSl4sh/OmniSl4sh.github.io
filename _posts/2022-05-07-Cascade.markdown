@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Medium] - Cascade"
 
 ![Cascade](/assets/Cascade/Cascade.png)
 
-### Summary
+## Summary
 - *Noticing the open ports*: **DNS, Kerberos, LDAP & SMB**, we know we're up against a **Windows Domain Controller**.
 - **LDAP Enumeration** reveals a *base-64 encoded* password which was *embedded* in a unique **Active Directory** user attribute.
 - Decoding the password grants us access to the `r.thompson` user who happens to have `read` access to the `data` **SMB** share.
@@ -21,7 +21,7 @@ title:  "HTB Writeup [Windows - Medium] - Cascade"
 
 ---
 
-### Nmap
+## Nmap
 ```
 PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Microsoft DNS 6.1.7601 (1DB15D39) (Windows Server 2008 R2 SP1)
@@ -62,12 +62,12 @@ Host script results:
 - **Domain Name:** Cascade.local
 - **Host name:** CASC-DC1
 
-### Checkpoint: Listing Possible Enumeration/Exploitation Paths
+## Checkpoint: Listing Possible Enumeration/Exploitation Paths
 *Having the port data,* we go over our **game plan**:
 
 ![ad-gameplan-map](/assets/Cascade/ad-gameplan-map.jpg)
 
-### Down to business: RPC
+## Down to business: RPC
 `enum4linux-ng` (https://github.com/cddmp/enum4linux-ng) is a really nice revamp of the old `enum4linux` tool.
 
 we run it using the `-A` switch as well as `-oY` to output into **YAML format**.
@@ -93,7 +93,7 @@ we get a bunch of cool stuff:
 
 This is great! We have a userlist that we can use to do **ASREPRoasting** and we can do **Password Spraying** without locking anyone out.
 
-### Time Saving #1: ASREPRoasting
+## Time Saving #1: ASREPRoasting
 *To save time,* we're going to do the **ASREPRoast** first because it's a quick check and has a high chance of giving us creds (*if we crack the hash*).
 
 **Command:** 
@@ -109,7 +109,7 @@ We find no accounts that don't require **kerberoes preauthentication.**
 
 we also notice some accounts got another type of error: `KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)`. *more on those later :)*
 
-### Time Saving #2: Password Spraying in the background
+## Time Saving #2: Password Spraying in the background
 *Since the password policy contained no user lockout,* we're good to go spraying :D
 
 **Command:** 
@@ -131,7 +131,7 @@ Another benefit of the verbosity with `-v` :)
 
 ![locked-out-users](/assets/Cascade/locked-out-users.jpg)
 
-### SMB Enumeration
+## SMB Enumeration
 *While we leave our spray running,* we're going to enumerate **SMB shares** using `crackmapexec`
 
 ![crackmapexec-smb-enum](/assets/Cascade/crackmapexec-smb-enum.jpg)
@@ -142,7 +142,7 @@ This is because it was there in the `enum4linux-ng` output.
 
 ![casc-guest](/assets/Cascade/casc-guest.jpg)
 
-### LDAP
+## LDAP
 We're going to enumerate **LDAP** and see if we can find something there.
 
 **Command:**
@@ -182,14 +182,14 @@ Authentication succeded with it. But we didn't get code execution with **WinRM**
 
 ![ryan-creds-check](/assets/Cascade/ryan-creds-check.jpg)
 
-### Kerberoasting
+## Kerberoasting
 *Applying the same strategy as before,* we're going to **kerberoast.**
 
 ![kerberoasting](/assets/Cascade/kerberoasting.jpg)
 
 No results there.
 
-### SMB Access with `R.Thompson`
+## SMB Access with `R.Thompson`
 We're going to use a `crackmapexec` module called `spider_plus`.
 
 It essentially crawls the `SMB` share and returns a list of files that we have access to.
@@ -216,7 +216,7 @@ We find something very intersting in the `VNC Install.reg` file:
 
 ![tight-vnc-password](/assets/Cascade/tight-vnc-password.jpg)
 
-### Cracking VNC Passwords
+## Cracking VNC Passwords
 We're interested in cracking this **VNC** password and reusing it.
 
 *Luckily,* a tool called `vncpwd` (https://github.com/jeroennijhof/vncpwd) can easily do that.
@@ -227,7 +227,7 @@ We then get the hex string, reverse it with `xxd` using the `-r` and `-p` flags 
 
 ![vnc-pwd-cracked](/assets/Cascade/vnc-pwd-cracked.jpg)
 
-### Password Reuse
+## Password Reuse
 *Having a new password* `sT333ve2`, we're going to to spray it all over the domain users we've collected.
 
 ![steve-ad-user-owned](/assets/Cascade/steve-ad-user-owned.jpg)
@@ -242,7 +242,7 @@ The user flag is the only significant thing that we found using his shell access
 
 Running **WinPeas** didn't pick up anything either. So we took a step back to check his **SMB** access.
 
-### Steve's SMB access: The `Audit$` Share
+## Steve's SMB access: The `Audit$` Share
 Using `crackmapexec` with the `--shares` flag, we get the below:
 
 ![steve-smb-access](/assets/Cascade/steve-smb-access.jpg)
@@ -269,7 +269,7 @@ We confirm that with `file`:
 
 ![check-out-the-db](/assets/Cascade/check-out-the-db.jpg)
 
-### DB Enumeration
+## DB Enumeration
 We're going to use the `sqlite3` command-line utility to check out the database contents.
 
 1. we list the tables with: `.tables`
@@ -286,7 +286,7 @@ Decoding it as base-64 gives us strange output. It must be encrypted.
 
 ![ark-svc-b64-attempt](/assets/Cascade/ark-svc-b64-attempt.jpg)
 
-### Reversing the `CascAudit.exe` and `.dll` files
+## Reversing the `CascAudit.exe` and `.dll` files
 *Since the* `.bat` *file showed the* `CascAudit.exe` *processing the Audit database,* we're interested to know how it works.
 
 The same goes for `CascCrypto.dll`. *Judging by its name,* it's very likely related to the encryption.
@@ -318,12 +318,12 @@ it's **"c4scadek3y654321"**
 
 *Looking at the code,* it seems that the `.exe` reads the encrypted password from the database and decrypts it using the `DecryptString` function before moving on to carry out its tasks.
 
-### AES-CBC-128 Decryption
+## AES-CBC-128 Decryption
 *Adding the details we found into an* **online decryption tool** (https://www.devglan.com/online-tools/aes-encryption-decryption), we get the plaintext: `w3lc0meFr31nd`
 
 ![aes-cbc-128-decryption](/assets/Cascade/aes-cbc-128-decryption.jpg)
 
-### ArkSvc and the AD Recycle Bin
+## ArkSvc and the AD Recycle Bin
 The user `ArkSvc` authenticates successfully with the `w3lc0meFr31nd` password and also has `WinRM` access.
 
 ![ark-svc-got-winrm](/assets/Cascade/ark-svc-got-winrm.jpg)

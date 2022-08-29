@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Insane] - Sizzle"
 
 ![Sizzle](/assets/Sizzle/Sizzle.png)
 
-### Summary
+## Summary
 - A **Windows Domain Controller** machine. We find an **SMB share** containing a *writable* folder called `Public`. We place an `SCF` file there that *directs the visiting user's computer* to our listening `responder` where we capture his `NTLMv2` hash.
 - *After cracking it,* we get the password for the `amanda` user which we use to enumerate the domain using `BloodHound`.
 - *Noticing that our user has* **PowerShell Remoting** *capabilities,* we try to gain access but are faced with a *strange authentication error*.
@@ -22,7 +22,7 @@ title:  "HTB Writeup [Windows - Insane] - Sizzle"
 
 ---
 
-### Nmap
+## Nmap
 The nmap output gives some good information:
 - **Machine Name:** Sizzle
 - **Domain Name:** HTB.local
@@ -122,12 +122,12 @@ Host script results:
 |_    Message signing enabled and required
 ```
 
-### Anonymous FTP
+## Anonymous FTP
 No files were there, and we're not granted `write` access either. So we move on.
 
 ![Anon-FTP-no-write](/assets/Sizzle/Anon-FTP-no-write.jpg)
 
-### HTTP/HTTPs
+## HTTP/HTTPs
 The home page just shows a `GIF` of bacon sizzling...
 
 ![http-homepage](/assets/Sizzle/http-homepage.jpg)
@@ -138,14 +138,14 @@ Spidering with `gobuster` shows an interesting directory `/certsrv` which indica
 
 the **HTTPS** website is similar in structure. so we move along.
 
-### LDAP
+## LDAP
 The output of `ldapsearch` didn't show much information. 
 
 ![ldapsearch-output](/assets/Sizzle/ldapsearch-output.jpg)
 
 (*I grepped out some unnecessary lines from the output to make it smaller.*)
 
-### SMB
+## SMB
 Enumerating SMB with `crackmapexec` reveals that we have `read` access to the `Department Shares` folder.
 
 ![cme-smb-share-enum](/assets/Sizzle/cme-smb-share-enum.jpg)
@@ -195,7 +195,7 @@ The results show that we have `write` access in both the `Public` and `ZZ_ARCHIV
 
 Having this access would allow us to *plant a malicious type of file* that would enable us to *steal* **NTLMv2 hashes** from users who access these locations.
 
-### SCF File Attacks for Hash Theft
+## SCF File Attacks for Hash Theft
 SCF (Shell Command Files) are files that can perform actions in **Windows Explorer**. One functionality can be *abused* to have the *share-visiting* user *directed* to our kali machine.
 
 This can be done using a file with the below content:
@@ -224,7 +224,7 @@ We then get to cracking with `john`
 
 the password turns out to be `Ashare1972`
 
-### The WinRM situation
+## The WinRM situation
 We first validate the creds for `amanda` with `crackmapexec` via SMB and they work.
 
 So we try WinRM after but end up with a weird error message:
@@ -233,7 +233,7 @@ So we try WinRM after but end up with a weird error message:
 
 at this moment, I wasn't quite sure what to do. So I moved on to try other things.
 
-### Domain Enumeration With BloodHound.py
+## Domain Enumeration With BloodHound.py
 *Since I didn't have code execution,* I turned to the **Python** version of `BloodHound` to do enumeration with all collection methods:
 
 ![bloodhound-py](/assets/Sizzle/bloodhound-py.jpg)
@@ -242,7 +242,7 @@ at this moment, I wasn't quite sure what to do. So I moved on to try other thing
 
 ![amanda-can-ps-remote](/assets/Sizzle/amanda-can-ps-remote.jpg)
 
-### Getting WinRM to work
+## Getting WinRM to work
 *Since we have access to the* `amanda` *user's credentials,* we can *request* a **User Certificate** from **AD Certificate Services.**
 
 This can be done after authenticating to `http://10.10.10.103/certsrv` and submitting a **Certificate Signing Request** (**CSR** for short).
@@ -287,7 +287,7 @@ And it works like a charm :D
 
 Note: the PEM pass phrase is the one you were asked to enter when generating the private key and CSR with `openssl`
 
-### Back to `BloodHound` graphs: Kerberoastable Users
+## Back to `BloodHound` graphs: Kerberoastable Users
 Inspecting the query `List all Kerberoastable Accounts` shows us that a user called `mrlky` is vulnerable.
 
 ![mrlky-kerberoastable](/assets/Sizzle/mrlky-kerberoastable.jpg)
@@ -300,7 +300,7 @@ That user is very special since he has the 2 required rights to perform a `DCSyn
 
 *Hence,* we need to kerberoast this guy and get his TGS hash :D
 
-### Roasting with Rubeus: Bypassing Applocker and Performing Network Authentication
+## Roasting with Rubeus: Bypassing Applocker and Performing Network Authentication
 *After copying* `Rubeus.exe` *from our kali machine over to* `amanda`'*s documents folder*, we find that we can't execute due to **Applocker.**
 
 ![rubeus-applocked](/assets/Sizzle/rubeus-applocked.jpg)
@@ -325,7 +325,7 @@ Now we crack the hash for `mrkly` again with `john`:
 
 ![mrlky-cracked](/assets/Sizzle/mrlky-cracked.jpg)
 
-### DCSync
+## DCSync
 *Having the password for* `mrkly`: `Football#7`, we're going to use `Impacket`'s `secretsdump.py` python script to do a `DCSync` attack:
 
 ![dcsynced](/assets/Sizzle/dcsynced.jpg)
@@ -334,7 +334,7 @@ and follow up with `psexec.py` for a quick **Pass-The-Hash** attack to get code 
 
 ![got-system](/assets/Sizzle/got-system.jpg)
 
-### Bonus: PowerShell Constrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D
+## Bonus: PowerShell Constrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D
 After I initially got the WinRM shell, It kept asking for my PEM pass phrase after each command.
 
 I wanted to get a `nishang` shell but couldn't do the `IEX` command (`Invoke-Expression`). This was because of **PowerShell's Contrained Language Mode**.
@@ -363,7 +363,7 @@ we will use the `-Credential` parameter with `Start-Process` to create the Netwo
 
 ![bonus-kill](/assets/Sizzle/bonus-kill.jpg)
 
-### Joke Section: Pwning the box with `ZeroLogon` XD
+## Joke Section: Pwning the box with `ZeroLogon` XD
 
 You could do all of the above.
 

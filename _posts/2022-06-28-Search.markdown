@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Hard] - Search"
 
 ![Search](/assets/Search/Search.png)
 
-### Summary
+## Summary
 - A **Windows Domain Controller** machine where we don't get any access using conventional methods. The key to gaining our initial set of credentials is by inspecting *the images* on the website where one turns out to have **credentials** for a user called `hope.sharp`
 - *Using this authenticated access,* we run a **Kerberoast** attack which gets us the hash of the `web_svc` account that we crack to get a password.
 - *When spraying this password across the domain users,* we find out that the password is also used by another user: `edgar.jacobs`.
@@ -19,7 +19,7 @@ title:  "HTB Writeup [Windows - Hard] - Search"
 
 ---
 
-### Nmap
+## Nmap
 ```
 PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Simple DNS Plus
@@ -96,7 +96,7 @@ We see standard Domain Controller ports (53, 88, 389 & 3269) and **IIS** on port
 
 Port 5985 wasn't open so that meant no **WinRM** for this box
 
-### Stuff we tried but didn't work
+## Stuff we tried but didn't work
 1. **SMB** enumeration using anonymous, guest and null sessions.
 2. **RPC** enumeration with `enum4linux-ng`.
 3. **LDAP** enumeration with `ldapsearch` using anonymous authentication.
@@ -107,7 +107,7 @@ Port 5985 wasn't open so that meant no **WinRM** for this box
 
 All of those didn't yield any results. However..
 
-### When you use a magnifying glass..
+## When you use a magnifying glass..
 *when looking really close at one of the images on the website,* something is there!
 
 ![secret-image-small](/assets/Search/secret-image-small.jpg)
@@ -118,7 +118,7 @@ The text was very small. so we had to open up the image in a new tab and zoom in
 
 It said: **"Send password to Hope Sharp"** then **"IsolationIsKey?"**
 
-### First set of credentials
+## First set of credentials
 *Earlier,* when extracted usernames from the website:
 
 ![website-users](/assets/Search/website-users-2.jpg)
@@ -146,7 +146,7 @@ We went ahead and found the password **"IsolationIsKey?"** to work with **"Hope.
 
 ![auth-as-hope-sharp](/assets/Search/auth-as-hope-sharp.jpg)
 
-### The Awesomeness of BloodHound
+## The Awesomeness of BloodHound
 *Since port 5985 isn't open,* we have no reason to check for **WinRM** capabilities. So we turn to using all the tools that don't require a foothold on the box.
 
 We start with [`BloodHound.py`](/assets/Search/https://github.com/fox-it/BloodHound.py) to get an overview of the situation in the domain.
@@ -170,7 +170,7 @@ We would first have to make our way to any of users on the left within the `ITSE
 
 ![web-svc-kerberoastable](/assets/Search/web-svc-kerberoastable.jpg)
 
-### Kerberoasting `web_svc`
+## Kerberoasting `web_svc`
 we use impacket's `GetUserSPNs.py`
 
 **Command:**
@@ -191,7 +191,7 @@ john web_svc_hash -w=/usr/share/wordlists/rockyou.txt
 
 The password was **"@3ONEmillionbaby"**
 
-### Checking for Password Reuse
+## Checking for Password Reuse
 It has turned into a habit for me to spray any password I get on all possible users xD
 
 *In order to get a the full list of domain users,* I use `crackmapexec` with the `--users` flag.
@@ -207,7 +207,7 @@ We find out that another user had been user the same password **"@3ONEmillionbab
 
 ![edgar-reusing](/assets/Search/edgar-reusing.jpg)
 
-### Enumerating SMB access for Edgar
+## Enumerating SMB access for Edgar
 We use `crackmapexec`'s `spider_plus` module to get a *nicely-formatted* **JSON** output for `edgar`'s share access.
 
 **Command:** 
@@ -237,7 +237,7 @@ We won't be able to **unhide** this column unless we **unprotect** the sheet:
 
 **PROFIT! :D**
 
-### Access as Sierra
+## Access as Sierra
 *When using the obtained passwords throughout the domain,* we gain access to `seirra.frye`
 
 ![got-sierra](/assets/Search/got-sierra.jpg)
@@ -246,7 +246,7 @@ and since `sierra` is a member of the `ITSEC` group, we're going to go for a ful
 
 ![path-to-da](/assets/Search/path-to-da.jpg)
 
-### Reading the GMSA password & Resetting `tristan`'s password
+## Reading the GMSA password & Resetting `tristan`'s password
 We can obtain the **NTLM** hash of the **GMSA** `BIR-ADFS-GMSA$` with a **python** tool called [`gMSADumper`](/assets/Search/https://github.com/micahvandeusen/gMSADumper)
 
 **Command:** 
@@ -264,7 +264,7 @@ and finishing with **impacket**'s `wmiexec.py` to get full shell access.
 
 ![got-tristan](/assets/Search/got-tristan.jpg)
 
-### An Alternate Route: cracking the `.pfx` certificate on `sierra`'s share + using it for PowerShell web access
+## An Alternate Route: cracking the `.pfx` certificate on `sierra`'s share + using it for PowerShell web access
 *If we take some time to check* `sierra`'s *profile,* we see a file called `staff.pfx` in the `\Downloads\Backups` folder:
 
 ![pfx-found](/assets/Search/pfx-found.jpg)

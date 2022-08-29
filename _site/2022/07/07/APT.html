@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/APT/APT.png" alt="APT" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A Windows machine where a standard IPv4 full TCP port scan reveals only <strong>HTTP</strong> on port 80 and <strong>RPC Endpoint Mapper</strong> on port 135.</li>
   <li><em>After checking out the website,</em> it turns out to be just static content with no real abusable functionalities.</li>
@@ -90,7 +90,7 @@
 
 <hr />
 
-<h3 id="ipv4-nmap">IPv4 NMAP</h3>
+<h2 id="ipv4-nmap">IPv4 NMAP</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT    STATE SERVICE VERSION
 80/tcp  open  http    Microsoft IIS httpd 10.0
 |_http-title: Gigantic Hosting | Home
@@ -107,7 +107,7 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
   <li><strong>MSRPC</strong> on port 135</li>
 </ol>
 
-<h3 id="checking-port-80">Checking Port 80</h3>
+<h2 id="checking-port-80">Checking Port 80</h2>
 <p><em>Looking at the website,</em> we find a bunch of static html pages</p>
 
 <p><img src="/assets/APT/Website-homepage.jpg" alt="Website-homepage" /></p>
@@ -129,7 +129,7 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
 
 <p><em>Being left with port 135,</em> we decide to dive in.</p>
 
-<h3 id="digging-deep-into-msrpc">Digging deep into MSRPC</h3>
+<h2 id="digging-deep-into-msrpc">Digging deep into MSRPC</h2>
 <p>The <strong>Microsoft Remote Procedure Call</strong> is a protocol that allows a client program to request a service on another computer. Just like any typical client-server architecture.</p>
 
 <p>It is mainly about <strong>Cross-Process Communication</strong> and <strong>Object Exchange</strong> over the network.</p>
@@ -272,7 +272,7 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
 
 <p><img src="/assets/APT/python-enum-interfaces-script-output.jpg" alt="python-enum-interfaces-script-output" /></p>
 
-<h3 id="ipv6-nmap">IPv6 NMAP</h3>
+<h2 id="ipv6-nmap">IPv6 NMAP</h2>
 <p>After placing an entry for it in our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> file, we run another nmap on the <strong>IPv6</strong> using the <code class="language-plaintext highlighter-rouge">-6</code> flag. Look at what we got :D</p>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE      VERSION
 53/tcp    open  domain       Simple DNS Plus
@@ -381,7 +381,7 @@ Host script results:
 
 <p><strong>Lesson learned:</strong> Always enumerate network interfaces as part of the recon. There could be way more information to be learned about the network by doing this.</p>
 
-<h3 id="smb-enumeration">SMB Enumeration</h3>
+<h2 id="smb-enumeration">SMB Enumeration</h2>
 <p>We start with SMB and run <code class="language-plaintext highlighter-rouge">crackmapexec</code> to check the available shares. And we find a readable one called <strong>“backup”</strong></p>
 
 <p><img src="/assets/APT/cme-smb-shares.jpg" alt="cme-smb-shares" /></p>
@@ -413,7 +413,7 @@ Host script results:
 
 <p><em>But of course,</em> none worked XD</p>
 
-<h3 id="working-around-bruteforce-defenses">Working around bruteforce defenses</h3>
+<h2 id="working-around-bruteforce-defenses">Working around bruteforce defenses</h2>
 
 <p>We will now have to check the other users. So we filter them out with some shell fu:</p>
 
@@ -465,7 +465,7 @@ Host script results:
 
 <p><img src="/assets/APT/auth-with-henry.jpg" alt="auth-with-henry" /></p>
 
-<h3 id="finding-creds-via-remote-registry">Finding creds via Remote Registry</h3>
+<h2 id="finding-creds-via-remote-registry">Finding creds via Remote Registry</h2>
 <p>Alright. <em>After finally getting our first set of credentials,</em> we sadly don’t find anything to get us further using conventional methods.</p>
 
 <ul>
@@ -482,7 +482,7 @@ Host script results:
 
 <p><img src="/assets/APT/winrm-shell-access.jpg" alt="winrm-shell-access" /></p>
 
-<h3 id="privilege-escalation-via-netntlmv1">Privilege Escalation via NetNTLMv1</h3>
+<h2 id="privilege-escalation-via-netntlmv1">Privilege Escalation via NetNTLMv1</h2>
 <p><em>When running the standard</em> <code class="language-plaintext highlighter-rouge">WinPEAS.exe</code>, it got caught by <strong>AV.</strong></p>
 
 <p><img src="/assets/APT/normal-winpeas-caught.jpg" alt="normal-winpeas-caught" /></p>

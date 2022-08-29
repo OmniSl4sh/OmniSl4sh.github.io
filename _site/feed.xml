@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-08-27T02:38:27+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Insane] - Brainfuck</title><link href="http://localhost:4000/2022/08/17/Brainfuck.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Insane] - Brainfuck" /><published>2022-08-17T00:00:00+02:00</published><updated>2022-08-17T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/17/Brainfuck</id><content type="html" xml:base="http://localhost:4000/2022/08/17/Brainfuck.html"><![CDATA[<p><img src="/assets/Brainfuck/Brainfuck.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-08-30T01:54:21+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Insane] - Brainfuck</title><link href="http://localhost:4000/2022/08/17/Brainfuck.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Insane] - Brainfuck" /><published>2022-08-17T00:00:00+02:00</published><updated>2022-08-17T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/17/Brainfuck</id><content type="html" xml:base="http://localhost:4000/2022/08/17/Brainfuck.html"><![CDATA[<p><img src="/assets/Brainfuck/Brainfuck.png" alt="" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Linux</strong> box where we find <strong>email ports (SMTP/POP/IMAP)</strong> open as well as <strong>two HTTPS websites</strong> (we discovered them from the <strong>SSL certificate Subject Alternative Name</strong> field)</li>
   <li>One website had a <strong>Wordpress blog</strong> which happened to have a <strong><em>vulnerable component</em></strong> that enabled us to impersonate the <code class="language-plaintext highlighter-rouge">admin</code> user.</li>
@@ -16,7 +16,7 @@
 
 <hr />
 
-<h3 id="nmap-for-the-roadmap">NMAP for the roadmap</h3>
+<h2 id="nmap-for-the-roadmap">NMAP for the roadmap</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT    STATE SERVICE  VERSION
 22/tcp  open  ssh      OpenSSH 7.2p2 Ubuntu 4ubuntu2.1 (Ubuntu Linux; protocol 2.0)
 | ssh-hostkey: 
@@ -61,7 +61,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Brainfuck/setting-etc-hosts.jpg" alt="" /></p>
 
-<h3 id="checking-out-the-websites">Checking out the websites</h3>
+<h2 id="checking-out-the-websites">Checking out the websites</h2>
 <p>We take a look at <strong>www.brainfuck.htb</strong> to find a <strong>Wordpress blog</strong></p>
 
 <p><img src="/assets/Brainfuck/wordpress-first-look.jpg" alt="" /></p>
@@ -73,7 +73,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
   <li>we notice <strong>a link to “open a ticket”</strong>. This could be a <strong>Wordpress plugin</strong> with exploitable functionalities.</li>
 </ol>
 
-<h3 id="enumerating-wordpress">Enumerating Wordpress</h3>
+<h2 id="enumerating-wordpress">Enumerating Wordpress</h2>
 <p><em>At this point,</em> it’s both a <strong><em>quick and easy check</em></strong> to run <code class="language-plaintext highlighter-rouge">wpscan</code>. It’s <strong>specialized for scanning Wordpress</strong> and <strong>would give us tons of information on it</strong>.</p>
 
 <p><strong><em>Running it like below:</em></strong></p>
@@ -134,7 +134,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Brainfuck/wp-found-users.jpg" alt="" /></p>
 
-<h3 id="trying-to-abuse-wordpress-with-the-admin-account">Trying to abuse Wordpress with the Admin account</h3>
+<h2 id="trying-to-abuse-wordpress-with-the-admin-account">Trying to abuse Wordpress with the Admin account</h2>
 <p><em>After logging in as</em> <code class="language-plaintext highlighter-rouge">admin</code>, we find out that <strong>we have access to much more things</strong> than with <code class="language-plaintext highlighter-rouge">administrator</code></p>
 
 <p><img src="/assets/Brainfuck/wp-admin-access.jpg" alt="" /></p>
@@ -159,7 +159,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Brainfuck/smtp-password-looted.jpg" alt="" /></p>
 
-<h3 id="rummaging-through-peoples-mailboxes-d">Rummaging through people’s mailboxes :D</h3>
+<h2 id="rummaging-through-peoples-mailboxes-d">Rummaging through people’s mailboxes :D</h2>
 
 <p><strong><em>Given the available IMAP service on port 143,</em></strong> we can go through the <code class="language-plaintext highlighter-rouge">orestis</code> user’s <strong>mailbox.</strong></p>
 
@@ -186,7 +186,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Brainfuck/forum-creds-in-mailbox.jpg" alt="" /></p>
 
-<h3 id="visiting-the-forum">Visiting the Forum</h3>
+<h2 id="visiting-the-forum">Visiting the Forum</h2>
 
 <p><em>Going into the</em> <strong>forum</strong> at <code class="language-plaintext highlighter-rouge">https://sup3rs3cr3t.brainfuck.htb/</code>, we see nothing on the main page except for a <strong>test thread</strong></p>
 
@@ -248,7 +248,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><strong>It worked! XD</strong></p>
 
-<h3 id="ssh-access-as-orestis">SSH Access as Orestis</h3>
+<h2 id="ssh-access-as-orestis">SSH Access as Orestis</h2>
 
 <p><em>Visiting the url,</em> we <strong>get a private SSH key:</strong></p>
 
@@ -266,7 +266,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Brainfuck/in-as-orestis.jpg" alt="" /></p>
 
-<h3 id="lxd-privilege-escalation">LXD Privilege Escalation</h3>
+<h2 id="lxd-privilege-escalation">LXD Privilege Escalation</h2>
 
 <p><em>Right after logging in,</em> and <strong><em>from the previous screenshot</em></strong>, we notice that <code class="language-plaintext highlighter-rouge">orestis</code> <strong>is part of the</strong> <code class="language-plaintext highlighter-rouge">lxd</code> <strong>group.</strong></p>
 
@@ -333,7 +333,7 @@ lxc <span class="nb">exec </span>brainfucked /bin/sh
 
 <p><strong>A piece of cake :D</strong></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="http://localhost:4000/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/05/Sniper</id><content type="html" xml:base="http://localhost:4000/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>The box is a <strong>Windows</strong> machine <strong>hosting a PHP website</strong> which had both a <strong>LFI</strong> (intended) and a <strong>RFI</strong> (unintended) vulnerabilities.</li>
   <li><em>Down the LFI path, and after working around some</em> <strong>blacklisting</strong> <em>and</em> <strong>hardening</strong>, we manage to <strong>inject PHP code into the cookies</strong> and <strong>include them to gain RCE.</strong></li>
@@ -347,7 +347,7 @@ lxc <span class="nb">exec </span>brainfucked /bin/sh
 
 <hr />
 
-<h3 id="nmap">NMAP</h3>
+<h2 id="nmap">NMAP</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 80/tcp    open  http          Microsoft IIS httpd 10.0
 |_http-title: Sniper Co.
@@ -379,11 +379,11 @@ Host script results:
 
 <p>We start with <strong>SMB</strong> and <strong>RPC</strong> since they are a quick check.</p>
 
-<h3 id="smb-enumeration">SMB Enumeration</h3>
+<h2 id="smb-enumeration">SMB Enumeration</h2>
 <p>we check the usual <strong>null, anonymous and guest authentication</strong> with <code class="language-plaintext highlighter-rouge">crackmapexec</code> but don’t get much past the <strong>OS</strong> and the <strong>hostname</strong>.
 <img src="/assets/Sniper/SMB-Enum.jpg" alt="SMB-Enum" /></p>
 
-<h3 id="rpc-enumeration">RPC Enumeration</h3>
+<h2 id="rpc-enumeration">RPC Enumeration</h2>
 <p>we use <code class="language-plaintext highlighter-rouge">enum4linux-ng</code> but don’t get much information here either</p>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>enum4linux-ng.py <span class="nt">-A</span> sniper
@@ -471,7 +471,7 @@ Server type string: null
 Completed after 19.76 seconds 
 </code></pre></div></div>
 
-<h3 id="web-enumeration">Web Enumeration</h3>
+<h2 id="web-enumeration">Web Enumeration</h2>
 <p><em>On port 80,</em> we find a website
 <img src="/assets/Sniper/website.jpg" alt="website" /></p>
 
@@ -482,7 +482,7 @@ Completed after 19.76 seconds
 
 <p>We run <code class="language-plaintext highlighter-rouge">sqlmap</code> on both forms but don’t find any <strong>SQL injection</strong> :/</p>
 
-<h3 id="finding-a-file-inclusion-vulnerability">Finding a File Inclusion Vulnerability</h3>
+<h2 id="finding-a-file-inclusion-vulnerability">Finding a File Inclusion Vulnerability</h2>
 <p><em>However, when we go to the</em> <strong>services page</strong> <em>and check the</em> <strong>url for the language</strong> <em>in the dropdown menu,</em> we notice something interesting:</p>
 
 <p><img src="/assets/Sniper/spotting-lfi-param.jpg" alt="spotting-lfi-param" /></p>
@@ -507,7 +507,7 @@ Completed after 19.76 seconds
   <li>Be able to <strong>reference it through the vulnerability to get code execution</strong></li>
 </ol>
 
-<h3 id="targeting-cookies">Targeting Cookies</h3>
+<h2 id="targeting-cookies">Targeting Cookies</h2>
 <p><strong>Cookies</strong> are a good place to start because:</p>
 <ul>
   <li><strong>PHP stores the username inside them</strong> &amp; <strong>we have the ability to register users</strong></li>
@@ -524,7 +524,7 @@ Completed after 19.76 seconds
 
 <p><strong><em>Sounds like a lot … and it is a lot XD</em></strong></p>
 
-<h3 id="user-registration">User Registration</h3>
+<h2 id="user-registration">User Registration</h2>
 <p>We do a <strong>quick registration attempt</strong> to <strong>find out the limitations in user creation</strong>.</p>
 
 <p>We used:</p>
@@ -542,7 +542,7 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/login-success.jpg" alt="login-success" /></p>
 
-<h3 id="including-the-cookie">Including the cookie</h3>
+<h2 id="including-the-cookie">Including the cookie</h2>
 <p><em>Before going further,</em> we need to <strong>confirm we can reference the cookie on disk</strong>.</p>
 
 <p>we can get the cookie from the <strong>Firefox developer tools.</strong></p>
@@ -581,7 +581,7 @@ Completed after 19.76 seconds
 
 <p>So we move on to the next step.</p>
 
-<h3 id="finding-the-allowed-special-characters">Finding the allowed special characters</h3>
+<h2 id="finding-the-allowed-special-characters">Finding the allowed special characters</h2>
 <p>We’re going to <strong>brute force all the special characters</strong> at the <strong>registration form</strong> using <strong>Burp</strong> and find out what’s allowed and what’s not.</p>
 
 <p>Here are the <strong>requests and responses for both the registration and login</strong>.</p>
@@ -647,7 +647,7 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/rce-achieved.jpg" alt="rce-achieved" /></p>
 
-<h3 id="stomping-the-blacklisting-with-powershell">Stomping the blacklisting with PowerShell</h3>
+<h2 id="stomping-the-blacklisting-with-powershell">Stomping the blacklisting with PowerShell</h2>
 <p><em>with</em> <strong>RCE</strong> <em>achieved,</em> we have to find a way to <strong>execute a reverse shell with the allowed characters we have.</strong></p>
 
 <p><strong>We have a couple of challenges here:</strong></p>
@@ -685,7 +685,7 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/shell-as-iusr.jpg" alt="shell-as-iusr" /></p>
 
-<h3 id="finding-creds-in-the-database-settings-file-like-always">Finding creds in the database settings file (<em>like always</em>)</h3>
+<h2 id="finding-creds-in-the-database-settings-file-like-always">Finding creds in the database settings file (<em>like always</em>)</h2>
 <p><em>The first thing I did after getting the shell,</em> was <strong>check the files in the web root.</strong></p>
 
 <p>I found a file called <code class="language-plaintext highlighter-rouge">db.php</code> in the <code class="language-plaintext highlighter-rouge">C:\inetpub\wwwroot\user</code> directory.</p>
@@ -702,7 +702,7 @@ Completed after 19.76 seconds
 
 <p><img src="/assets/Sniper/got-chris.jpg" alt="got-chris" /></p>
 
-<h3 id="getting-a-shell-as-chris">Getting a shell as Chris</h3>
+<h2 id="getting-a-shell-as-chris">Getting a shell as Chris</h2>
 <p>The situation is that we want to pivot to the <code class="language-plaintext highlighter-rouge">chris</code> user <strong>without losing the shell</strong> <em>if possible</em></p>
 
 <p>We can do so from our <strong>PowerShell</strong> prompt using the below method:</p>
@@ -717,7 +717,7 @@ Completed after 19.76 seconds
 
 <p><strong>Neat :)</strong></p>
 
-<h3 id="privilege-escalation-scanning-the-file-system">Privilege Escalation: Scanning the file system</h3>
+<h2 id="privilege-escalation-scanning-the-file-system">Privilege Escalation: Scanning the file system</h2>
 <p><em>When checking the folders in chris’s user profile,</em> we find a file called <code class="language-plaintext highlighter-rouge">intructions.chm</code> in his <code class="language-plaintext highlighter-rouge">Downloads</code> folder.</p>
 
 <p>We <strong>copy it over to our Kali using the SMB share.</strong></p>
@@ -756,7 +756,7 @@ Completed after 19.76 seconds
 
 <p><em>if the CEO happens to be the local <code class="language-plaintext highlighter-rouge">administrator</code> and opens the file,</em> we should root the box.</p>
 
-<h3 id="chm-files-for-the-win">CHM Files for the win</h3>
+<h2 id="chm-files-for-the-win">CHM Files for the win</h2>
 <p><em>Searching</em> <strong>Google</strong>, we come accross this <a href="https://medium.com/r3d-buck3t/weaponize-chm-files-with-powershell-nishang-c98b93f79f1e">blog</a> explaining exactly <strong>how to execute a payload using a <code class="language-plaintext highlighter-rouge">.chm</code> file</strong> using a script from the <strong>Nishang script suite.</strong></p>
 
 <p><em>Following the article,</em> we download the <strong>“HTML Help Workshop and Documentation program”</strong> and <strong>get the script</strong> from the <a href="https://github.com/samratashok/nishang/blob/master/Client/Out-CHM.ps1">Github Repository</a>.</p>
@@ -773,14 +773,14 @@ Completed after 19.76 seconds
 
 <p><strong>Pretty fun box :]</strong></p>
 
-<h3 id="unintended-path-rfi-through-smb">Unintended Path: RFI through SMB</h3>
+<h2 id="unintended-path-rfi-through-smb">Unintended Path: RFI through SMB</h2>
 <p><em>When checking the ability of adding network paths as the file inclusion payload,</em> we got <strong>PHP code execution:</strong></p>
 
 <p><img src="/assets/Sniper/rfi-php-info.jpg" alt="rfi-php-info" /></p>
 
 <p>This path is <strong>much easier</strong> but also <strong>teaches way less than the LFI one.</strong></p>
 
-<h3 id="out-of-curiousity-a-look-at-the-php-within-the-blog-directorys-indexphp">Out of Curiousity: A look at the PHP within the blog directory’s <code class="language-plaintext highlighter-rouge">index.php</code></h3>
+<h2 id="out-of-curiousity-a-look-at-the-php-within-the-blog-directorys-indexphp">Out of Curiousity: A look at the PHP within the blog directory’s <code class="language-plaintext highlighter-rouge">index.php</code></h2>
 <p><img src="/assets/Sniper/lfi-hardening.jpg" alt="lfi-hardening" /></p>
 
 <p>in <code class="language-plaintext highlighter-rouge">index.php</code>, we the code <strong>looks for <code class="language-plaintext highlighter-rouge">..</code> and <code class="language-plaintext highlighter-rouge">C:</code> within the included file path</strong> and <strong>throws an error if it detects any.</strong></p>
@@ -810,7 +810,7 @@ Completed after 19.76 seconds
 <span class="cp">?&gt;</span>
 </code></pre></div></div>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="http://localhost:4000/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/07/APT</id><content type="html" xml:base="http://localhost:4000/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A Windows machine where a standard IPv4 full TCP port scan reveals only <strong>HTTP</strong> on port 80 and <strong>RPC Endpoint Mapper</strong> on port 135.</li>
   <li><em>After checking out the website,</em> it turns out to be just static content with no real abusable functionalities.</li>
@@ -836,7 +836,7 @@ Completed after 19.76 seconds
 
 <hr />
 
-<h3 id="ipv4-nmap">IPv4 NMAP</h3>
+<h2 id="ipv4-nmap">IPv4 NMAP</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT    STATE SERVICE VERSION
 80/tcp  open  http    Microsoft IIS httpd 10.0
 |_http-title: Gigantic Hosting | Home
@@ -853,7 +853,7 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
   <li><strong>MSRPC</strong> on port 135</li>
 </ol>
 
-<h3 id="checking-port-80">Checking Port 80</h3>
+<h2 id="checking-port-80">Checking Port 80</h2>
 <p><em>Looking at the website,</em> we find a bunch of static html pages</p>
 
 <p><img src="/assets/APT/Website-homepage.jpg" alt="Website-homepage" /></p>
@@ -875,7 +875,7 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
 
 <p><em>Being left with port 135,</em> we decide to dive in.</p>
 
-<h3 id="digging-deep-into-msrpc">Digging deep into MSRPC</h3>
+<h2 id="digging-deep-into-msrpc">Digging deep into MSRPC</h2>
 <p>The <strong>Microsoft Remote Procedure Call</strong> is a protocol that allows a client program to request a service on another computer. Just like any typical client-server architecture.</p>
 
 <p>It is mainly about <strong>Cross-Process Communication</strong> and <strong>Object Exchange</strong> over the network.</p>
@@ -1018,7 +1018,7 @@ Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
 
 <p><img src="/assets/APT/python-enum-interfaces-script-output.jpg" alt="python-enum-interfaces-script-output" /></p>
 
-<h3 id="ipv6-nmap">IPv6 NMAP</h3>
+<h2 id="ipv6-nmap">IPv6 NMAP</h2>
 <p>After placing an entry for it in our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> file, we run another nmap on the <strong>IPv6</strong> using the <code class="language-plaintext highlighter-rouge">-6</code> flag. Look at what we got :D</p>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE      VERSION
 53/tcp    open  domain       Simple DNS Plus
@@ -1127,7 +1127,7 @@ Host script results:
 
 <p><strong>Lesson learned:</strong> Always enumerate network interfaces as part of the recon. There could be way more information to be learned about the network by doing this.</p>
 
-<h3 id="smb-enumeration">SMB Enumeration</h3>
+<h2 id="smb-enumeration">SMB Enumeration</h2>
 <p>We start with SMB and run <code class="language-plaintext highlighter-rouge">crackmapexec</code> to check the available shares. And we find a readable one called <strong>“backup”</strong></p>
 
 <p><img src="/assets/APT/cme-smb-shares.jpg" alt="cme-smb-shares" /></p>
@@ -1159,7 +1159,7 @@ Host script results:
 
 <p><em>But of course,</em> none worked XD</p>
 
-<h3 id="working-around-bruteforce-defenses">Working around bruteforce defenses</h3>
+<h2 id="working-around-bruteforce-defenses">Working around bruteforce defenses</h2>
 
 <p>We will now have to check the other users. So we filter them out with some shell fu:</p>
 
@@ -1211,7 +1211,7 @@ Host script results:
 
 <p><img src="/assets/APT/auth-with-henry.jpg" alt="auth-with-henry" /></p>
 
-<h3 id="finding-creds-via-remote-registry">Finding creds via Remote Registry</h3>
+<h2 id="finding-creds-via-remote-registry">Finding creds via Remote Registry</h2>
 <p>Alright. <em>After finally getting our first set of credentials,</em> we sadly don’t find anything to get us further using conventional methods.</p>
 
 <ul>
@@ -1228,7 +1228,7 @@ Host script results:
 
 <p><img src="/assets/APT/winrm-shell-access.jpg" alt="winrm-shell-access" /></p>
 
-<h3 id="privilege-escalation-via-netntlmv1">Privilege Escalation via NetNTLMv1</h3>
+<h2 id="privilege-escalation-via-netntlmv1">Privilege Escalation via NetNTLMv1</h2>
 <p><em>When running the standard</em> <code class="language-plaintext highlighter-rouge">WinPEAS.exe</code>, it got caught by <strong>AV.</strong></p>
 
 <p><img src="/assets/APT/normal-winpeas-caught.jpg" alt="normal-winpeas-caught" /></p>
@@ -1270,7 +1270,7 @@ Host script results:
 
 <p><img src="/assets/APT/dcsync-and-rooting-the-box.jpg" alt="dcsync-and-rooting-the-box" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="http://localhost:4000/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/01/Intelligence</id><content type="html" xml:base="http://localhost:4000/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> that’s hosting a static website on port 80.</li>
   <li><em>While browsing the site,</em> we notice two links to <strong>PDF</strong> files that exist on a web directory for documents.</li>
@@ -1286,7 +1286,7 @@ Host script results:
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Simple DNS Plus
 80/tcp    open  http          Microsoft IIS httpd 10.0
@@ -1353,7 +1353,7 @@ Host script results:
   <li><em>On the last line,</em> the <strong>Clock Skew</strong> between our host and the DC is 7 hours (which is something we must take care of to make sure anything <strong>Kerberos-related</strong> works well)</li>
 </ol>
 
-<h3 id="the-website">The Website</h3>
+<h2 id="the-website">The Website</h2>
 <p><img src="/assets/Intelligence/website-homepage.jpg" alt="website-homepage" /></p>
 
 <p>checking the website’s home page doesn’t show anything special. Except for this:</p>
@@ -1375,7 +1375,7 @@ Host script results:
 
 <p>we might get information we could use.</p>
 
-<h3 id="searching-documents">Searching Documents</h3>
+<h2 id="searching-documents">Searching Documents</h2>
 <p>We’re going to create a script that generates a list of <strong>PDF</strong> file names following the scheme we found.</p>
 
 <p>We’ll make the script generate dates between 2018 to 2022. That’s 2 years before and after the date of the found documents.</p>
@@ -1447,7 +1447,7 @@ Host script results:
 
 <p>And it also mentions <strong>“locking down service accounts”</strong> which hints at a <strong>possible security concern</strong> in that area.</p>
 
-<h3 id="interesting-information-in-metadata">Interesting Information in Metadata</h3>
+<h2 id="interesting-information-in-metadata">Interesting Information in Metadata</h2>
 <p>Now we need a list of usernames..</p>
 
 <p><em>With all those</em> <strong>PDF</strong>s <em>lying around,</em> we’re tempted to look for information in <strong>metadata.</strong></p>
@@ -1489,7 +1489,7 @@ Host script results:
 
 <p>Tiffany hadn’t changed the default password. Lucky for us :D</p>
 
-<h3 id="exploiting-the-vulnerable-script">Exploiting the Vulnerable Script</h3>
+<h2 id="exploiting-the-vulnerable-script">Exploiting the Vulnerable Script</h2>
 <p><em>When checking the readable</em> <strong>SMB</strong> <em>shares as Tiffany,</em> we find that she can read a certain share: <strong>IT</strong></p>
 
 <p><img src="/assets/Intelligence/smb-shares-tiffany.jpg" alt="smb-shares-tiffany" /></p>
@@ -1555,7 +1555,7 @@ Host script results:
 
 <p><img src="/assets/Intelligence/teddys-hash-cracked.jpg" alt="teddys-hash-cracked" /></p>
 
-<h3 id="bloodhound-and-the-path-to-domain-admin">Bloodhound and the Path to Domain Admin</h3>
+<h2 id="bloodhound-and-the-path-to-domain-admin">Bloodhound and the Path to Domain Admin</h2>
 <p><em>After running the</em> <strong>Bloodhound</strong> <em>python Ingestor</em> <a href="/assets/Intelligence/https://github.com/fox-it/BloodHound.py"><code class="language-plaintext highlighter-rouge">Bloodhound.py</code></a>, we mark our user <code class="language-plaintext highlighter-rouge">Ted.Graves</code> as owned.</p>
 
 <p>We see a <strong>clear exploit path</strong> to <strong>Domain Admin</strong> when we view the results of the <code class="language-plaintext highlighter-rouge">Shortest Path from Owned Principals</code> built-in query:</p>
@@ -1575,7 +1575,7 @@ Host script results:
 
 <p>We’re now good for the next step.</p>
 
-<h3 id="abusing-constrained-delegation">Abusing Constrained Delegation</h3>
+<h2 id="abusing-constrained-delegation">Abusing Constrained Delegation</h2>
 <p><em>In our case,</em> <code class="language-plaintext highlighter-rouge">SVC_INT$</code> is allowed delegation to the Domain Controller.</p>
 
 <p>This means that it can <strong>impersonate any user</strong> (even Administrators) when interacting with the DC as the <strong>WWW</strong> service.</p>
@@ -1611,7 +1611,7 @@ psexec.py <span class="nt">-k</span> <span class="nt">-no-pass</span> intelligen
 
 <p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Search</title><link href="http://localhost:4000/2022/06/28/Search.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Search" /><published>2022-06-28T00:00:00+02:00</published><updated>2022-06-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/06/28/Search</id><content type="html" xml:base="http://localhost:4000/2022/06/28/Search.html"><![CDATA[<p><img src="/assets/Search/Search.png" alt="Search" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine where we don’t get any access using conventional methods. The key to gaining our initial set of credentials is by inspecting <em>the images</em> on the website where one turns out to have <strong>credentials</strong> for a user called <code class="language-plaintext highlighter-rouge">hope.sharp</code></li>
   <li><em>Using this authenticated access,</em> we run a <strong>Kerberoast</strong> attack which gets us the hash of the <code class="language-plaintext highlighter-rouge">web_svc</code> account that we crack to get a password.</li>
@@ -1627,7 +1627,7 @@ psexec.py <span class="nt">-k</span> <span class="nt">-no-pass</span> intelligen
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Simple DNS Plus
 80/tcp    open  http          Microsoft IIS httpd 10.0
@@ -1703,7 +1703,7 @@ Host script results:
 
 <p>Port 5985 wasn’t open so that meant no <strong>WinRM</strong> for this box</p>
 
-<h3 id="stuff-we-tried-but-didnt-work">Stuff we tried but didn’t work</h3>
+<h2 id="stuff-we-tried-but-didnt-work">Stuff we tried but didn’t work</h2>
 <ol>
   <li><strong>SMB</strong> enumeration using anonymous, guest and null sessions.</li>
   <li><strong>RPC</strong> enumeration with <code class="language-plaintext highlighter-rouge">enum4linux-ng</code>.</li>
@@ -1716,7 +1716,7 @@ Host script results:
 
 <p>All of those didn’t yield any results. However..</p>
 
-<h3 id="when-you-use-a-magnifying-glass">When you use a magnifying glass..</h3>
+<h2 id="when-you-use-a-magnifying-glass">When you use a magnifying glass..</h2>
 <p><em>when looking really close at one of the images on the website,</em> something is there!</p>
 
 <p><img src="/assets/Search/secret-image-small.jpg" alt="secret-image-small" /></p>
@@ -1727,7 +1727,7 @@ Host script results:
 
 <p>It said: <strong>“Send password to Hope Sharp”</strong> then <strong>“IsolationIsKey?”</strong></p>
 
-<h3 id="first-set-of-credentials">First set of credentials</h3>
+<h2 id="first-set-of-credentials">First set of credentials</h2>
 <p><em>Earlier,</em> when extracted usernames from the website:</p>
 
 <p><img src="/assets/Search/website-users-2.jpg" alt="website-users" /></p>
@@ -1757,7 +1757,7 @@ Host script results:
 
 <p><img src="/assets/Search/auth-as-hope-sharp.jpg" alt="auth-as-hope-sharp" /></p>
 
-<h3 id="the-awesomeness-of-bloodhound">The Awesomeness of BloodHound</h3>
+<h2 id="the-awesomeness-of-bloodhound">The Awesomeness of BloodHound</h2>
 <p><em>Since port 5985 isn’t open,</em> we have no reason to check for <strong>WinRM</strong> capabilities. So we turn to using all the tools that don’t require a foothold on the box.</p>
 
 <p>We start with <a href="/assets/Search/https://github.com/fox-it/BloodHound.py"><code class="language-plaintext highlighter-rouge">BloodHound.py</code></a> to get an overview of the situation in the domain.</p>
@@ -1780,7 +1780,7 @@ Host script results:
 
 <p><img src="/assets/Search/web-svc-kerberoastable.jpg" alt="web-svc-kerberoastable" /></p>
 
-<h3 id="kerberoasting-web_svc">Kerberoasting <code class="language-plaintext highlighter-rouge">web_svc</code></h3>
+<h2 id="kerberoasting-web_svc">Kerberoasting <code class="language-plaintext highlighter-rouge">web_svc</code></h2>
 <p>we use impacket’s <code class="language-plaintext highlighter-rouge">GetUserSPNs.py</code></p>
 
 <p><strong>Command:</strong></p>
@@ -1799,7 +1799,7 @@ Host script results:
 
 <p>The password was <strong>“@3ONEmillionbaby”</strong></p>
 
-<h3 id="checking-for-password-reuse">Checking for Password Reuse</h3>
+<h2 id="checking-for-password-reuse">Checking for Password Reuse</h2>
 <p>It has turned into a habit for me to spray any password I get on all possible users xD</p>
 
 <p><em>In order to get a the full list of domain users,</em> I use <code class="language-plaintext highlighter-rouge">crackmapexec</code> with the <code class="language-plaintext highlighter-rouge">--users</code> flag.</p>
@@ -1814,7 +1814,7 @@ Host script results:
 
 <p><img src="/assets/Search/edgar-reusing.jpg" alt="edgar-reusing" /></p>
 
-<h3 id="enumerating-smb-access-for-edgar">Enumerating SMB access for Edgar</h3>
+<h2 id="enumerating-smb-access-for-edgar">Enumerating SMB access for Edgar</h2>
 <p>We use <code class="language-plaintext highlighter-rouge">crackmapexec</code>’s <code class="language-plaintext highlighter-rouge">spider_plus</code> module to get a <em>nicely-formatted</em> <strong>JSON</strong> output for <code class="language-plaintext highlighter-rouge">edgar</code>’s share access.</p>
 
 <p><strong>Command:</strong></p>
@@ -1843,7 +1843,7 @@ Host script results:
 
 <p><strong>PROFIT! :D</strong></p>
 
-<h3 id="access-as-sierra">Access as Sierra</h3>
+<h2 id="access-as-sierra">Access as Sierra</h2>
 <p><em>When using the obtained passwords throughout the domain,</em> we gain access to <code class="language-plaintext highlighter-rouge">seirra.frye</code></p>
 
 <p><img src="/assets/Search/got-sierra.jpg" alt="got-sierra" /></p>
@@ -1852,7 +1852,7 @@ Host script results:
 
 <p><img src="/assets/Search/path-to-da.jpg" alt="path-to-da" /></p>
 
-<h3 id="reading-the-gmsa-password--resetting-tristans-password">Reading the GMSA password &amp; Resetting <code class="language-plaintext highlighter-rouge">tristan</code>’s password</h3>
+<h2 id="reading-the-gmsa-password--resetting-tristans-password">Reading the GMSA password &amp; Resetting <code class="language-plaintext highlighter-rouge">tristan</code>’s password</h2>
 <p>We can obtain the <strong>NTLM</strong> hash of the <strong>GMSA</strong> <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> with a <strong>python</strong> tool called <a href="/assets/Search/https://github.com/micahvandeusen/gMSADumper"><code class="language-plaintext highlighter-rouge">gMSADumper</code></a></p>
 
 <p><strong>Command:</strong></p>
@@ -1869,7 +1869,7 @@ Host script results:
 
 <p><img src="/assets/Search/got-tristan.jpg" alt="got-tristan" /></p>
 
-<h3 id="an-alternate-route-cracking-the-pfx-certificate-on-sierras-share--using-it-for-powershell-web-access">An Alternate Route: cracking the <code class="language-plaintext highlighter-rouge">.pfx</code> certificate on <code class="language-plaintext highlighter-rouge">sierra</code>’s share + using it for PowerShell web access</h3>
+<h2 id="an-alternate-route-cracking-the-pfx-certificate-on-sierras-share--using-it-for-powershell-web-access">An Alternate Route: cracking the <code class="language-plaintext highlighter-rouge">.pfx</code> certificate on <code class="language-plaintext highlighter-rouge">sierra</code>’s share + using it for PowerShell web access</h2>
 <p><em>If we take some time to check</em> <code class="language-plaintext highlighter-rouge">sierra</code>’s <em>profile,</em> we see a file called <code class="language-plaintext highlighter-rouge">staff.pfx</code> in the <code class="language-plaintext highlighter-rouge">\Downloads\Backups</code> folder:</p>
 
 <p><img src="/assets/Search/pfx-found.jpg" alt="pfx-found" /></p>
@@ -1920,7 +1920,7 @@ Host script results:
 
 <p>And this wraps up the path :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Monteverde</title><link href="http://localhost:4000/2022/06/24/Monteverde.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Monteverde" /><published>2022-06-24T00:00:00+02:00</published><updated>2022-06-24T00:00:00+02:00</updated><id>http://localhost:4000/2022/06/24/Monteverde</id><content type="html" xml:base="http://localhost:4000/2022/06/24/Monteverde.html"><![CDATA[<p><img src="/assets/Monteverde/Monteverde.png" alt="Monteverde" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>Another Windows Domain Controller Machine.</li>
   <li>We get a full list of domain users by enumerating <strong>RPC</strong> and are able to login with a user called <code class="language-plaintext highlighter-rouge">SABatchJobs</code> whose password was his own username.</li>
@@ -1937,7 +1937,7 @@ Host script results:
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <p>No special scan here. Just the standard <code class="language-plaintext highlighter-rouge">nmap</code> with <code class="language-plaintext highlighter-rouge">-sC</code> for default scripts and <code class="language-plaintext highlighter-rouge">-sV</code> for version detection on all ports.</p>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Simple DNS Plus
@@ -1977,7 +1977,7 @@ Host script results:
 
 <p>We also have <strong>WinRM</strong> open on tcp 5985 which would be handy to get remote code execution for any user present in either <strong>Administrators</strong> or <strong>Remote Management Users</strong> local groups.</p>
 
-<h3 id="username-enumeration">Username Enumeration</h3>
+<h2 id="username-enumeration">Username Enumeration</h2>
 <p><em>Using a tool called</em> <code class="language-plaintext highlighter-rouge">enum4linux-ng</code>, we are able to get a list of usernames via <code class="language-plaintext highlighter-rouge">RPC</code>:</p>
 
 <p><strong>Command:</strong></p>
@@ -1998,7 +1998,7 @@ Host script results:
 
 <p><em>With no account lockout configured,</em> we can spray like there’s no tomorrow :D</p>
 
-<h3 id="asreproasting-then-password-spraying">ASREPRoasting then Password Spraying</h3>
+<h2 id="asreproasting-then-password-spraying">ASREPRoasting then Password Spraying</h2>
 <p><em>Since</em> <strong>ASREPRoasting</strong> <em>is the first thing to do with a userlist,</em> we tried it but weren’t awarded with any hashes. So we turned to <strong>Password Spraying</strong>.</p>
 
 <p>We make a quick list of common passwords to try like ‘P@ssw0rd’, ‘Welcome1’ etc. but don’t get anything :/</p>
@@ -2013,7 +2013,7 @@ Host script results:
 
 <p><img src="/assets/Monteverde/hydra-attack.jpg" alt="hydra-attack" /></p>
 
-<h3 id="smb-access">SMB Access</h3>
+<h2 id="smb-access">SMB Access</h2>
 <p>After we verify that <code class="language-plaintext highlighter-rouge">SABatchJobs</code> doesn’t have <strong>WinRM</strong> access, we enumerate <strong>SMB</strong> as him using <code class="language-plaintext highlighter-rouge">crackmapexec</code>’s <code class="language-plaintext highlighter-rouge">spider_plus</code> module.</p>
 
 <p>This module does as the name suggests: it <em>recursively</em> spiders <strong>SMB</strong> shares and outputs the results in a temp folder.</p>
@@ -2038,7 +2038,7 @@ Host script results:
 
 <p><img src="/assets/Monteverde/mhope-password.jpg" alt="mhope-password" /></p>
 
-<h3 id="shell-access-as-mhope">Shell Access as <code class="language-plaintext highlighter-rouge">mhope</code></h3>
+<h2 id="shell-access-as-mhope">Shell Access as <code class="language-plaintext highlighter-rouge">mhope</code></h2>
 <p><em>After getting this password,</em> we immediately spray it over the domain users. We find that it’s valid and that we have <strong>WinRM</strong> access as well!</p>
 
 <p><strong>Command:</strong></p>
@@ -2057,7 +2057,7 @@ Host script results:
 
 <p><img src="/assets/Monteverde/evil-winrm-access.jpg" alt="evil-winrm-access" /></p>
 
-<h3 id="enumeration-before-privesc">Enumeration before Privesc</h3>
+<h2 id="enumeration-before-privesc">Enumeration before Privesc</h2>
 <p>Running a quick <code class="language-plaintext highlighter-rouge">whoami /groups</code> command shows that we are in an AD group called <code class="language-plaintext highlighter-rouge">Azure Admins</code></p>
 
 <p><img src="/assets/Monteverde/ad-group-membership.jpg" alt="ad-group-membership" /></p>
@@ -2081,7 +2081,7 @@ Host script results:
 
 <p>So we go ahead and do some googling :D</p>
 
-<h3 id="research">Research</h3>
+<h2 id="research">Research</h2>
 <p>We decide to use a broad term in our first search to make things easier for ourselves. We type in: “Azure AD Sync Privilege Escalation”</p>
 
 <p>and we get this awesome blog post <a href="/assets/Monteverde/https://blog.xpnsec.com/azuread-connect-for-redteam/">here</a>:</p>
@@ -2098,7 +2098,7 @@ Host script results:
 
 <p><em>And, even though they are encrypted,</em> the key to <strong>decrypt</strong> them is also present on the same database.</p>
 
-<h3 id="trying-the-powershell-script">Trying the PowerShell Script</h3>
+<h2 id="trying-the-powershell-script">Trying the PowerShell Script</h2>
 <p>The researcher and blog author <strong>“Adam Chester”</strong> had thankfully created a script that takes care of all the above and dumps us the stored credentials <em>if we had access to the database.</em></p>
 
 <p>We’re going to use a brief command to try connecting to the local database to see if we can query it: <code class="language-plaintext highlighter-rouge">sqlcmd -Q "SELECT name FROM master.dbo.sysdatabases"</code></p>
@@ -2111,7 +2111,7 @@ Host script results:
 
 <p><img src="/assets/Monteverde/script-fail.jpg" alt="script-fail" /></p>
 
-<h3 id="troubleshooting">Troubleshooting</h3>
+<h2 id="troubleshooting">Troubleshooting</h2>
 <p><em>Since the script isn’t big (&lt; 40 lines)</em>, It wouldn’t be difficult to step through it line-by-line to find out what’s wrong.</p>
 
 <p>we take a look at the first 5 lines:</p>
@@ -2157,7 +2157,7 @@ Host script results:
 
 <p><img src="/assets/Monteverde/correct-conn-string.jpg" alt="correct-conn-string" /></p>
 
-<h3 id="enough-troubleshooting-let-me-see-some-creds">Enough Troubleshooting. Let me see some creds!</h3>
+<h2 id="enough-troubleshooting-let-me-see-some-creds">Enough Troubleshooting. Let me see some creds!</h2>
 <p><em>After modifying the connection string,</em> let’s go over what the script does in brief:</p>
 
 <ol>
@@ -2325,7 +2325,7 @@ Host script results:
   <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts of course :D</li>
 </ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade</title><link href="http://localhost:4000/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/07/Cascade</id><content type="html" xml:base="http://localhost:4000/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li><em>Noticing the open ports</em>: <strong>DNS, Kerberos, LDAP &amp; SMB</strong>, we know we’re up against a <strong>Windows Domain Controller</strong>.</li>
   <li><strong>LDAP Enumeration</strong> reveals a <em>base-64 encoded</em> password which was <em>embedded</em> in a unique <strong>Active Directory</strong> user attribute.</li>
@@ -2343,7 +2343,7 @@ Host script results:
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Microsoft DNS 6.1.7601 (1DB15D39) (Windows Server 2008 R2 SP1)
 | dns-nsid: 
@@ -2385,12 +2385,12 @@ Host script results:
   <li><strong>Host name:</strong> CASC-DC1</li>
 </ul>
 
-<h3 id="checkpoint-listing-possible-enumerationexploitation-paths">Checkpoint: Listing Possible Enumeration/Exploitation Paths</h3>
+<h2 id="checkpoint-listing-possible-enumerationexploitation-paths">Checkpoint: Listing Possible Enumeration/Exploitation Paths</h2>
 <p><em>Having the port data,</em> we go over our <strong>game plan</strong>:</p>
 
 <p><img src="/assets/Cascade/ad-gameplan-map.jpg" alt="ad-gameplan-map" /></p>
 
-<h3 id="down-to-business-rpc">Down to business: RPC</h3>
+<h2 id="down-to-business-rpc">Down to business: RPC</h2>
 <p><code class="language-plaintext highlighter-rouge">enum4linux-ng</code> (https://github.com/cddmp/enum4linux-ng) is a really nice revamp of the old <code class="language-plaintext highlighter-rouge">enum4linux</code> tool.</p>
 
 <p>we run it using the <code class="language-plaintext highlighter-rouge">-A</code> switch as well as <code class="language-plaintext highlighter-rouge">-oY</code> to output into <strong>YAML format</strong>.</p>
@@ -2421,7 +2421,7 @@ Host script results:
 
 <p>This is great! We have a userlist that we can use to do <strong>ASREPRoasting</strong> and we can do <strong>Password Spraying</strong> without locking anyone out.</p>
 
-<h3 id="time-saving-1-asreproasting">Time Saving #1: ASREPRoasting</h3>
+<h2 id="time-saving-1-asreproasting">Time Saving #1: ASREPRoasting</h2>
 <p><em>To save time,</em> we’re going to do the <strong>ASREPRoast</strong> first because it’s a quick check and has a high chance of giving us creds (<em>if we crack the hash</em>).</p>
 
 <p><strong>Command:</strong></p>
@@ -2436,7 +2436,7 @@ Host script results:
 
 <p>we also notice some accounts got another type of error: <code class="language-plaintext highlighter-rouge">KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)</code>. <em>more on those later :)</em></p>
 
-<h3 id="time-saving-2-password-spraying-in-the-background">Time Saving #2: Password Spraying in the background</h3>
+<h2 id="time-saving-2-password-spraying-in-the-background">Time Saving #2: Password Spraying in the background</h2>
 <p><em>Since the password policy contained no user lockout,</em> we’re good to go spraying :D</p>
 
 <p><strong>Command:</strong></p>
@@ -2457,7 +2457,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/locked-out-users.jpg" alt="locked-out-users" /></p>
 
-<h3 id="smb-enumeration">SMB Enumeration</h3>
+<h2 id="smb-enumeration">SMB Enumeration</h2>
 <p><em>While we leave our spray running,</em> we’re going to enumerate <strong>SMB shares</strong> using <code class="language-plaintext highlighter-rouge">crackmapexec</code></p>
 
 <p><img src="/assets/Cascade/crackmapexec-smb-enum.jpg" alt="crackmapexec-smb-enum" /></p>
@@ -2468,7 +2468,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/casc-guest.jpg" alt="casc-guest" /></p>
 
-<h3 id="ldap">LDAP</h3>
+<h2 id="ldap">LDAP</h2>
 <p>We’re going to enumerate <strong>LDAP</strong> and see if we can find something there.</p>
 
 <p><strong>Command:</strong></p>
@@ -2507,14 +2507,14 @@ Host script results:
 
 <p><img src="/assets/Cascade/ryan-creds-check.jpg" alt="ryan-creds-check" /></p>
 
-<h3 id="kerberoasting">Kerberoasting</h3>
+<h2 id="kerberoasting">Kerberoasting</h2>
 <p><em>Applying the same strategy as before,</em> we’re going to <strong>kerberoast.</strong></p>
 
 <p><img src="/assets/Cascade/kerberoasting.jpg" alt="kerberoasting" /></p>
 
 <p>No results there.</p>
 
-<h3 id="smb-access-with-rthompson">SMB Access with <code class="language-plaintext highlighter-rouge">R.Thompson</code></h3>
+<h2 id="smb-access-with-rthompson">SMB Access with <code class="language-plaintext highlighter-rouge">R.Thompson</code></h2>
 <p>We’re going to use a <code class="language-plaintext highlighter-rouge">crackmapexec</code> module called <code class="language-plaintext highlighter-rouge">spider_plus</code>.</p>
 
 <p>It essentially crawls the <code class="language-plaintext highlighter-rouge">SMB</code> share and returns a list of files that we have access to.</p>
@@ -2541,7 +2541,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/tight-vnc-password.jpg" alt="tight-vnc-password" /></p>
 
-<h3 id="cracking-vnc-passwords">Cracking VNC Passwords</h3>
+<h2 id="cracking-vnc-passwords">Cracking VNC Passwords</h2>
 <p>We’re interested in cracking this <strong>VNC</strong> password and reusing it.</p>
 
 <p><em>Luckily,</em> a tool called <code class="language-plaintext highlighter-rouge">vncpwd</code> (https://github.com/jeroennijhof/vncpwd) can easily do that.</p>
@@ -2552,7 +2552,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/vnc-pwd-cracked.jpg" alt="vnc-pwd-cracked" /></p>
 
-<h3 id="password-reuse">Password Reuse</h3>
+<h2 id="password-reuse">Password Reuse</h2>
 <p><em>Having a new password</em> <code class="language-plaintext highlighter-rouge">sT333ve2</code>, we’re going to to spray it all over the domain users we’ve collected.</p>
 
 <p><img src="/assets/Cascade/steve-ad-user-owned.jpg" alt="steve-ad-user-owned" /></p>
@@ -2567,7 +2567,7 @@ Host script results:
 
 <p>Running <strong>WinPeas</strong> didn’t pick up anything either. So we took a step back to check his <strong>SMB</strong> access.</p>
 
-<h3 id="steves-smb-access-the-audit-share">Steve’s SMB access: The <code class="language-plaintext highlighter-rouge">Audit$</code> Share</h3>
+<h2 id="steves-smb-access-the-audit-share">Steve’s SMB access: The <code class="language-plaintext highlighter-rouge">Audit$</code> Share</h2>
 <p>Using <code class="language-plaintext highlighter-rouge">crackmapexec</code> with the <code class="language-plaintext highlighter-rouge">--shares</code> flag, we get the below:</p>
 
 <p><img src="/assets/Cascade/steve-smb-access.jpg" alt="steve-smb-access" /></p>
@@ -2592,7 +2592,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/check-out-the-db.jpg" alt="check-out-the-db" /></p>
 
-<h3 id="db-enumeration">DB Enumeration</h3>
+<h2 id="db-enumeration">DB Enumeration</h2>
 <p>We’re going to use the <code class="language-plaintext highlighter-rouge">sqlite3</code> command-line utility to check out the database contents.</p>
 
 <ol>
@@ -2611,7 +2611,7 @@ Host script results:
 
 <p><img src="/assets/Cascade/ark-svc-b64-attempt.jpg" alt="ark-svc-b64-attempt" /></p>
 
-<h3 id="reversing-the-cascauditexe-and-dll-files">Reversing the <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> and <code class="language-plaintext highlighter-rouge">.dll</code> files</h3>
+<h2 id="reversing-the-cascauditexe-and-dll-files">Reversing the <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> and <code class="language-plaintext highlighter-rouge">.dll</code> files</h2>
 <p><em>Since the</em> <code class="language-plaintext highlighter-rouge">.bat</code> <em>file showed the</em> <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> <em>processing the Audit database,</em> we’re interested to know how it works.</p>
 
 <p>The same goes for <code class="language-plaintext highlighter-rouge">CascCrypto.dll</code>. <em>Judging by its name,</em> it’s very likely related to the encryption.</p>
@@ -2645,12 +2645,12 @@ Host script results:
 
 <p><em>Looking at the code,</em> it seems that the <code class="language-plaintext highlighter-rouge">.exe</code> reads the encrypted password from the database and decrypts it using the <code class="language-plaintext highlighter-rouge">DecryptString</code> function before moving on to carry out its tasks.</p>
 
-<h3 id="aes-cbc-128-decryption">AES-CBC-128 Decryption</h3>
+<h2 id="aes-cbc-128-decryption">AES-CBC-128 Decryption</h2>
 <p><em>Adding the details we found into an</em> <strong>online decryption tool</strong> (https://www.devglan.com/online-tools/aes-encryption-decryption), we get the plaintext: <code class="language-plaintext highlighter-rouge">w3lc0meFr31nd</code></p>
 
 <p><img src="/assets/Cascade/aes-cbc-128-decryption.jpg" alt="aes-cbc-128-decryption" /></p>
 
-<h3 id="arksvc-and-the-ad-recycle-bin">ArkSvc and the AD Recycle Bin</h3>
+<h2 id="arksvc-and-the-ad-recycle-bin">ArkSvc and the AD Recycle Bin</h2>
 <p>The user <code class="language-plaintext highlighter-rouge">ArkSvc</code> authenticates successfully with the <code class="language-plaintext highlighter-rouge">w3lc0meFr31nd</code> password and also has <code class="language-plaintext highlighter-rouge">WinRM</code> access.</p>
 
 <p><img src="/assets/Cascade/ark-svc-got-winrm.jpg" alt="ark-svc-got-winrm" /></p>
@@ -2705,7 +2705,7 @@ Host script results:
 
 <p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis</title><link href="http://localhost:4000/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/06/Mantis</id><content type="html" xml:base="http://localhost:4000/2022/05/06/Mantis.html"><![CDATA[<p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine. We find a <em>hidden credentials file</em> when directory bruteforcing <strong>IIS</strong> on a <em>custom</em> port.</li>
   <li>The file gives us information about the <strong>MSSQL database</strong> (the username and DB name) in plain text while the password is present in the file name as a <em>base-64 encoded hex</em> string.</li>
@@ -2716,7 +2716,7 @@ Host script results:
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE      VERSION
 53/tcp    open  domain       Microsoft DNS 6.1.7601 (1DB15CD4) (Windows Server 2008 R2 SP1)
 | dns-nsid: 
@@ -2824,7 +2824,7 @@ Host script results:
   <li>We take note that <strong>IIS 7.5</strong> is running on both port 1337 (<em>which is interesting</em>) and on port 8080.</li>
 </ul>
 
-<h3 id="smb-enumeration">SMB Enumeration</h3>
+<h2 id="smb-enumeration">SMB Enumeration</h2>
 <p>We try enumerating <strong>SMB</strong> with <em>different authentication methods</em> using <code class="language-plaintext highlighter-rouge">crackmapexec</code>:</p>
 <ol>
   <li>Null</li>
@@ -2836,22 +2836,22 @@ Host script results:
 
 <p>without success.</p>
 
-<h3 id="ldap-enumeration">LDAP Enumeration</h3>
+<h2 id="ldap-enumeration">LDAP Enumeration</h2>
 <p>Using <code class="language-plaintext highlighter-rouge">ldapsearch</code>, we don’t get much information either :/</p>
 
 <p><img src="/assets/Mantis/ldapsearch-output.jpg" alt="ldapsearch-output" /></p>
 
-<h3 id="kerberos-enumeration">Kerberos Enumeration</h3>
+<h2 id="kerberos-enumeration">Kerberos Enumeration</h2>
 <p>Enumerating kerberos with <code class="language-plaintext highlighter-rouge">kerbrute</code> gave us one user: <code class="language-plaintext highlighter-rouge">james</code></p>
 
 <p><img src="/assets/Mantis/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
 
-<h3 id="asreproasting-james">ASREPRoasting James</h3>
+<h2 id="asreproasting-james">ASREPRoasting James</h2>
 <p><code class="language-plaintext highlighter-rouge">james</code> wasn’t asreproastable.</p>
 
 <p><img src="/assets/Mantis/james-not-asreproastable.jpg" alt="james-not-asreproastable" /></p>
 
-<h3 id="port-8080">Port 8080</h3>
+<h2 id="port-8080">Port 8080</h2>
 <p>Checking out port 8080 showed a <strong>CMS</strong> called <strong>Orchard CMS</strong>  as detected by <code class="language-plaintext highlighter-rouge">wappalyzer</code>.</p>
 
 <p><img src="/assets/Mantis/orchard-cms.jpg" alt="orchard-cms" /></p>
@@ -2860,7 +2860,7 @@ Host script results:
 
 <p><img src="/assets/Mantis/orchard-test-default-creds.jpg" alt="orchard-test-default-creds" /></p>
 
-<h3 id="port-1337">Port 1337</h3>
+<h2 id="port-1337">Port 1337</h2>
 <p>This port was interesting because of its number.</p>
 
 <p><em>And, since it was</em> <strong>IIS 7.5</strong>, I wanted to test out a certain vulnerability called the <strong>IIS Tilde Vulnerability</strong>.</p>
@@ -2897,7 +2897,7 @@ Host script results:
 
 <p><em>By taking a closer look at the file name,</em> the string <code class="language-plaintext highlighter-rouge">NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx</code> could be the <em>missing piece of the puzzle</em>: the password for the <code class="language-plaintext highlighter-rouge">orcharddb</code>’s <code class="language-plaintext highlighter-rouge">admin</code> user.</p>
 
-<h3 id="cyberchef-knew-the-recipe-d">CyberChef knew the recipe :D</h3>
+<h2 id="cyberchef-knew-the-recipe-d">CyberChef knew the recipe :D</h2>
 <p><code class="language-plaintext highlighter-rouge">CyberChef</code> is an amazing tool that is intelligent enough to discover if a string of text has undergone encryption/encoding.</p>
 
 <p>Using it revealed that the text was <strong>base64-encoded</strong> after being converted into <strong>hexadecimal</strong>:</p>
@@ -2910,7 +2910,7 @@ Host script results:
 
 <p>The password turned out to be <code class="language-plaintext highlighter-rouge">m$$ql_S@_P@ssW0rd!</code></p>
 
-<h3 id="interacting-with-mssql-and-db-enumeration">Interacting with MSSQL and DB Enumeration</h3>
+<h2 id="interacting-with-mssql-and-db-enumeration">Interacting with MSSQL and DB Enumeration</h2>
 <p><em>Using another awesome</em> <strong>Impacket</strong> <em>python script:</em> <code class="language-plaintext highlighter-rouge">mssqlclient.py</code>, we are able to interact with the <strong>MSSQL DB</strong> command prompt from our Linux machine:</p>
 
 <p><img src="/assets/Mantis/mssql-client-py-help.jpg" alt="mssql-client-py-help" /></p>
@@ -2927,7 +2927,7 @@ Host script results:
 
 <p>and we’re greeted with a clear-text password for james :D</p>
 
-<h3 id="post-cred-checks">Post-Cred Checks</h3>
+<h2 id="post-cred-checks">Post-Cred Checks</h2>
 <p><em>Having tested the creds from the</em> <code class="language-plaintext highlighter-rouge">james</code> <em>user,</em> and found them valid and we went on to more enumeration/attacks.</p>
 
 <p><img src="/assets/Mantis/james-creds-validated-cme.jpg" alt="james-creds-validated-cme" /></p>
@@ -3014,7 +3014,7 @@ Host script results:
 
 <p><img src="/assets/Mantis/james-can-rdp-the-dc.jpg" alt="james-can-rdp-the-dc" /></p>
 
-<h3 id="ms14-068-aka-pykek-the-kill-d">MS14-068 a.k.a Pykek (The Kill :D)</h3>
+<h2 id="ms14-068-aka-pykek-the-kill-d">MS14-068 a.k.a Pykek (The Kill :D)</h2>
 <p><strong>MS14-068</strong> is a vulnerability that affects most Domain Controllers before Server 2016.</p>
 
 <p>In short, it gives us the ability to forge our own kerberos ticket allowing us to have group memberships in whatever high-privilege groups we want (<em>ex: Domain Admins, Enterprise Admins etc.</em>)</p>
@@ -3053,7 +3053,7 @@ Host script results:
 
 <p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - Sizzle</title><link href="http://localhost:4000/2022/05/02/Sizzle.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - Sizzle" /><published>2022-05-02T00:00:00+02:00</published><updated>2022-05-02T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/02/Sizzle</id><content type="html" xml:base="http://localhost:4000/2022/05/02/Sizzle.html"><![CDATA[<p><img src="/assets/Sizzle/Sizzle.png" alt="Sizzle" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Windows Domain Controller</strong> machine. We find an <strong>SMB share</strong> containing a <em>writable</em> folder called <code class="language-plaintext highlighter-rouge">Public</code>. We place an <code class="language-plaintext highlighter-rouge">SCF</code> file there that <em>directs the visiting user’s computer</em> to our listening <code class="language-plaintext highlighter-rouge">responder</code> where we capture his <code class="language-plaintext highlighter-rouge">NTLMv2</code> hash.</li>
   <li><em>After cracking it,</em> we get the password for the <code class="language-plaintext highlighter-rouge">amanda</code> user which we use to enumerate the domain using <code class="language-plaintext highlighter-rouge">BloodHound</code>.</li>
@@ -3072,7 +3072,7 @@ Host script results:
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <p>The nmap output gives some good information:</p>
 <ul>
   <li><strong>Machine Name:</strong> Sizzle</li>
@@ -3173,12 +3173,12 @@ Host script results:
 |_    Message signing enabled and required
 </code></pre></div></div>
 
-<h3 id="anonymous-ftp">Anonymous FTP</h3>
+<h2 id="anonymous-ftp">Anonymous FTP</h2>
 <p>No files were there, and we’re not granted <code class="language-plaintext highlighter-rouge">write</code> access either. So we move on.</p>
 
 <p><img src="/assets/Sizzle/Anon-FTP-no-write.jpg" alt="Anon-FTP-no-write" /></p>
 
-<h3 id="httphttps">HTTP/HTTPs</h3>
+<h2 id="httphttps">HTTP/HTTPs</h2>
 <p>The home page just shows a <code class="language-plaintext highlighter-rouge">GIF</code> of bacon sizzling…</p>
 
 <p><img src="/assets/Sizzle/http-homepage.jpg" alt="http-homepage" /></p>
@@ -3189,14 +3189,14 @@ Host script results:
 
 <p>the <strong>HTTPS</strong> website is similar in structure. so we move along.</p>
 
-<h3 id="ldap">LDAP</h3>
+<h2 id="ldap">LDAP</h2>
 <p>The output of <code class="language-plaintext highlighter-rouge">ldapsearch</code> didn’t show much information.</p>
 
 <p><img src="/assets/Sizzle/ldapsearch-output.jpg" alt="ldapsearch-output" /></p>
 
 <p>(<em>I grepped out some unnecessary lines from the output to make it smaller.</em>)</p>
 
-<h3 id="smb">SMB</h3>
+<h2 id="smb">SMB</h2>
 <p>Enumerating SMB with <code class="language-plaintext highlighter-rouge">crackmapexec</code> reveals that we have <code class="language-plaintext highlighter-rouge">read</code> access to the <code class="language-plaintext highlighter-rouge">Department Shares</code> folder.</p>
 
 <p><img src="/assets/Sizzle/cme-smb-share-enum.jpg" alt="cme-smb-share-enum" /></p>
@@ -3247,7 +3247,7 @@ done</span>
 
 <p>Having this access would allow us to <em>plant a malicious type of file</em> that would enable us to <em>steal</em> <strong>NTLMv2 hashes</strong> from users who access these locations.</p>
 
-<h3 id="scf-file-attacks-for-hash-theft">SCF File Attacks for Hash Theft</h3>
+<h2 id="scf-file-attacks-for-hash-theft">SCF File Attacks for Hash Theft</h2>
 <p>SCF (Shell Command Files) are files that can perform actions in <strong>Windows Explorer</strong>. One functionality can be <em>abused</em> to have the <em>share-visiting</em> user <em>directed</em> to our kali machine.</p>
 
 <p>This can be done using a file with the below content:</p>
@@ -3275,7 +3275,7 @@ Command=ToggleDesktop
 
 <p>the password turns out to be <code class="language-plaintext highlighter-rouge">Ashare1972</code></p>
 
-<h3 id="the-winrm-situation">The WinRM situation</h3>
+<h2 id="the-winrm-situation">The WinRM situation</h2>
 <p>We first validate the creds for <code class="language-plaintext highlighter-rouge">amanda</code> with <code class="language-plaintext highlighter-rouge">crackmapexec</code> via SMB and they work.</p>
 
 <p>So we try WinRM after but end up with a weird error message:</p>
@@ -3284,7 +3284,7 @@ Command=ToggleDesktop
 
 <p>at this moment, I wasn’t quite sure what to do. So I moved on to try other things.</p>
 
-<h3 id="domain-enumeration-with-bloodhoundpy">Domain Enumeration With BloodHound.py</h3>
+<h2 id="domain-enumeration-with-bloodhoundpy">Domain Enumeration With BloodHound.py</h2>
 <p><em>Since I didn’t have code execution,</em> I turned to the <strong>Python</strong> version of <code class="language-plaintext highlighter-rouge">BloodHound</code> to do enumeration with all collection methods:</p>
 
 <p><img src="/assets/Sizzle/bloodhound-py.jpg" alt="bloodhound-py" /></p>
@@ -3293,7 +3293,7 @@ Command=ToggleDesktop
 
 <p><img src="/assets/Sizzle/amanda-can-ps-remote.jpg" alt="amanda-can-ps-remote" /></p>
 
-<h3 id="getting-winrm-to-work">Getting WinRM to work</h3>
+<h2 id="getting-winrm-to-work">Getting WinRM to work</h2>
 <p><em>Since we have access to the</em> <code class="language-plaintext highlighter-rouge">amanda</code> <em>user’s credentials,</em> we can <em>request</em> a <strong>User Certificate</strong> from <strong>AD Certificate Services.</strong></p>
 
 <p>This can be done after authenticating to <code class="language-plaintext highlighter-rouge">http://10.10.10.103/certsrv</code> and submitting a <strong>Certificate Signing Request</strong> (<strong>CSR</strong> for short).</p>
@@ -3337,7 +3337,7 @@ Command=ToggleDesktop
 
 <p>Note: the PEM pass phrase is the one you were asked to enter when generating the private key and CSR with <code class="language-plaintext highlighter-rouge">openssl</code></p>
 
-<h3 id="back-to-bloodhound-graphs-kerberoastable-users">Back to <code class="language-plaintext highlighter-rouge">BloodHound</code> graphs: Kerberoastable Users</h3>
+<h2 id="back-to-bloodhound-graphs-kerberoastable-users">Back to <code class="language-plaintext highlighter-rouge">BloodHound</code> graphs: Kerberoastable Users</h2>
 <p>Inspecting the query <code class="language-plaintext highlighter-rouge">List all Kerberoastable Accounts</code> shows us that a user called <code class="language-plaintext highlighter-rouge">mrlky</code> is vulnerable.</p>
 
 <p><img src="/assets/Sizzle/mrlky-kerberoastable.jpg" alt="mrlky-kerberoastable" /></p>
@@ -3352,7 +3352,7 @@ Command=ToggleDesktop
 
 <p><em>Hence,</em> we need to kerberoast this guy and get his TGS hash :D</p>
 
-<h3 id="roasting-with-rubeus-bypassing-applocker-and-performing-network-authentication">Roasting with Rubeus: Bypassing Applocker and Performing Network Authentication</h3>
+<h2 id="roasting-with-rubeus-bypassing-applocker-and-performing-network-authentication">Roasting with Rubeus: Bypassing Applocker and Performing Network Authentication</h2>
 <p><em>After copying</em> <code class="language-plaintext highlighter-rouge">Rubeus.exe</code> <em>from our kali machine over to</em> <code class="language-plaintext highlighter-rouge">amanda</code>‘<em>s documents folder</em>, we find that we can’t execute due to <strong>Applocker.</strong></p>
 
 <p><img src="/assets/Sizzle/rubeus-applocked.jpg" alt="rubeus-applocked" /></p>
@@ -3377,7 +3377,7 @@ Command=ToggleDesktop
 
 <p><img src="/assets/Sizzle/mrlky-cracked.jpg" alt="mrlky-cracked" /></p>
 
-<h3 id="dcsync">DCSync</h3>
+<h2 id="dcsync">DCSync</h2>
 <p><em>Having the password for</em> <code class="language-plaintext highlighter-rouge">mrkly</code>: <code class="language-plaintext highlighter-rouge">Football#7</code>, we’re going to use <code class="language-plaintext highlighter-rouge">Impacket</code>’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> python script to do a <code class="language-plaintext highlighter-rouge">DCSync</code> attack:</p>
 
 <p><img src="/assets/Sizzle/dcsynced.jpg" alt="dcsynced" /></p>
@@ -3386,7 +3386,7 @@ Command=ToggleDesktop
 
 <p><img src="/assets/Sizzle/got-system.jpg" alt="got-system" /></p>
 
-<h3 id="bonus-powershell-constrained-language-mode-bypassing-it-along-with-applocker-and-kerberoasting-without-touching-disk-all-in-a-powershell-one-liner-d">Bonus: PowerShell Constrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D</h3>
+<h2 id="bonus-powershell-constrained-language-mode-bypassing-it-along-with-applocker-and-kerberoasting-without-touching-disk-all-in-a-powershell-one-liner-d">Bonus: PowerShell Constrained Language Mode, Bypassing it along with Applocker and Kerberoasting without touching disk. All in a PowerShell one-liner :D</h2>
 <p>After I initially got the WinRM shell, It kept asking for my PEM pass phrase after each command.</p>
 
 <p>I wanted to get a <code class="language-plaintext highlighter-rouge">nishang</code> shell but couldn’t do the <code class="language-plaintext highlighter-rouge">IEX</code> command (<code class="language-plaintext highlighter-rouge">Invoke-Expression</code>). This was because of <strong>PowerShell’s Contrained Language Mode</strong>.</p>
@@ -3419,7 +3419,7 @@ Command=ToggleDesktop
 
 <p><img src="/assets/Sizzle/bonus-kill.jpg" alt="bonus-kill" /></p>
 
-<h3 id="joke-section-pwning-the-box-with-zerologon-xd">Joke Section: Pwning the box with <code class="language-plaintext highlighter-rouge">ZeroLogon</code> XD</h3>
+<h2 id="joke-section-pwning-the-box-with-zerologon-xd">Joke Section: Pwning the box with <code class="language-plaintext highlighter-rouge">ZeroLogon</code> XD</h2>
 
 <p>You could do all of the above.</p>
 

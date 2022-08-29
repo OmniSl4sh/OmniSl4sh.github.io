@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Blackfield/Blackfield.png" alt="BlackField" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Domain Controller</strong> machine. We first find <strong>SMB anonymous read access</strong> to a share containing a list of folders which can be used as usernames.</li>
   <li>We perform an <strong>ASREPRoast attack</strong> using the created wordlist to get credentials for the <code class="language-plaintext highlighter-rouge">support</code> user.</li>
@@ -78,7 +78,7 @@
 
 <hr />
 
-<h3 id="standard-nmap">Standard Nmap</h3>
+<h2 id="standard-nmap">Standard Nmap</h2>
 <p>We do a standard <code class="language-plaintext highlighter-rouge">nmap</code> with service detection <code class="language-plaintext highlighter-rouge">-sV</code> and default scripts <code class="language-plaintext highlighter-rouge">-sC</code> on all ports:</p>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT     STATE SERVICE       VERSION
 53/tcp   open  domain        Simple DNS Plus
@@ -103,14 +103,14 @@ Host script results:
 |_  start_date: N/A
 </code></pre></div></div>
 
-<h3 id="domain-controller-signature">Domain Controller Signature</h3>
+<h2 id="domain-controller-signature">Domain Controller Signature</h2>
 
 <p>We see a combination of ports indicative of a <strong>Domain Controller</strong>: <strong>DNS</strong> on 53, <strong>Kerberos</strong> on 88, <strong>LDAP</strong> on 389 and <strong>SMB</strong> on 445.
 We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and the hostname <strong>DC01</strong></p>
 
 <p>we add an <code class="language-plaintext highlighter-rouge">nameserver</code> entry in our <code class="language-plaintext highlighter-rouge">/etc/resolv.conf</code> file for the machine’s IP and proceed to enumerate <strong>SMB</strong> for null/anonymous access.</p>
 
-<h3 id="smb-enumeration">SMB Enumeration</h3>
+<h2 id="smb-enumeration">SMB Enumeration</h2>
 
 <p>we try a few inputs and manage to get a listing of the shares using anonymous authentication:</p>
 
@@ -122,7 +122,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p><img src="/assets/Blackfield/profiles-share.jpg" alt="profiles-share" /></p>
 
-<h3 id="mounting-smb-to-linux">Mounting SMB to Linux</h3>
+<h2 id="mounting-smb-to-linux">Mounting SMB to Linux</h2>
 
 <p>we mount the share using <code class="language-plaintext highlighter-rouge">mount -t cifs -o 'username=a' //10.10.10.192/Profiles$ /mnt</code> so we can use handy commands like <code class="language-plaintext highlighter-rouge">find</code> and look for interesting files within.</p>
 
@@ -130,7 +130,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p>we notice no files are there. But, we can still save those foldernames to be used as a <em>userlist</em> for future attacks. we do that using <code class="language-plaintext highlighter-rouge">ls</code> with the <code class="language-plaintext highlighter-rouge">-1</code> flag to have the names on one column.</p>
 
-<h3 id="asreproasting">ASREPRoasting</h3>
+<h2 id="asreproasting">ASREPRoasting</h2>
 
 <p><em>Having this list,</em> we launch an <code class="language-plaintext highlighter-rouge">ASREPRoast</code> attack using <code class="language-plaintext highlighter-rouge">impacket</code>’s <code class="language-plaintext highlighter-rouge">GetNPUsers.py</code>.</p>
 
@@ -153,7 +153,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p>We try to remote using <strong>WinRM</strong> but no luck :/</p>
 
-<h3 id="getting-all-ad-users-for-future-attacks">Getting all AD users for future attacks</h3>
+<h2 id="getting-all-ad-users-for-future-attacks">Getting all AD users for future attacks</h2>
 
 <p><em>After investigating the new-accessible shares</em> <code class="language-plaintext highlighter-rouge">SYSVOL</code> <em>and</em> <code class="language-plaintext highlighter-rouge">NETLOGON</code>, we find nothing important. So we proceed to pull the full userlist from the domain using <code class="language-plaintext highlighter-rouge">impacket</code>’s <code class="language-plaintext highlighter-rouge">GetADUsers.py</code>:</p>
 
@@ -161,7 +161,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p>we find that the usernames we found in the <code class="language-plaintext highlighter-rouge">profiles$</code> have different <code class="language-plaintext highlighter-rouge">SamAccountNames</code> and that’s why they weren’t authenticating.</p>
 
-<h3 id="kerberoasting--asreproasting">Kerberoasting &amp; ASREPRoasting</h3>
+<h2 id="kerberoasting--asreproasting">Kerberoasting &amp; ASREPRoasting</h2>
 
 <p>we use the new AD user list to launch another <code class="language-plaintext highlighter-rouge">ASREPRoast</code> attack but get no new results.</p>
 
@@ -169,7 +169,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p><img src="/assets/Blackfield/kerberoast.jpg" alt="kerberoast" /></p>
 
-<h3 id="pattern-guessing--password-spraying">Pattern guessing &amp; Password Spraying</h3>
+<h2 id="pattern-guessing--password-spraying">Pattern guessing &amp; Password Spraying</h2>
 
 <p>I use <code class="language-plaintext highlighter-rouge">crackmapexec</code> to get the password policy of the domain before doing any spraying</p>
 
@@ -179,7 +179,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p>I spray with the full AD userlist from <code class="language-plaintext highlighter-rouge">GetADUsers.py</code> with the <code class="language-plaintext highlighter-rouge">support</code> password and some variants like: <code class="language-plaintext highlighter-rouge">#01^BlackKnight</code> but get nothing either :/</p>
 
-<h3 id="bloodhound--abusing-the-forcechangepassword-right">Bloodhound &amp; Abusing the <code class="language-plaintext highlighter-rouge">ForceChangePassword</code> right</h3>
+<h2 id="bloodhound--abusing-the-forcechangepassword-right">Bloodhound &amp; Abusing the <code class="language-plaintext highlighter-rouge">ForceChangePassword</code> right</h2>
 
 <p>I then use <code class="language-plaintext highlighter-rouge">bloodhound</code> to get a look at what I can do with the support account. And I notice that I can reset the password for the <code class="language-plaintext highlighter-rouge">audit2020</code> user:</p>
 
@@ -195,7 +195,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p><em>it says that by using the command</em> <code class="language-plaintext highlighter-rouge">Set-DomainUserPassword</code>, we can reset the password for the <code class="language-plaintext highlighter-rouge">audit2020</code> account and be able to use it.</p>
 
-<h3 id="using-a-windows-machine-to-do-the-deed">Using a Windows machine to do the deed</h3>
+<h2 id="using-a-windows-machine-to-do-the-deed">Using a Windows machine to do the deed</h2>
 
 <p>We can do so by using a <code class="language-plaintext highlighter-rouge">Windows</code> host. We can run the <code class="language-plaintext highlighter-rouge">RunAs.exe</code> utility with the <code class="language-plaintext highlighter-rouge">/netonly</code> flag. That would let us use a set of credentials in the network’s context and be able to do stuff.</p>
 
@@ -213,7 +213,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p><img src="/assets/Blackfield/audit-2020-reset.jpg" alt="audit-2020-reset" /></p>
 
-<h3 id="smb-forensic-share-enumeration">SMB forensic share enumeration</h3>
+<h2 id="smb-forensic-share-enumeration">SMB forensic share enumeration</h2>
 
 <p><em>Using the new password,</em> we find that we can now read the <code class="language-plaintext highlighter-rouge">forensic</code> share.</p>
 
@@ -221,7 +221,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p><em>after mounting it,</em> we see that there’s a very interesting file that we can access in the <code class="language-plaintext highlighter-rouge">memory_analysis</code> folder. That is <code class="language-plaintext highlighter-rouge">lsass.zip</code>.</p>
 
-<h3 id="a-brief-about-lsass">A brief about LSASS</h3>
+<h2 id="a-brief-about-lsass">A brief about LSASS</h2>
 
 <p><strong>LSASS.exe</strong> is the main authentication process in <strong>Windows</strong>. This process holds the credentials of all users who had logged into the computer using one way or another.</p>
 
@@ -231,7 +231,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p><img src="/assets/Blackfield/lsass-dmp.jpg" alt="lsass-dmp" /></p>
 
-<h3 id="extracting-credentials-from-lsass-dump">Extracting credentials from LSASS dump</h3>
+<h2 id="extracting-credentials-from-lsass-dump">Extracting credentials from LSASS dump</h2>
 
 <p>we can use a tool called <code class="language-plaintext highlighter-rouge">pypykatz</code> (https://github.com/skelsec/pypykatz) to obtain hashes from the <code class="language-plaintext highlighter-rouge">.DMP</code> files.</p>
 
@@ -249,7 +249,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p><img src="/assets/Blackfield/svc_backup_shell.jpg" alt="svc_backup_shell" /></p>
 
-<h3 id="abusing-the-sebackupprivilege-held-by-the-backup-operators-ad-group">Abusing the <code class="language-plaintext highlighter-rouge">SeBackupPrivilege</code> held by the <code class="language-plaintext highlighter-rouge">Backup Operators</code> AD Group</h3>
+<h2 id="abusing-the-sebackupprivilege-held-by-the-backup-operators-ad-group">Abusing the <code class="language-plaintext highlighter-rouge">SeBackupPrivilege</code> held by the <code class="language-plaintext highlighter-rouge">Backup Operators</code> AD Group</h2>
 
 <p><em>checking the group memberships on the</em> <code class="language-plaintext highlighter-rouge">svc_backup</code> <em>user,</em> we notice it’s a member of the <code class="language-plaintext highlighter-rouge">Backup Operators</code> group. <em>And, by extension,</em> it has the <code class="language-plaintext highlighter-rouge">SeBackupPrivilege</code>.</p>
 
@@ -261,7 +261,7 @@ We also notice the domain name on LDAP is <strong>Blackfield.local</strong> and 
 
 <p><em>By doing some research,</em> we come across this awesome post from <strong>Hacking Articles</strong> (https://www.hackingarticles.in/windows-privilege-escalation-sebackupprivilege/) that tells us how we can abuse this privilege.</p>
 
-<h3 id="diskshadow">Diskshadow</h3>
+<h2 id="diskshadow">Diskshadow</h2>
 
 <p>We will be using the <code class="language-plaintext highlighter-rouge">diskshadow</code> command line utility with the <code class="language-plaintext highlighter-rouge">/s</code> flag for script mode and passing a script file as an argument.</p>
 
@@ -277,7 +277,7 @@ expose %abuse% z:
 
 <p>This is required because a file like <code class="language-plaintext highlighter-rouge">NTDS.dit</code> is constantly undergoing <code class="language-plaintext highlighter-rouge">READ</code> and <code class="language-plaintext highlighter-rouge">WRITE</code> operations which would make copying it infeasable under normal circumstances.</p>
 
-<h3 id="changing-encoding-to-match-windows">Changing encoding to match Windows</h3>
+<h2 id="changing-encoding-to-match-windows">Changing encoding to match Windows</h2>
 
 <p><em>Having created this script file in</em> <strong>Linux</strong>, we will need to change its encoding to fit <strong>Windows</strong> for it to work properly. This can be done using the <code class="language-plaintext highlighter-rouge">unix2dos</code> command:</p>
 
@@ -291,7 +291,7 @@ expose %abuse% z:
 
 <p>it succeeds and we can list the contents of <code class="language-plaintext highlighter-rouge">c:</code> from <code class="language-plaintext highlighter-rouge">z:</code></p>
 
-<h3 id="special-copying-mode-backup-mode">Special copying mode: <code class="language-plaintext highlighter-rouge">Backup Mode</code></h3>
+<h2 id="special-copying-mode-backup-mode">Special copying mode: <code class="language-plaintext highlighter-rouge">Backup Mode</code></h2>
 
 <p><em>to be able to get a copy of</em> <code class="language-plaintext highlighter-rouge">NTDS.dit</code> <em>from</em> <code class="language-plaintext highlighter-rouge">z:\</code>, we would need to use the <code class="language-plaintext highlighter-rouge">Robocopy</code> command-line utility with <code class="language-plaintext highlighter-rouge">/b</code> flag for <code class="language-plaintext highlighter-rouge">backup mode</code>. This would basically allow the copying to bypass the <code class="language-plaintext highlighter-rouge">ACLs</code> of the file if the <code class="language-plaintext highlighter-rouge">SeBackupPrivilege</code> was held.</p>
 
@@ -332,7 +332,7 @@ expose %abuse% z:
 
 <p><img src="/assets/Blackfield/got-system-hive.jpg" alt="got-system-hive" /></p>
 
-<h3 id="hashes-everywhere">Hashes everywhere</h3>
+<h2 id="hashes-everywhere">Hashes everywhere</h2>
 
 <p>we can use <code class="language-plaintext highlighter-rouge">evil-winrm</code> <code class="language-plaintext highlighter-rouge">download</code> functionality to retrieve the files to our kali machine. where can use <code class="language-plaintext highlighter-rouge">impacket</code>’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> script to dump all the contents.</p>
 

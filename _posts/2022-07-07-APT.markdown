@@ -6,7 +6,7 @@ published: true
 
 ![APT](/assets/APT/APT.png)
 
-### Summary
+## Summary
 - A Windows machine where a standard IPv4 full TCP port scan reveals only **HTTP** on port 80 and **RPC Endpoint Mapper** on port 135.
 - *After checking out the website,* it turns out to be just static content with no real abusable functionalities.
 - *However, due to the many information that can be retrieved through the MSRPC protocol and because we have no other option,* we decide to dig deeper into what can be done through it.
@@ -30,7 +30,7 @@ published: true
 
 ---
 
-### IPv4 NMAP
+## IPv4 NMAP
 ```
 PORT    STATE SERVICE VERSION
 80/tcp  open  http    Microsoft IIS httpd 10.0
@@ -46,7 +46,7 @@ The standard nmap full port scan shows:
 1. **HTTP** on port 80 served on **IIS** 10
 2. **MSRPC** on port 135
 
-### Checking Port 80
+## Checking Port 80
 *Looking at the website,* we find a bunch of static html pages
 
 ![Website-homepage](/assets/APT/Website-homepage.jpg)
@@ -66,7 +66,7 @@ The content was mostly filler. We didn't find anything of interest in the source
 
 *Being left with port 135,* we decide to dive in.
 
-### Digging deep into MSRPC
+## Digging deep into MSRPC
 The **Microsoft Remote Procedure Call** is a protocol that allows a client program to request a service on another computer. Just like any typical client-server architecture.
 
 It is mainly about **Cross-Process Communication** and **Object Exchange** over the network.
@@ -208,7 +208,7 @@ if __name__ == "__main__":
 
 ![python-enum-interfaces-script-output](/assets/APT/python-enum-interfaces-script-output.jpg)
 
-### IPv6 NMAP
+## IPv6 NMAP
 After placing an entry for it in our `/etc/hosts` file, we run another nmap on the **IPv6** using the `-6` flag. Look at what we got :D
 ```
 PORT      STATE SERVICE      VERSION
@@ -318,7 +318,7 @@ Looks like a firewall was configured to only allow port 80 and 135 on IPv4 but a
 
 **Lesson learned:** Always enumerate network interfaces as part of the recon. There could be way more information to be learned about the network by doing this.
 
-### SMB Enumeration
+## SMB Enumeration
 We start with SMB and run `crackmapexec` to check the available shares. And we find a readable one called **"backup"**
 
 ![cme-smb-shares](/assets/APT/cme-smb-shares.jpg)
@@ -348,7 +348,7 @@ Something is off here.. it can't be that easy :D
 
 *But of course,* none worked XD
 
-### Working around bruteforce defenses
+## Working around bruteforce defenses
 
 We will now have to check the other users. So we filter them out with some shell fu:
 
@@ -402,7 +402,7 @@ The **Kerberos bruteforce** worked well and we didn't get blocked. We got a work
 
 ![auth-with-henry](/assets/APT/auth-with-henry.jpg)
 
-### Finding creds via Remote Registry
+## Finding creds via Remote Registry
 Alright. *After finally getting our first set of credentials,* we sadly don't find anything to get us further using conventional methods.
 
 - Henry didn't have *8* access
@@ -417,7 +417,7 @@ And he turned out to have **WinRM** access when we checked.
 
 ![winrm-shell-access](/assets/APT/winrm-shell-access.jpg)
 
-### Privilege Escalation via NetNTLMv1
+## Privilege Escalation via NetNTLMv1
 *When running the standard* `WinPEAS.exe`, it got caught by **AV.**
 
 ![normal-winpeas-caught](/assets/APT/normal-winpeas-caught.jpg)

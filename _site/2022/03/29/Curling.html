@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Curling/Curling.png" alt="Curling" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>we find <strong>Joomla</strong> running on HTTP port 80 and we get a <strong>list of usernames</strong> <em>from the posts on the main page.</em></li>
   <li><em>Inspecting the home page’s source code,</em> we find a comment about a <code class="language-plaintext highlighter-rouge">secret.txt</code> file which happens to be at the webroot.</li>
@@ -77,7 +77,7 @@
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <p>We start out by doing the standard nmap with <code class="language-plaintext highlighter-rouge">-sC</code> and <code class="language-plaintext highlighter-rouge">-sV</code> flags:</p>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT   STATE SERVICE VERSION
 22/tcp open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.5 (Ubuntu Linux; protocol 2.0)
@@ -93,7 +93,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 </code></pre></div></div>
 <p>The <code class="language-plaintext highlighter-rouge">http-generator</code> <strong>NSE script</strong> showed <strong>Joomla</strong> as the web app on port 80. so we go ahead and check it out.</p>
 
-<h3 id="checking-joomla-out">Checking Joomla Out</h3>
+<h2 id="checking-joomla-out">Checking Joomla Out</h2>
 
 <p><img src="/assets/curling/Homepage.jpg" alt="Homepage" /></p>
 
@@ -123,7 +123,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/curling/searchsploit.jpg" alt="searchsploit" /></p>
 
-<h3 id="specialized-scanner-joomscan">Specialized Scanner: Joomscan</h3>
+<h2 id="specialized-scanner-joomscan">Specialized Scanner: Joomscan</h2>
 
 <p>so we check to see if we can run a <strong>specialized scanner</strong> for Joomla (<em>since it’s a well-known CMS</em>). <em>After some research,</em> we find a tool called <code class="language-plaintext highlighter-rouge">joomscan</code>. We check out its help menu and notice it’s pretty straight forward. It accepts the <code class="language-plaintext highlighter-rouge">url</code> and give us the option to enumerate compoents using the <code class="language-plaintext highlighter-rouge">-ec</code> flag. <em>This could benefit us since we have noticed a million exploits for vulnerable Joomla components</em>.</p>
 
@@ -164,7 +164,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p>We also do <code class="language-plaintext highlighter-rouge">searchsploit</code> queries for the components found but we don’t find any exploits for them.</p>
 
-<h3 id="checking-source-code">Checking Source Code</h3>
+<h2 id="checking-source-code">Checking Source Code</h2>
 
 <p><em>Since the situation wasn’t looking too good with the “looking for an exploit” path,</em> we go back to the basics and look at the source code of the home page.
 And lo and behold! we find a comment right at the bottom saying <code class="language-plaintext highlighter-rouge">secret.txt</code>!</p>
@@ -189,7 +189,7 @@ And lo and behold! we find a comment right at the bottom saying <code class="lan
 
 <p>but nothing!</p>
 
-<h3 id="its-not-a-complex-password--its-base64-encoded">It’s not a complex password … it’s Base64 encoded</h3>
+<h2 id="its-not-a-complex-password--its-base64-encoded">It’s not a complex password … it’s Base64 encoded</h2>
 
 <p><em>Despite that,</em> seeing this file hidden in the comments + it being called <code class="language-plaintext highlighter-rouge">secret.txt</code> are factors making me consider that it’s important. Something must be missing here… I go for a walk and come back to decide maybe this text <em>isn’t some randomly-generated password</em> and is encrypted or something. So i drop it onto <code class="language-plaintext highlighter-rouge">CyberChef</code> (https://gchq.github.io/CyberChef/). It was a base64 encoded text » <code class="language-plaintext highlighter-rouge">Curling2018!</code>.</p>
 
@@ -201,7 +201,7 @@ And lo and behold! we find a comment right at the bottom saying <code class="lan
 
 <p><img src="/assets/curling/logged-in.jpg" alt="logged-in" /></p>
 
-<h3 id="admin-on-joomla--php-code-execution">Admin on Joomla = PHP Code Execution</h3>
+<h2 id="admin-on-joomla--php-code-execution">Admin on Joomla = PHP Code Execution</h2>
 
 <p>Being logged in as the administrative user on Joomla means an <strong>easy shell</strong>.</p>
 
@@ -215,7 +215,7 @@ And lo and behold! we find a comment right at the bottom saying <code class="lan
 
 <p><em>After upgrading our shell to fully-interactive TTY,</em> we start checking the system…</p>
 
-<h3 id="browsing-user-home-folders">Browsing user home folders</h3>
+<h2 id="browsing-user-home-folders">Browsing user home folders</h2>
 
 <p>We find the user <code class="language-plaintext highlighter-rouge">floris</code> on the system. And, <em>as we’re browsing through his/her home folder,</em> we see two <em>non-standard</em> items:</p>
 <ol>
@@ -225,7 +225,7 @@ And lo and behold! we find a comment right at the bottom saying <code class="lan
 
 <p><img src="/assets/curling/Floris-Home.jpg" alt="Floris-Home" /></p>
 
-<h3 id="reversing-a-hexdump-and-decompressing-multiple-layers">Reversing a hexdump and Decompressing multiple layers</h3>
+<h2 id="reversing-a-hexdump-and-decompressing-multiple-layers">Reversing a hexdump and Decompressing multiple layers</h2>
 
 <p>so we take a look at the contents of <code class="language-plaintext highlighter-rouge">password_backup</code> and see what looks like a <strong>hexdump</strong>:</p>
 
@@ -330,7 +330,7 @@ www-data@curling:/tmp$ cat password.txt
 
 <p>it was indeed the password for the <code class="language-plaintext highlighter-rouge">floris</code> user :D <em>It would’ve been a bad troll move if it weren’t XD</em></p>
 
-<h3 id="privilege-escalation">Privilege Escalation</h3>
+<h2 id="privilege-escalation">Privilege Escalation</h2>
 
 <p>Right off the bat, we check <code class="language-plaintext highlighter-rouge">sudo -l -l</code> for an easy win. But don’t find anything there.</p>
 
@@ -338,7 +338,7 @@ www-data@curling:/tmp$ cat password.txt
 
 <p><img src="/assets/curling/configuration.php.jpg" alt="configuration.php" /></p>
 
-<h3 id="db-enumeration">DB Enumeration</h3>
+<h2 id="db-enumeration">DB Enumeration</h2>
 
 <p>we use the the creds to enumerate the database. but find nothing special there.</p>
 
@@ -489,7 +489,7 @@ Database changed
 
 <p>Note: Enumerating the database is a step we could have done using the <code class="language-plaintext highlighter-rouge">www-data</code> user of course. But my attention was intrigued more by the <code class="language-plaintext highlighter-rouge">password_backup</code> file and that’s why I went for it first.</p>
 
-<h3 id="detecting-unusual-activity">Detecting unusual activity</h3>
+<h2 id="detecting-unusual-activity">Detecting unusual activity</h2>
 
 <p><em>After running <code class="language-plaintext highlighter-rouge">linpeas</code>,</em> we don’t find much leads to investigate. So we turn to the folder <code class="language-plaintext highlighter-rouge">admin-area</code> in the <code class="language-plaintext highlighter-rouge">home</code> of the <code class="language-plaintext highlighter-rouge">floris</code> user. And we notice that the files <code class="language-plaintext highlighter-rouge">input</code> and <code class="language-plaintext highlighter-rouge">report</code> have been very recently modified.</p>
 
@@ -501,7 +501,7 @@ Database changed
 
 <p>it seems that a <code class="language-plaintext highlighter-rouge">curl</code> command is being executed on the <code class="language-plaintext highlighter-rouge">localhost</code> url <code class="language-plaintext highlighter-rouge">http://127.0.0.1</code> which sends the output into the <code class="language-plaintext highlighter-rouge">report</code> file. We know that because of the error message <code class="language-plaintext highlighter-rouge">WARNING: Failed to daemonise.  This is quite common and not fatal.</code> which is the error you get when you trigger a <code class="language-plaintext highlighter-rouge">PHP reverse shell</code> without a listener.</p>
 
-<h3 id="running-a-quick-test-to-verify-our-hypothesis">Running a quick test to verify our hypothesis</h3>
+<h2 id="running-a-quick-test-to-verify-our-hypothesis">Running a quick test to verify our hypothesis</h2>
 
 <p>We can confirm that by starting a listener to see if something connects back.</p>
 
@@ -509,7 +509,7 @@ Database changed
 
 <p>It does happen :D but we need more information to be able to exploit this</p>
 
-<h3 id="pspy">PSPY</h3>
+<h2 id="pspy">PSPY</h2>
 
 <p>we want to get <code class="language-plaintext highlighter-rouge">pspy</code> (https://github.com/DominicBreuker/pspy) on the victim machine so we can start monitoring what’s goin on inside the system. <code class="language-plaintext highlighter-rouge">pspy</code> is a tool you can use to snoop on processes without need for root permissions. It allows you to see commands run by other users, cron jobs, etc. as they execute. It’s very handy.</p>
 
@@ -523,7 +523,7 @@ Database changed
 
 <p><img src="/assets/curling/curl-help.jpg" alt="curl-help" /></p>
 
-<h3 id="abusing-curl">Abusing cURL</h3>
+<h2 id="abusing-curl">Abusing cURL</h2>
 
 <p>we do a search on GTFO Bins (https://gtfobins.github.io/gtfobins/curl/) and find we can get a <code class="language-plaintext highlighter-rouge">file read</code> using <code class="language-plaintext highlighter-rouge">curl</code></p>
 
@@ -537,7 +537,7 @@ Database changed
 
 <p><img src="/assets/curling/got-shadow.jpg" alt="got-shadow" /></p>
 
-<h3 id="getting-a-shell-by-altering-the-shadow-file">Getting a shell by altering the shadow file</h3>
+<h2 id="getting-a-shell-by-altering-the-shadow-file">Getting a shell by altering the shadow file</h2>
 
 <p><em>alright, with this,</em> we can totally read the <code class="language-plaintext highlighter-rouge">root.txt</code> file. But that wouldn’t be fun :D … we’re going for a shell :D</p>
 

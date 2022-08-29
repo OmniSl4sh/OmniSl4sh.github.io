@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Monteverde/Monteverde.png" alt="Monteverde" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>Another Windows Domain Controller Machine.</li>
   <li>We get a full list of domain users by enumerating <strong>RPC</strong> and are able to login with a user called <code class="language-plaintext highlighter-rouge">SABatchJobs</code> whose password was his own username.</li>
@@ -81,7 +81,7 @@
 
 <hr />
 
-<h3 id="nmap">Nmap</h3>
+<h2 id="nmap">Nmap</h2>
 <p>No special scan here. Just the standard <code class="language-plaintext highlighter-rouge">nmap</code> with <code class="language-plaintext highlighter-rouge">-sC</code> for default scripts and <code class="language-plaintext highlighter-rouge">-sV</code> for version detection on all ports.</p>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Simple DNS Plus
@@ -121,7 +121,7 @@ Host script results:
 
 <p>We also have <strong>WinRM</strong> open on tcp 5985 which would be handy to get remote code execution for any user present in either <strong>Administrators</strong> or <strong>Remote Management Users</strong> local groups.</p>
 
-<h3 id="username-enumeration">Username Enumeration</h3>
+<h2 id="username-enumeration">Username Enumeration</h2>
 <p><em>Using a tool called</em> <code class="language-plaintext highlighter-rouge">enum4linux-ng</code>, we are able to get a list of usernames via <code class="language-plaintext highlighter-rouge">RPC</code>:</p>
 
 <p><strong>Command:</strong></p>
@@ -142,7 +142,7 @@ Host script results:
 
 <p><em>With no account lockout configured,</em> we can spray like there’s no tomorrow :D</p>
 
-<h3 id="asreproasting-then-password-spraying">ASREPRoasting then Password Spraying</h3>
+<h2 id="asreproasting-then-password-spraying">ASREPRoasting then Password Spraying</h2>
 <p><em>Since</em> <strong>ASREPRoasting</strong> <em>is the first thing to do with a userlist,</em> we tried it but weren’t awarded with any hashes. So we turned to <strong>Password Spraying</strong>.</p>
 
 <p>We make a quick list of common passwords to try like ‘P@ssw0rd’, ‘Welcome1’ etc. but don’t get anything :/</p>
@@ -157,7 +157,7 @@ Host script results:
 
 <p><img src="/assets/Monteverde/hydra-attack.jpg" alt="hydra-attack" /></p>
 
-<h3 id="smb-access">SMB Access</h3>
+<h2 id="smb-access">SMB Access</h2>
 <p>After we verify that <code class="language-plaintext highlighter-rouge">SABatchJobs</code> doesn’t have <strong>WinRM</strong> access, we enumerate <strong>SMB</strong> as him using <code class="language-plaintext highlighter-rouge">crackmapexec</code>’s <code class="language-plaintext highlighter-rouge">spider_plus</code> module.</p>
 
 <p>This module does as the name suggests: it <em>recursively</em> spiders <strong>SMB</strong> shares and outputs the results in a temp folder.</p>
@@ -182,7 +182,7 @@ Host script results:
 
 <p><img src="/assets/Monteverde/mhope-password.jpg" alt="mhope-password" /></p>
 
-<h3 id="shell-access-as-mhope">Shell Access as <code class="language-plaintext highlighter-rouge">mhope</code></h3>
+<h2 id="shell-access-as-mhope">Shell Access as <code class="language-plaintext highlighter-rouge">mhope</code></h2>
 <p><em>After getting this password,</em> we immediately spray it over the domain users. We find that it’s valid and that we have <strong>WinRM</strong> access as well!</p>
 
 <p><strong>Command:</strong></p>
@@ -201,7 +201,7 @@ Host script results:
 
 <p><img src="/assets/Monteverde/evil-winrm-access.jpg" alt="evil-winrm-access" /></p>
 
-<h3 id="enumeration-before-privesc">Enumeration before Privesc</h3>
+<h2 id="enumeration-before-privesc">Enumeration before Privesc</h2>
 <p>Running a quick <code class="language-plaintext highlighter-rouge">whoami /groups</code> command shows that we are in an AD group called <code class="language-plaintext highlighter-rouge">Azure Admins</code></p>
 
 <p><img src="/assets/Monteverde/ad-group-membership.jpg" alt="ad-group-membership" /></p>
@@ -225,7 +225,7 @@ Host script results:
 
 <p>So we go ahead and do some googling :D</p>
 
-<h3 id="research">Research</h3>
+<h2 id="research">Research</h2>
 <p>We decide to use a broad term in our first search to make things easier for ourselves. We type in: “Azure AD Sync Privilege Escalation”</p>
 
 <p>and we get this awesome blog post <a href="/assets/Monteverde/https://blog.xpnsec.com/azuread-connect-for-redteam/">here</a>:</p>
@@ -242,7 +242,7 @@ Host script results:
 
 <p><em>And, even though they are encrypted,</em> the key to <strong>decrypt</strong> them is also present on the same database.</p>
 
-<h3 id="trying-the-powershell-script">Trying the PowerShell Script</h3>
+<h2 id="trying-the-powershell-script">Trying the PowerShell Script</h2>
 <p>The researcher and blog author <strong>“Adam Chester”</strong> had thankfully created a script that takes care of all the above and dumps us the stored credentials <em>if we had access to the database.</em></p>
 
 <p>We’re going to use a brief command to try connecting to the local database to see if we can query it: <code class="language-plaintext highlighter-rouge">sqlcmd -Q "SELECT name FROM master.dbo.sysdatabases"</code></p>
@@ -255,7 +255,7 @@ Host script results:
 
 <p><img src="/assets/Monteverde/script-fail.jpg" alt="script-fail" /></p>
 
-<h3 id="troubleshooting">Troubleshooting</h3>
+<h2 id="troubleshooting">Troubleshooting</h2>
 <p><em>Since the script isn’t big (&lt; 40 lines)</em>, It wouldn’t be difficult to step through it line-by-line to find out what’s wrong.</p>
 
 <p>we take a look at the first 5 lines:</p>
@@ -301,7 +301,7 @@ Host script results:
 
 <p><img src="/assets/Monteverde/correct-conn-string.jpg" alt="correct-conn-string" /></p>
 
-<h3 id="enough-troubleshooting-let-me-see-some-creds">Enough Troubleshooting. Let me see some creds!</h3>
+<h2 id="enough-troubleshooting-let-me-see-some-creds">Enough Troubleshooting. Let me see some creds!</h2>
 <p><em>After modifying the connection string,</em> let’s go over what the script does in brief:</p>
 
 <ol>

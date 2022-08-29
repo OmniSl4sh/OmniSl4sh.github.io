@@ -64,7 +64,7 @@
   <div class="post-content e-content" itemprop="articleBody">
     <p><img src="/assets/Brainfuck/Brainfuck.png" alt="" /></p>
 
-<h3 id="summary">Summary</h3>
+<h2 id="summary">Summary</h2>
 <ul>
   <li>A <strong>Linux</strong> box where we find <strong>email ports (SMTP/POP/IMAP)</strong> open as well as <strong>two HTTPS websites</strong> (we discovered them from the <strong>SSL certificate Subject Alternative Name</strong> field)</li>
   <li>One website had a <strong>Wordpress blog</strong> which happened to have a <strong><em>vulnerable component</em></strong> that enabled us to impersonate the <code class="language-plaintext highlighter-rouge">admin</code> user.</li>
@@ -80,7 +80,7 @@
 
 <hr />
 
-<h3 id="nmap-for-the-roadmap">NMAP for the roadmap</h3>
+<h2 id="nmap-for-the-roadmap">NMAP for the roadmap</h2>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT    STATE SERVICE  VERSION
 22/tcp  open  ssh      OpenSSH 7.2p2 Ubuntu 4ubuntu2.1 (Ubuntu Linux; protocol 2.0)
 | ssh-hostkey: 
@@ -125,7 +125,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Brainfuck/setting-etc-hosts.jpg" alt="" /></p>
 
-<h3 id="checking-out-the-websites">Checking out the websites</h3>
+<h2 id="checking-out-the-websites">Checking out the websites</h2>
 <p>We take a look at <strong>www.brainfuck.htb</strong> to find a <strong>Wordpress blog</strong></p>
 
 <p><img src="/assets/Brainfuck/wordpress-first-look.jpg" alt="" /></p>
@@ -137,7 +137,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
   <li>we notice <strong>a link to “open a ticket”</strong>. This could be a <strong>Wordpress plugin</strong> with exploitable functionalities.</li>
 </ol>
 
-<h3 id="enumerating-wordpress">Enumerating Wordpress</h3>
+<h2 id="enumerating-wordpress">Enumerating Wordpress</h2>
 <p><em>At this point,</em> it’s both a <strong><em>quick and easy check</em></strong> to run <code class="language-plaintext highlighter-rouge">wpscan</code>. It’s <strong>specialized for scanning Wordpress</strong> and <strong>would give us tons of information on it</strong>.</p>
 
 <p><strong><em>Running it like below:</em></strong></p>
@@ -198,7 +198,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Brainfuck/wp-found-users.jpg" alt="" /></p>
 
-<h3 id="trying-to-abuse-wordpress-with-the-admin-account">Trying to abuse Wordpress with the Admin account</h3>
+<h2 id="trying-to-abuse-wordpress-with-the-admin-account">Trying to abuse Wordpress with the Admin account</h2>
 <p><em>After logging in as</em> <code class="language-plaintext highlighter-rouge">admin</code>, we find out that <strong>we have access to much more things</strong> than with <code class="language-plaintext highlighter-rouge">administrator</code></p>
 
 <p><img src="/assets/Brainfuck/wp-admin-access.jpg" alt="" /></p>
@@ -223,7 +223,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Brainfuck/smtp-password-looted.jpg" alt="" /></p>
 
-<h3 id="rummaging-through-peoples-mailboxes-d">Rummaging through people’s mailboxes :D</h3>
+<h2 id="rummaging-through-peoples-mailboxes-d">Rummaging through people’s mailboxes :D</h2>
 
 <p><strong><em>Given the available IMAP service on port 143,</em></strong> we can go through the <code class="language-plaintext highlighter-rouge">orestis</code> user’s <strong>mailbox.</strong></p>
 
@@ -250,7 +250,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Brainfuck/forum-creds-in-mailbox.jpg" alt="" /></p>
 
-<h3 id="visiting-the-forum">Visiting the Forum</h3>
+<h2 id="visiting-the-forum">Visiting the Forum</h2>
 
 <p><em>Going into the</em> <strong>forum</strong> at <code class="language-plaintext highlighter-rouge">https://sup3rs3cr3t.brainfuck.htb/</code>, we see nothing on the main page except for a <strong>test thread</strong></p>
 
@@ -312,7 +312,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><strong>It worked! XD</strong></p>
 
-<h3 id="ssh-access-as-orestis">SSH Access as Orestis</h3>
+<h2 id="ssh-access-as-orestis">SSH Access as Orestis</h2>
 
 <p><em>Visiting the url,</em> we <strong>get a private SSH key:</strong></p>
 
@@ -330,7 +330,7 @@ Service Info: Host:  brainfuck; OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Brainfuck/in-as-orestis.jpg" alt="" /></p>
 
-<h3 id="lxd-privilege-escalation">LXD Privilege Escalation</h3>
+<h2 id="lxd-privilege-escalation">LXD Privilege Escalation</h2>
 
 <p><em>Right after logging in,</em> and <strong><em>from the previous screenshot</em></strong>, we notice that <code class="language-plaintext highlighter-rouge">orestis</code> <strong>is part of the</strong> <code class="language-plaintext highlighter-rouge">lxd</code> <strong>group.</strong></p>
 

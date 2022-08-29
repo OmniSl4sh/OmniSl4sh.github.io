@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Medium] - Resolute"
 
 ![Resolute](/assets/Resolute/Resolute.png)
 
-### Summary
+## Summary
 - A **Domain controller** box. We first retrieve information about all users using `rpcclient` and find **a password in the description field** of one user which doesn't work.
 - We *reuse* that password and **spray all domain users** and we get **access to another user who has PowerShell remoting privileges**.
 - *Browsing the file system,* we find a **PowerShell transcript file** with **credentials for another user** in a hidden folder.
@@ -13,7 +13,7 @@ title:  "HTB Writeup [Windows - Medium] - Resolute"
 
 ---
 
-### Nmap
+## Nmap
 As usual we start with regular nmap with `-sC` for default scripts and `-sV` to enumerate versions and making sure to include all ports with `-p-`:
 ```
 PORT      STATE  SERVICE      VERSION
@@ -71,7 +71,7 @@ Host script results:
 |_  message_signing: required
 ```
 
-### Domain Controller Detection, Host Information & Finding a remote administration port
+## Domain Controller Detection, Host Information & Finding a remote administration port
 *Looking at the results,* we find a combination of ports that indicate a domain controller:
 1. DNS on 53
 2. Kerberos on 88
@@ -82,17 +82,17 @@ and we also find *WinRM* on 5985 which would be handy in getting a **shell** *if
 
 We also find out from the **nmap script** that the operating system is **Windows Server 2016 Standard 14393** and that the domain name is **megabank.local** and that the computer name is **Resolute.**
 
-### Setting up our DNS
+## Setting up our DNS
 we add this computer to our `/etc/resolv.conf` to make usage of tools like `impacket` easier.
 
 ![etc-resolv-conf](/assets/Resolute/etc-resolv-conf.jpg)
 
-### SMB share enumeration as Null/Anonymous
+## SMB share enumeration as Null/Anonymous
 enumerating shares using multiple options doesn't give us any results:
 
 ![smb-enum](/assets/Resolute/smb-enum.jpg)
 
-### Enumerating RPC with `rpcclient`
+## Enumerating RPC with `rpcclient`
 *using* `rpcclient` *with a blank user* `-U ''` *and the* `-N` *flag for no password*, we get a bunch of users with `enumdomusers`
 
 ![enum-dom-users](/assets/Resolute/enum-dom-users.jpg)
@@ -105,14 +105,14 @@ we get more details using `querydispinfo2`
 
 ![marko-failed](/assets/Resolute/marko-failed.jpg)
 
-### Who else is using that password?
+## Who else is using that password?
 *having got an idea of a possible password,* a good logical step is to try that against the entire domain. we put what we got from `rpcclient > enumdomusers` into a text file `users.txt` and use `crackmapexec` to do a **Password Spray.**
 
 ![got-melanie](/assets/Resolute/got-melanie.jpg)
 
 **We're lucky! :D** the `melanie` user authenticated.
 
-### Options available after getting a valid AD user
+## Options available after getting a valid AD user
 
 *Having a valid AD user,* we got a couple of things to check:
 1. **Code execution with WinRM:** Check
@@ -139,14 +139,14 @@ we get more details using `querydispinfo2`
 
 ![sharphound-collection](/assets/Resolute/sharphound-collection.jpg)
 
-### Browsing Bloodhound output
+## Browsing Bloodhound output
 *After browsing* `bloodhound` *for a while*, we find that we would have a clear path to Domain Admin if we manage to get the `ryan` user. This is because he is a member of the DNS Admins group which can be abused to elevate our privileges. He's also a member of **Remote Management Users** and that means we can execute code using **WinRM** too.
 
 ![ryan-should-takeover](/assets/Resolute/ryan-should-takeover.jpg)
 
 But we don't have him as of the moment. So we look around the file system to see if we can find something to help us.
 
-### Finding Creds in Hidden Folders
+## Finding Creds in Hidden Folders
 *Looking around the* `C:` *drive*, we find the creds of the `ryan` user in `c:\PSTranscripts\20191203\PowerShell_transcript.RESOLUTE.OJuoBGhU.20191203063201.txt`
 
 ![transcript-found](/assets/Resolute/transcript-found.jpg)
@@ -157,7 +157,7 @@ The creds turn out to be valid and we get a shell as the `ryan` user
 
 ![shell-as-ryan](/assets/Resolute/shell-as-ryan.jpg)
 
-### DNSAdmins Abuse
+## DNSAdmins Abuse
 *Using* **Google**, we come across an excellent article from **Ired.team** website (https://www.ired.team/offensive-security-experiments/active-directory-kerberos-abuse/from-dnsadmins-to-system-to-domain-compromise) fully explaining the a way we can exploit `ryan`'s' membership in the **DNSAdmins** group to own the domain.
 
 We should need to compile a dll using `msfvenom` and configure the locally running **DNS Service** to load that dll *remotely* from our **SMB share**.
@@ -193,7 +193,7 @@ we get a connect back on our **SMB** share and code execution occures giving us 
 
 ![got-domain-admin](/assets/Resolute/got-domain-admin.jpg)
 
-### Notes and pitfalls
+## Notes and pitfalls
 - using the `sc` command without the `.exe` at the end didn't work. This took me a while to figure out.
 
 ![troubleshooting-sc](/assets/Resolute/troubleshooting-sc.jpg)

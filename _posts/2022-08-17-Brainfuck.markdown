@@ -6,7 +6,7 @@ published: true
 
 ![](/assets/Brainfuck/Brainfuck.png)
 
-### Summary
+## Summary
 - A **Linux** box where we find **email ports (SMTP/POP/IMAP)** open as well as **two HTTPS websites** (we discovered them from the **SSL certificate Subject Alternative Name** field)
 - One website had a **Wordpress blog** which happened to have a ***vulnerable component*** that enabled us to impersonate the `admin` user.
 - *After failing to get code execution using traditional ways* (***editing Wordpress themes and uploading malicious plugins***), we search more to **find email credentials for the `orestis` user in the installed SMTP plugin.**
@@ -20,7 +20,7 @@ published: true
 
 ---
 
-### NMAP for the roadmap
+## NMAP for the roadmap
 ```
 PORT    STATE SERVICE  VERSION
 22/tcp  open  ssh      OpenSSH 7.2p2 Ubuntu 4ubuntu2.1 (Ubuntu Linux; protocol 2.0)
@@ -62,7 +62,7 @@ But we notice that the **nmap default script** gave us **a couple of host names*
 
 ![](/assets/Brainfuck/setting-etc-hosts.jpg)
 
-### Checking out the websites
+## Checking out the websites
 We take a look at **www.brainfuck.htb** to find a **Wordpress blog**
 
 ![](/assets/Brainfuck/wordpress-first-look.jpg)
@@ -72,7 +72,7 @@ We take a look at **www.brainfuck.htb** to find a **Wordpress blog**
 2. we find **a note about integration with SMTP**. *Possibly a* ***hint***
 3. we notice **a link to "open a ticket"**. This could be a **Wordpress plugin** with exploitable functionalities.
 
-### Enumerating Wordpress
+## Enumerating Wordpress
 *At this point,* it's both a ***quick and easy check*** to run `wpscan`. It's **specialized for scanning Wordpress** and **would give us tons of information on it**.
 
 ***Running it like below:***
@@ -132,7 +132,7 @@ And we **confirm that the exploit works** after visiting the **website's main pa
 
 ![](/assets/Brainfuck/wp-found-users.jpg)
 
-### Trying to abuse Wordpress with the Admin account
+## Trying to abuse Wordpress with the Admin account
 *After logging in as* `admin`, we find out that **we have access to much more things** than with `administrator`
 
 ![](/assets/Brainfuck/wp-admin-access.jpg)
@@ -157,7 +157,7 @@ We **find another plugin: Easy WP SMTP** ***(the one hinted about in the home pa
 
 ![](/assets/Brainfuck/smtp-password-looted.jpg)
 
-### Rummaging through people's mailboxes :D
+## Rummaging through people's mailboxes :D
 
 ***Given the available IMAP service on port 143,*** we can go through the `orestis` user's **mailbox.**
 
@@ -185,7 +185,7 @@ We **successfully log in** to find **another set of credentials** waiting for us
 
 ![](/assets/Brainfuck/forum-creds-in-mailbox.jpg)
 
-### Visiting the Forum
+## Visiting the Forum
 
 *Going into the* **forum** at `https://sup3rs3cr3t.brainfuck.htb/`, we see nothing on the main page except for a **test thread**
 
@@ -245,7 +245,7 @@ So I decide to **try some english words** ***(since the sentence is in natural l
 
 **It worked! XD**
 
-### SSH Access as Orestis
+## SSH Access as Orestis
 
 *Visiting the url,* we **get a private SSH key:**
 
@@ -263,7 +263,7 @@ We **convert the key to john format and crack it** with `rockyou.txt`
 
 ![](/assets/Brainfuck/in-as-orestis.jpg)
 
-### LXD Privilege Escalation
+## LXD Privilege Escalation
 
 *Right after logging in,* and ***from the previous screenshot***, we notice that `orestis` **is part of the** `lxd` **group.**
 

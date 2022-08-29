@@ -129,9 +129,9 @@ td { font-weight: 300; text-align: center; border: 1px solid #ebebeb; }
 form { padding: 20px; background: #f2f2f2; }
 
 /* GENERAL ELEMENT TYPE STYLES */
-h1 { font-size: 32px; }
+h1 { font-size: 32px; color: #d7000d; }
 
-h2 { margin-bottom: 8px; font-size: 22px; font-weight: bold; color: #f3f3f3; }
+h2 { margin-bottom: 8px; font-size: 22px; font-weight: bold; color: #d7000d; }
 
 h3 { margin-bottom: 8px; font-size: 18px; font-weight: bold; color: #d7000d; }
 

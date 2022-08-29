@@ -5,7 +5,7 @@ title:  "HTB Writeup [Windows - Hard] - Blackfield"
 
 ![BlackField](/assets/Blackfield/Blackfield.png)
 
-### Summary
+## Summary
 - A **Domain Controller** machine. We first find **SMB anonymous read access** to a share containing a list of folders which can be used as usernames.
 - We perform an **ASREPRoast attack** using the created wordlist to get credentials for the `support` user.
 - *Using* **BloodHound** *to enumerate the domain,* we find that this user *can reset the password for another account* `audit2020`
@@ -17,7 +17,7 @@ title:  "HTB Writeup [Windows - Hard] - Blackfield"
 
 ---
 
-### Standard Nmap
+## Standard Nmap
 We do a standard `nmap` with service detection `-sV` and default scripts `-sC` on all ports:
 ```
 PORT     STATE SERVICE       VERSION
@@ -43,14 +43,14 @@ Host script results:
 |_  start_date: N/A
 ```
 
-### Domain Controller Signature
+## Domain Controller Signature
 
 We see a combination of ports indicative of a **Domain Controller**: **DNS** on 53, **Kerberos** on 88, **LDAP** on 389 and **SMB** on 445.
 We also notice the domain name on LDAP is **Blackfield.local** and the hostname **DC01**
 
 we add an `nameserver` entry in our `/etc/resolv.conf` file for the machine's IP and proceed to enumerate **SMB** for null/anonymous access.
 
-### SMB Enumeration
+## SMB Enumeration
 
 we try a few inputs and manage to get a listing of the shares using anonymous authentication:
 
@@ -62,7 +62,7 @@ we try a few inputs and manage to get a listing of the shares using anonymous au
 
 ![profiles-share](/assets/Blackfield/profiles-share.jpg)
 
-### Mounting SMB to Linux
+## Mounting SMB to Linux
 
 we mount the share using `mount -t cifs -o 'username=a' //10.10.10.192/Profiles$ /mnt` so we can use handy commands like `find` and look for interesting files within.
 
@@ -70,7 +70,7 @@ we mount the share using `mount -t cifs -o 'username=a' //10.10.10.192/Profiles$
 
 we notice no files are there. But, we can still save those foldernames to be used as a *userlist* for future attacks. we do that using `ls` with the `-1` flag to have the names on one column.
 
-### ASREPRoasting
+## ASREPRoasting
 
 *Having this list,* we launch an `ASREPRoast` attack using `impacket`'s `GetNPUsers.py`. 
 
@@ -94,7 +94,7 @@ We try authenticating using `crackmapexec` and are successful.
 
 We try to remote using **WinRM** but no luck :/
 
-### Getting all AD users for future attacks
+## Getting all AD users for future attacks
 
 *After investigating the new-accessible shares* `SYSVOL` *and* `NETLOGON`, we find nothing important. So we proceed to pull the full userlist from the domain using `impacket`'s `GetADUsers.py`:
 
@@ -103,7 +103,7 @@ We try to remote using **WinRM** but no luck :/
 
 we find that the usernames we found in the `profiles$` have different `SamAccountNames` and that's why they weren't authenticating.
 
-### Kerberoasting & ASREPRoasting
+## Kerberoasting & ASREPRoasting
 
 we use the new AD user list to launch another `ASREPRoast` attack but get no new results.
 
@@ -111,7 +111,7 @@ we also try `Kerberoasting` but find no entries:
 
 ![kerberoast](/assets/Blackfield/kerberoast.jpg)
 
-### Pattern guessing & Password Spraying
+## Pattern guessing & Password Spraying
 
 I use `crackmapexec` to get the password policy of the domain before doing any spraying
 
@@ -121,7 +121,7 @@ Looks like there's no account lockout at all :D
 
 I spray with the full AD userlist from `GetADUsers.py` with the `support` password and some variants like: `#01^BlackKnight` but get nothing either :/
 
-### Bloodhound & Abusing the `ForceChangePassword` right
+## Bloodhound & Abusing the `ForceChangePassword` right
 
 I then use `bloodhound` to get a look at what I can do with the support account. And I notice that I can reset the password for the `audit2020` user:
 
@@ -137,7 +137,7 @@ I find this right by clicking the `First Degree Object Control` box under the `N
 
 *it says that by using the command* `Set-DomainUserPassword`, we can reset the password for the `audit2020` account and be able to use it.
 
-### Using a Windows machine to do the deed
+## Using a Windows machine to do the deed
 
 We can do so by using a `Windows` host. We can run the `RunAs.exe` utility with the `/netonly` flag. That would let us use a set of credentials in the network's context and be able to do stuff.
 
@@ -155,7 +155,7 @@ The command does take some time... But we're successful in resetting the passwor
 
 ![audit-2020-reset](/assets/Blackfield/audit-2020-reset.jpg)
 
-### SMB forensic share enumeration
+## SMB forensic share enumeration
 
 *Using the new password,* we find that we can now read the `forensic` share.
 
@@ -163,7 +163,7 @@ The command does take some time... But we're successful in resetting the passwor
 
 *after mounting it,* we see that there's a very interesting file that we can access in the `memory_analysis` folder. That is `lsass.zip`.
 
-### A brief about LSASS
+## A brief about LSASS
 
 **LSASS.exe** is the main authentication process in **Windows**. This process holds the credentials of all users who had logged into the computer using one way or another.
 
@@ -173,7 +173,7 @@ we unzip the `lsass.zip` file to find a `.DMP` file which is a memory dump of th
 
 ![lsass-dmp](/assets/Blackfield/lsass-dmp.jpg)
 
-### Extracting credentials from LSASS dump
+## Extracting credentials from LSASS dump
 
 we can use a tool called `pypykatz` (https://github.com/skelsec/pypykatz) to obtain hashes from the `.DMP` files.
 
@@ -192,7 +192,7 @@ we find hashes for both the `Administrator` user and `svc_backup` accounts
 
 ![svc_backup_shell](/assets/Blackfield/svc_backup_shell.jpg)
 
-### Abusing the `SeBackupPrivilege` held by the `Backup Operators` AD Group
+## Abusing the `SeBackupPrivilege` held by the `Backup Operators` AD Group
 
 *checking the group memberships on the* `svc_backup` *user,* we notice it's a member of the `Backup Operators` group. *And, by extension,* it has the `SeBackupPrivilege`.
 
@@ -204,7 +204,7 @@ Being able to grab the `NTDS.dit` and the `SYSTEM` registry hive would enable us
 
 *By doing some research,* we come across this awesome post from **Hacking Articles** (https://www.hackingarticles.in/windows-privilege-escalation-sebackupprivilege/) that tells us how we can abuse this privilege.
 
-### Diskshadow
+## Diskshadow
 
 We will be using the `diskshadow` command line utility with the `/s` flag for script mode and passing a script file as an argument.
 
@@ -221,7 +221,7 @@ this would essentially expose a *shadow* copy of the `c:` drive to another drive
 
 This is required because a file like `NTDS.dit` is constantly undergoing `READ` and `WRITE` operations which would make copying it infeasable under normal circumstances.
 
-### Changing encoding to match Windows
+## Changing encoding to match Windows
 
 *Having created this script file in* **Linux**, we will need to change its encoding to fit **Windows** for it to work properly. This can be done using the `unix2dos` command:
 
@@ -235,7 +235,7 @@ we upload the `.dsh` file using `evil-winrm`'s `upload` function. And, we change
 
 it succeeds and we can list the contents of `c:` from `z:`
 
-### Special copying mode: `Backup Mode`
+## Special copying mode: `Backup Mode`
 
 *to be able to get a copy of* `NTDS.dit` *from* `z:\`, we would need to use the `Robocopy` command-line utility with `/b` flag for `backup mode`. This would basically allow the copying to bypass the `ACLs` of the file if the `SeBackupPrivilege` was held.
 
@@ -278,7 +278,7 @@ reg save hklm\system c:\windows\Temp\system
 
 ![got-system-hive](/assets/Blackfield/got-system-hive.jpg)
 
-### Hashes everywhere
+## Hashes everywhere
 
 we can use `evil-winrm` `download` functionality to retrieve the files to our kali machine. where can use `impacket`'s `secretsdump.py` script to dump all the contents.
 
