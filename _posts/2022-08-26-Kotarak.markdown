@@ -14,10 +14,9 @@ published: false
 - That file **contained credentials** that we used to **upload a WAR reverse shell** and get on the box.
 - *On the file system,* we found an **Active Directory** `ntds.dit` **dump** which was apparently a remnant of a pentest.
 - We **extracted all the domain hashes** from that and cracked one of them for a password which belonged to the `atanas` local user.
-- *Since* `atanas` *was* ***a member of the privileged*** `disk` ***group,*** we went into **a rabbit hole** trying to exploit that using the `debugfs` tool.
-- *Not going anywhere,* we searched the file system again to **find a file owned by our user** called `app.log` ***within the root folder.***
-- The log file contained past events of **another server using a vulnerable version** of `wget` to fetch data from ours.
-- *After finding a tool called* `authbind` (it lets us use low ports without being root) *installed on the system,* we use it to **deploy a python web server** and verify that ***there were indeed requests still being made to our machine.***
+- *As* `atanas`, we came to **find a file owned by us** called `app.log` ***within the root folder.***
+- It contained past events of **another server using a vulnerable version** of `wget` to fetch data from ours.
+- *After finding a tool called* `authbind` (*which lets us use low ports without being root*) *installed on the system,* we use it to **deploy a python web server** and verify that ***there were indeed requests still being made to our machine.***
 - We set up **an elaborate exploit** to target the client's `wget` deploying a `cron` job to **run as root** and **give us a shell on the box.**
 
 ---
@@ -423,5 +422,3 @@ The exploit now **served the** `cron` **containing our reverse shell** and **it 
 ![](/assets/Kotarak/rooted.jpg)
 
 **Just amazing <3 :D**
-
-### Rabbit Hole: the disk group
