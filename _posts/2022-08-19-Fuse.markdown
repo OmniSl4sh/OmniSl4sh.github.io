@@ -281,7 +281,7 @@ A gut feeling is telling us: "That's a password!" XD
 
 **Awesome! every single one of them was valid!**
 
-*Having a list of valid usernames and another with potential passwords,* we get to spraying..
+*Having a list of* ***valid usernames*** *and another with* ***potential passwords,*** we get to spraying..
 
 ![](/assets/Fuse/likely-pass-list.jpg)
 
