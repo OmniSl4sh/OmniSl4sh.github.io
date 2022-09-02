@@ -383,7 +383,7 @@ Because it can:
 ## Printer Enumeration
 *Since printers have been mentioned way too many times in this machine* (the **website**, **SMB shares** and in **BloodHound**), we have to **do decent enumeration** on them.
 
-We can do that via RPC with a valid account.
+We can do that **via RPC** with a valid account.
 
 Let's **re-run** `enum4linux-ng` **with credentials this time** and see what comes up.
 
