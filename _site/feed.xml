@@ -1,4 +1,401 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-02T12:44:32+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Medium] - Fuse</title><link href="http://localhost:4000/2022/08/19/Fuse.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Fuse" /><published>2022-08-19T00:00:00+02:00</published><updated>2022-08-19T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/19/Fuse</id><content type="html" xml:base="http://localhost:4000/2022/08/19/Fuse.html"><![CDATA[<p><img src="/assets/Fuse/Fuse.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-09T13:15:19+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Medium] - TartarSauce</title><link href="http://localhost:4000/2022/08/21/TartarSauce.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Medium] - TartarSauce" /><published>2022-08-21T00:00:00+02:00</published><updated>2022-08-21T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/21/TartarSauce</id><content type="html" xml:base="http://localhost:4000/2022/08/21/TartarSauce.html"><![CDATA[<p><img src="/assets/TartarSauce/TartarSauce.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>TartarSauce</strong> is a <strong>Linux</strong> machine where <em>only port 80 was open.</em></li>
+  <li><em>On the webroot</em>, the <code class="language-plaintext highlighter-rouge">robots.txt</code> file had entries for a <strong>CMS</strong> called <strong>“Monstra”</strong> where we could log on using <strong>weak credentials.</strong></li>
+  <li><em>Even though the</em> <strong><em>CMS had plenty of exploitable functionalities</em></strong>, we <strong>couldn’t exploit</strong> any <strong>due to the restrictions in place</strong>. so we looked elsewhere.</li>
+  <li><em>After we do some</em> <strong><em>web directory brute forcing</em></strong>, we discover a <strong>WordPress instance</strong> that had a <strong>plugin vulnerable to RFI</strong>.</li>
+  <li>We <strong>successfully exploit the vulnerability</strong> and get <strong>Remote Code Execution</strong> as <code class="language-plaintext highlighter-rouge">www-data</code>.</li>
+  <li>We find that we have a <code class="language-plaintext highlighter-rouge">sudo</code> <strong>privilege</strong> to <strong>run</strong> the <code class="language-plaintext highlighter-rouge">tar</code> command as the <code class="language-plaintext highlighter-rouge">onuma</code> user. We <strong>exploit that</strong> and get a shell.</li>
+  <li>Running <code class="language-plaintext highlighter-rouge">linpeas.sh</code> for <strong>privilege escalation</strong> shows us a <strong>system timer</strong> that <strong>runs a script</strong> (<code class="language-plaintext highlighter-rouge">backuperer</code>) every 5 minutes.</li>
+  <li><em>Since that script ran as</em> <code class="language-plaintext highlighter-rouge">root</code>, we analyzed it to find that it <strong>extracts an archive that we can control</strong> <em>during execution.</em></li>
+  <li><em>By inserting an</em> <strong>SUID shell</strong> <em>into a</em> <strong>tar archive</strong> <em>of our own</em>, and then <strong><em>replacing the initial archive with it</em></strong>. We take advantage of the script <strong>extracting our SUID shell</strong> and <strong><em>becoming its owner in the process</em></strong>. Thus <strong>giving us a root shell ;]</strong></li>
+</ul>
+
+<p><strong><em>That last part unclear? don’t worry. it gets its fair share of breakdown <a href="#detecting-system-operations">below</a> :)</em></strong></p>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT   STATE SERVICE VERSION
+80/tcp open  http    Apache httpd 2.4.18 ((Ubuntu))
+| http-robots.txt: 5 disallowed entries 
+| /webservices/tar/tar/source/ 
+| /webservices/monstra-3.0.4/ /webservices/easy-file-uploader/ 
+|_/webservices/developmental/ /webservices/phpmyadmin/
+|_http-title: Landing Page
+|_http-server-header: Apache/2.4.18 (Ubuntu)
+</code></pre></div></div>
+
+<p><em>Starting with</em> <strong>nmap</strong>, it gave it to us straight… only <strong>port 80</strong> here :D</p>
+
+<p>The home page shows <em>nothing special</em>. Just a <strong>Text Art</strong> bottle of <strong>Tartar Sauce.</strong></p>
+
+<p><img src="/assets/TartarSauce/home-page-tartar-sauce.jpg" alt="" /></p>
+
+<p><code class="language-plaintext highlighter-rouge">robots.txt</code> shows us <strong>a few urls to try</strong>. So we create a small list and feed it to <code class="language-plaintext highlighter-rouge">gobuster</code>.</p>
+
+<p><img src="/assets/TartarSauce/curling-robots-txt.jpg" alt="" /></p>
+
+<p>Only <code class="language-plaintext highlighter-rouge">http://tartarsauce/webservices/monstra-3.0.4/</code> was valid. So we check it out.</p>
+
+<h2 id="the-monstra-cms">The Monstra CMS</h2>
+
+<p>Here’s what the home page looked like:</p>
+
+<p><img src="/assets/TartarSauce/monstra-homepage.jpg" alt="" /></p>
+
+<p>most links on it led to a <code class="language-plaintext highlighter-rouge">404 - Not Found</code> <em>except for the</em> <strong>login form</strong>:</p>
+
+<p><img src="/assets/TartarSauce/monstra-login-page.jpg" alt="" /></p>
+
+<p>we could log in with <code class="language-plaintext highlighter-rouge">admin:admin</code></p>
+
+<p><img src="/assets/TartarSauce/monstra-logged-in.jpg" alt="" /></p>
+
+<p><em>however,</em> we <strong>couldn’t abuse any functionalities</strong> to get <strong>RCE</strong>.</p>
+
+<p><strong>Check #1:</strong> <strong>Uploading a reverse shell</strong> failed.</p>
+
+<p><img src="/assets/TartarSauce/monstra-file-upload-fail.jpg" alt="" /></p>
+
+<p><strong>Check #2:</strong> <strong>Installing a malicious plugin..</strong> the same.</p>
+
+<p><img src="/assets/TartarSauce/monstra-install-plugin-fail.jpg" alt="" /></p>
+
+<p><strong>Check #3:</strong> <strong>Editing themes to insert PHP…</strong> no dice :/</p>
+
+<p><img src="/assets/TartarSauce/monstra-editing-themese.jpg" alt="" /></p>
+
+<p><img src="/assets/TartarSauce/monstra-editing-themes-2.jpg" alt="" /></p>
+
+<p><em>After</em> <strong><em>all the exploits on ExploitDB failed,</em></strong> we decided <strong>Monstra was relatively secure</strong> and it was <strong><em>time to look elsewhere :D</em></strong></p>
+
+<p><img src="/assets/TartarSauce/monstra-exploit-db-fail.jpg" alt="" /></p>
+
+<h2 id="finding-a-wordpress-instance">Finding a Wordpress Instance</h2>
+
+<p><em>After running another quick</em> <code class="language-plaintext highlighter-rouge">gobuster</code>, we found <strong><em>another web directory:</em></strong> <code class="language-plaintext highlighter-rouge">wp</code></p>
+
+<p><img src="/assets/TartarSauce/finding-wordpress.jpg" alt="" /></p>
+
+<p>it contained a <strong>Wordpress</strong> blog</p>
+
+<p><img src="/assets/TartarSauce/wordpress-homepage.jpg" alt="" /></p>
+
+<p><em>Naturally,</em> we run <code class="language-plaintext highlighter-rouge">wpscan</code> to enumerate <code class="language-plaintext highlighter-rouge">-e</code>:</p>
+<ul>
+  <li>All <strong>plugins</strong> <code class="language-plaintext highlighter-rouge">ap</code></li>
+  <li>All <strong>themes</strong> <code class="language-plaintext highlighter-rouge">at</code></li>
+  <li><strong>Timthumbs</strong> <code class="language-plaintext highlighter-rouge">tt</code></li>
+  <li><strong>Config backups</strong> <code class="language-plaintext highlighter-rouge">cb</code></li>
+  <li><strong>Database exports</strong> <code class="language-plaintext highlighter-rouge">dbe</code></li>
+  <li>And <strong>Users</strong> <code class="language-plaintext highlighter-rouge">u</code></li>
+</ul>
+
+<p><strong>Important to note:</strong> adding the <code class="language-plaintext highlighter-rouge">--plugins-detection</code> flag with the <code class="language-plaintext highlighter-rouge">aggressive</code> mode is <strong>key</strong> in this step.</p>
+
+<p>That’s because the recent versions of <code class="language-plaintext highlighter-rouge">wpscan</code> -<em>by default</em>- use the -<em>too polite and gentle</em>- <code class="language-plaintext highlighter-rouge">passive</code> mode which <strong>won’t detect any plugins</strong> and thus <strong>block the main exploitation path</strong>.</p>
+
+<p>That part took me a while to figure out *<strong><em>smiles in pain</em></strong>*.</p>
+
+<p>Here’s the command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wpscan <span class="nt">--url</span> http://tartarsauce/webservices/wp/ <span class="nt">-e</span> ap,at,tt,cb,dbe,u <span class="nt">--plugins-detection</span> aggressive <span class="nt">-t</span> 50
+</code></pre></div></div>
+
+<p>The output showed <strong>a total of 3 plugins:</strong></p>
+
+<p><img src="/assets/TartarSauce/wordpress-plugins.jpg" alt="" /></p>
+
+<p><em>After searching,</em> the <code class="language-plaintext highlighter-rouge">Gwolle Guestbook</code> plugin turned out to have <strong>a Remote File Inclusion vulnerability</strong> on the URL highlighted below:</p>
+
+<p><img src="/assets/TartarSauce/wordpress-vuln-plugin.jpg" alt="" /></p>
+
+<p><em>Following the exploit steps,</em> we:</p>
+<ol>
+  <li><strong>Copy our favourite PHP reverse shell</strong> <code class="language-plaintext highlighter-rouge">/usr/share/webshells/php/php-reverse-shell.php</code> to <code class="language-plaintext highlighter-rouge">rev.txt</code></li>
+  <li><strong>Modify</strong> the <code class="language-plaintext highlighter-rouge">ip</code> and <code class="language-plaintext highlighter-rouge">port</code> variables</li>
+  <li><strong>Serve it</strong> on a <code class="language-plaintext highlighter-rouge">python</code> webserver</li>
+  <li>Start a <code class="language-plaintext highlighter-rouge">netcat</code> listener to <strong>catch the connect back</strong></li>
+  <li><code class="language-plaintext highlighter-rouge">curl</code> the <strong>vulnerable endpoint</strong> while placing a question mark <code class="language-plaintext highlighter-rouge">?</code> at the end. (This is because the plugin appends <code class="language-plaintext highlighter-rouge">wp-load.php</code> to the request. So we use the <code class="language-plaintext highlighter-rouge">?</code> to break off the url at that point)</li>
+</ol>
+
+<p><img src="/assets/TartarSauce/RFI-2-shell.jpg" alt="" /></p>
+
+<p>Sweet :D</p>
+
+<h2 id="pivoting-to-onuma">Pivoting to Onuma</h2>
+<p><em>After</em> <strong><em>optimizing our shell,</em></strong> we get to work.</p>
+
+<p><img src="/assets/TartarSauce/shell-pimping.jpg" alt="" /></p>
+
+<p><em>when we type</em> <code class="language-plaintext highlighter-rouge">sudo -l</code> <em>to check our</em> <strong>sudo privileges</strong>, we find that we can run the <code class="language-plaintext highlighter-rouge">tar</code> command as the <code class="language-plaintext highlighter-rouge">onuma</code> user.</p>
+
+<p><img src="/assets/TartarSauce/sudo-tar.jpg" alt="" /></p>
+
+<p>A quick look on <a href="https://gtfobins.github.io/gtfobins/tar/">GTFOBins</a> tells us that <strong>we can get a shell</strong> with that:</p>
+
+<p><img src="/assets/TartarSauce/gtfobins-tar.jpg" alt="" /></p>
+
+<p>It was legit. we’re now interacting as <code class="language-plaintext highlighter-rouge">onuma</code></p>
+
+<p><img src="/assets/TartarSauce/shell-as-onuma.jpg" alt="" /></p>
+
+<h2 id="detecting-system-operations">Detecting system operations</h2>
+<p><em>When running a quick</em> <a href="https://github.com/carlospolop/PEASS-ng">linpeas.sh</a>, we spot a <strong>unique system timer:</strong></p>
+
+<p><img src="/assets/TartarSauce/system-timers.jpg" alt="" /></p>
+
+<p>and <strong>other files</strong> that stick out</p>
+
+<p><img src="/assets/TartarSauce/backup-files-modified.jpg" alt="" /></p>
+
+<p>We do a quick <em>case-insensitive</em> <code class="language-plaintext highlighter-rouge">find</code> to search for <strong>everything that has the word “backup” in it.</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>find / <span class="nt">-type</span> f <span class="nt">-iname</span> <span class="s1">'*backup*'</span> 2&gt;/dev/null
+</code></pre></div></div>
+
+<p>there was a <code class="language-plaintext highlighter-rouge">bash</code> script called <code class="language-plaintext highlighter-rouge">backuperer</code> in <code class="language-plaintext highlighter-rouge">/usr/bin</code></p>
+
+<p><img src="/assets/TartarSauce/finding-backuperer-script.jpg" alt="" /></p>
+
+<p>the contents:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+
+<span class="c">#-------------------------------------------------------------------------------------</span>
+<span class="c"># backuperer ver 1.0.2 - by ȜӎŗgͷͼȜ</span>
+<span class="c"># ONUMA Dev auto backup program</span>
+<span class="c"># This tool will keep our webapp backed up incase another skiddie defaces us again.</span>
+<span class="c"># We will be able to quickly restore from a backup in seconds ;P</span>
+<span class="c">#-------------------------------------------------------------------------------------</span>
+
+<span class="c"># Set Vars Here</span>
+<span class="nv">basedir</span><span class="o">=</span>/var/www/html
+<span class="nv">bkpdir</span><span class="o">=</span>/var/backups
+<span class="nv">tmpdir</span><span class="o">=</span>/var/tmp
+<span class="nv">testmsg</span><span class="o">=</span><span class="nv">$bkpdir</span>/onuma_backup_test.txt
+<span class="nv">errormsg</span><span class="o">=</span><span class="nv">$bkpdir</span>/onuma_backup_error.txt
+<span class="nv">tmpfile</span><span class="o">=</span><span class="nv">$tmpdir</span>/.<span class="si">$(</span>/usr/bin/head <span class="nt">-c100</span> /dev/urandom |sha1sum|cut <span class="nt">-d</span><span class="s1">' '</span> <span class="nt">-f1</span><span class="si">)</span>
+<span class="nv">check</span><span class="o">=</span><span class="nv">$tmpdir</span>/check
+
+<span class="c"># formatting</span>
+printbdr<span class="o">()</span>
+<span class="o">{</span>
+    <span class="k">for </span>n <span class="k">in</span> <span class="si">$(</span><span class="nb">seq </span>72<span class="si">)</span><span class="p">;</span>
+    <span class="k">do</span> /usr/bin/printf <span class="s2">$"-"</span><span class="p">;</span>
+    <span class="k">done</span>
+<span class="o">}</span>
+<span class="nv">bdr</span><span class="o">=</span><span class="si">$(</span>printbdr<span class="si">)</span>
+
+<span class="c"># Added a test file to let us see when the last backup was run</span>
+/usr/bin/printf <span class="s2">$"</span><span class="nv">$bdr</span><span class="se">\n</span><span class="s2">Auto backup backuperer backup last ran at : </span><span class="si">$(</span>/bin/date<span class="si">)</span><span class="se">\n</span><span class="nv">$bdr</span><span class="se">\n</span><span class="s2">"</span> <span class="o">&gt;</span> <span class="nv">$testmsg</span>
+
+<span class="c"># Cleanup from last time.</span>
+/bin/rm <span class="nt">-rf</span> <span class="nv">$tmpdir</span>/.<span class="k">*</span> <span class="nv">$check</span>
+
+<span class="c"># Backup onuma website dev files.</span>
+/usr/bin/sudo <span class="nt">-u</span> onuma /bin/tar <span class="nt">-zcvf</span> <span class="nv">$tmpfile</span> <span class="nv">$basedir</span> &amp;
+
+<span class="c"># Added delay to wait for backup to complete if large files get added.</span>
+/bin/sleep 30
+
+<span class="c"># Test the backup integrity</span>
+integrity_chk<span class="o">()</span>
+<span class="o">{</span>
+    /usr/bin/diff <span class="nt">-r</span> <span class="nv">$basedir</span> <span class="nv">$check$basedir</span>
+<span class="o">}</span>
+
+/bin/mkdir <span class="nv">$check</span>
+/bin/tar <span class="nt">-zxvf</span> <span class="nv">$tmpfile</span> <span class="nt">-C</span> <span class="nv">$check</span>
+<span class="k">if</span> <span class="o">[[</span> <span class="si">$(</span>integrity_chk<span class="si">)</span> <span class="o">]]</span>
+<span class="k">then</span>
+    <span class="c"># Report errors so the dev can investigate the issue.</span>
+    /usr/bin/printf <span class="s2">$"</span><span class="nv">$bdr</span><span class="se">\n</span><span class="s2">Integrity Check Error in backup last ran :  </span><span class="si">$(</span>/bin/date<span class="si">)</span><span class="se">\n</span><span class="nv">$bdr</span><span class="se">\n</span><span class="nv">$tmpfile</span><span class="se">\n</span><span class="s2">"</span> <span class="o">&gt;&gt;</span> <span class="nv">$errormsg</span>
+    integrity_chk <span class="o">&gt;&gt;</span> <span class="nv">$errormsg</span>
+    <span class="nb">exit </span>2
+<span class="k">else</span>
+    <span class="c"># Clean up and save archive to the bkpdir.</span>
+    /bin/mv <span class="nv">$tmpfile</span> <span class="nv">$bkpdir</span>/onuma-www-dev.bak
+    /bin/rm <span class="nt">-rf</span> <span class="nv">$check</span> .<span class="k">*</span>
+    <span class="nb">exit </span>0
+<span class="k">fi</span>
+</code></pre></div></div>
+<p><em>removing the excess lines and comments,</em> it’s around <strong>30 lines of code</strong>. not too bad I guess :)</p>
+
+<h2 id="breaking-down-backuperer">Breaking down “Backuperer”</h2>
+<p>Let’s first <strong>break down all the variables</strong> for <strong>absolute paths</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Set Vars Here</span>
+<span class="nv">basedir</span><span class="o">=</span>/var/www/html
+<span class="nv">bkpdir</span><span class="o">=</span>/var/backups
+<span class="nv">tmpdir</span><span class="o">=</span>/var/tmp
+
+<span class="nv">testmsg</span><span class="o">=</span>/var/backups/onuma_backup_test.txt
+<span class="nv">errormsg</span><span class="o">=</span>/var/backups/onuma_backup_error.txt
+
+<span class="nv">tmpfile</span><span class="o">=</span>/var/tmp/.<span class="si">$(</span>/usr/bin/head <span class="nt">-c100</span> /dev/urandom |sha1sum|cut <span class="nt">-d</span><span class="s1">' '</span> <span class="nt">-f1</span><span class="si">)</span>
+<span class="nv">check</span><span class="o">=</span>/var/tmp/check
+</code></pre></div></div>
+
+<p>all self-explanatory except for the <code class="language-plaintext highlighter-rouge">tmpfile</code> variable, which is just a <code class="language-plaintext highlighter-rouge">SHA1</code> value</p>
+
+<p>Here’s what we get when run that line on its own:</p>
+
+<p><img src="/assets/TartarSauce/sha1sum.jpg" alt="" /></p>
+
+<p>next, the <code class="language-plaintext highlighter-rouge">printbdr</code> function</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># formatting</span>
+printbdr<span class="o">()</span>
+<span class="o">{</span>
+    <span class="k">for </span>n <span class="k">in</span> <span class="si">$(</span><span class="nb">seq </span>72<span class="si">)</span><span class="p">;</span>
+    <span class="k">do</span> /usr/bin/printf <span class="s2">$"-"</span><span class="p">;</span>
+    <span class="k">done</span>
+<span class="o">}</span>
+<span class="nv">bdr</span><span class="o">=</span><span class="si">$(</span>printbdr<span class="si">)</span>
+</code></pre></div></div>
+
+<p>it just <strong>creates a border</strong> for <strong>nice formatting</strong></p>
+
+<p><img src="/assets/TartarSauce/bdr-function.jpg" alt="" /></p>
+
+<p>then, the script:</p>
+<ul>
+  <li><strong>does some cleanup from older runs</strong></li>
+  <li><strong>tars up</strong> the <code class="language-plaintext highlighter-rouge">basedir</code> (<code class="language-plaintext highlighter-rouge">/var/www/html</code>) into <code class="language-plaintext highlighter-rouge">tmpfile</code> (<code class="language-plaintext highlighter-rouge">/var/tmp/.&lt;SHA1SUM&gt;</code>)</li>
+  <li>then <strong>sleeps for 30 seconds.</strong> <em>(This is in case the backup process takes longer than expected.)</em></li>
+</ul>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Cleanup from last time.</span>
+/bin/rm <span class="nt">-rf</span> <span class="nv">$tmpdir</span>/.<span class="k">*</span> <span class="nv">$check</span>
+
+<span class="c"># Backup onuma website dev files.</span>
+/usr/bin/sudo <span class="nt">-u</span> onuma /bin/tar <span class="nt">-zcvf</span> <span class="nv">$tmpfile</span> <span class="nv">$basedir</span> &amp;
+
+<span class="c"># Added delay to wait for backup to complete if large files get added.</span>
+/bin/sleep 30
+</code></pre></div></div>
+
+<p>The following is a <strong>function</strong> that does a <strong><em>recursive</em></strong> <code class="language-plaintext highlighter-rouge">diff</code> between <code class="language-plaintext highlighter-rouge">basedir</code> (<code class="language-plaintext highlighter-rouge">var/www/html</code>) and <code class="language-plaintext highlighter-rouge">check+basedir</code> (<code class="language-plaintext highlighter-rouge">/var/tmp/check/var/www/html</code>)</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Test the backup integrity</span>
+integrity_chk<span class="o">()</span>
+<span class="o">{</span>
+    /usr/bin/diff <span class="nt">-r</span> <span class="nv">$basedir</span> <span class="nv">$check$basedir</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<p>here’s a quick <strong>example</strong> of how a recursive diff works:</p>
+
+<p><img src="/assets/TartarSauce/recursive-diff-example.jpg" alt="" /></p>
+
+<p>This function would make much more sense with the lines that follow:</p>
+<ul>
+  <li>creating the <code class="language-plaintext highlighter-rouge">check</code> directory <code class="language-plaintext highlighter-rouge">/var/tmp/check</code>
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/bin/mkdir <span class="nv">$check</span>
+</code></pre></div>    </div>
+  </li>
+  <li>extracting the <code class="language-plaintext highlighter-rouge">tmpfile</code> (<code class="language-plaintext highlighter-rouge">/var/tmp/.&lt;SHA1SUM&gt;</code>) into it
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/bin/tar <span class="nt">-zxvf</span> <span class="nv">$tmpfile</span> <span class="nt">-C</span> <span class="nv">$check</span>
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<p>The <strong>integrity check</strong> is <strong>validation</strong> that <strong>the backup</strong> <em>exactly matches</em> the <strong>backed up data</strong> and <strong>no corruption has occured.</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">if</span> <span class="o">[[</span> <span class="si">$(</span>integrity_chk<span class="si">)</span> <span class="o">]]</span>
+<span class="k">then</span>
+    <span class="c"># Report errors so the dev can investigate the issue.</span>
+    /usr/bin/printf <span class="s2">$"</span><span class="nv">$bdr</span><span class="se">\n</span><span class="s2">Integrity Check Error in backup last ran :  </span><span class="si">$(</span>/bin/date<span class="si">)</span><span class="se">\n</span><span class="nv">$bdr</span><span class="se">\n</span><span class="nv">$tmpfile</span><span class="se">\n</span><span class="s2">"</span> <span class="o">&gt;&gt;</span> <span class="nv">$errormsg</span>
+    integrity_chk <span class="o">&gt;&gt;</span> <span class="nv">$errormsg</span>
+    <span class="nb">exit </span>2
+<span class="k">else</span>
+    <span class="c"># Clean up and save archive to the bkpdir.</span>
+    /bin/mv <span class="nv">$tmpfile</span> <span class="nv">$bkpdir</span>/onuma-www-dev.bak
+    /bin/rm <span class="nt">-rf</span> <span class="nv">$check</span> .<span class="k">*</span>
+    <span class="nb">exit </span>0
+<span class="k">fi</span>
+</code></pre></div></div>
+
+<h2 id="exploiting-tar-to-root-the-box">Exploiting tar to root the box</h2>
+
+<p>There’s <strong>a way to escalate our privileges</strong> to <code class="language-plaintext highlighter-rouge">root</code></p>
+
+<p>Because:</p>
+<ol>
+  <li>The script <strong>backs up the website</strong> into <code class="language-plaintext highlighter-rouge">/var/tmp/.&lt;SHA1SUM&gt;</code> as <code class="language-plaintext highlighter-rouge">onuma</code> (<em>we own this user and this makes that archive writable</em>)</li>
+  <li>It then <strong>sleeps for 30 seconds</strong>. which is <strong>enough time</strong> for us to <strong><em>swap the archive with a malicious one</em></strong></li>
+  <li><strong>creates</strong> a <code class="language-plaintext highlighter-rouge">check</code> directory, <strong>extracting</strong> the contents of the -<strong><em>then manipulated</em></strong>- <code class="language-plaintext highlighter-rouge">/var/tmp/.&lt;SHA1SUM&gt;</code> into it before doing the integrity check</li>
+</ol>
+
+<p><strong>The key here</strong> is that: <strong>everything the script extracts would be owned by root!</strong></p>
+
+<p>So we just need to:</p>
+<ol>
+  <li><strong>Create an SUID shell</strong> and <strong>embed it within a tar archive</strong></li>
+  <li><strong>Wait for the first backup to complete</strong> (<code class="language-plaintext highlighter-rouge">/var/www/html</code> to <code class="language-plaintext highlighter-rouge">/var/tmp/.&lt;SHA1SUM&gt;</code>)</li>
+  <li><strong>Replace</strong> the <code class="language-plaintext highlighter-rouge">/var/tmp/.&lt;SHA1SUM&gt;</code> with <strong>the one we created</strong></li>
+  <li><strong>Wait for the extraction</strong> to be done by <code class="language-plaintext highlighter-rouge">root</code> into the <code class="language-plaintext highlighter-rouge">check</code> directory</li>
+  <li><strong>Go within the extracted contents</strong> and <strong>run the root shell :)</strong></li>
+</ol>
+
+<p><em>But before executing this evil plan,</em> let’s first observe the script in action:</p>
+
+<p>We’ll go to <code class="language-plaintext highlighter-rouge">/var/tmp</code> and do a <code class="language-plaintext highlighter-rouge">watch</code> command to <strong>keep an eye</strong> on <strong>the timer</strong> (<code class="language-plaintext highlighter-rouge">systemctl list-timers</code>) as well as <strong>the directory contents</strong> (<code class="language-plaintext highlighter-rouge">ls -la</code>)</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd</span> /var/tmp
+watch <span class="nt">-n</span> 1 <span class="s1">'systemctl list-timers; ls -la'</span>
+</code></pre></div></div>
+
+<p>here, the <code class="language-plaintext highlighter-rouge">/var/tmp</code> directory is empty before any execution</p>
+
+<p><img src="/assets/TartarSauce/watching-timers-and-contents.jpg" alt="" /></p>
+
+<p><em>26 seconds after the code ran,</em> notice the <code class="language-plaintext highlighter-rouge">SHA1</code> (<code class="language-plaintext highlighter-rouge">$tmpfile</code>) got created.</p>
+
+<p>it’s owned by <code class="language-plaintext highlighter-rouge">onuma</code> (<em>since it’s the output of</em> <strong>line 35</strong>)</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/usr/bin/sudo <span class="nt">-u</span> onuma /bin/tar <span class="nt">-zcvf</span> <span class="nv">$tmpfile</span> <span class="nv">$basedir</span> &amp;
+</code></pre></div></div>
+
+<p><img src="/assets/TartarSauce/tmp-file-creation.jpg" alt="" /></p>
+
+<p><em>After the 30-second sleep interval has passed,</em> the <code class="language-plaintext highlighter-rouge">check</code> directory (<code class="language-plaintext highlighter-rouge">$check</code>) is now there with the contents of the <code class="language-plaintext highlighter-rouge">$tmpfile</code> inside.</p>
+
+<p>it’s owned by <code class="language-plaintext highlighter-rouge">root</code> (<em>as it’s the output of</em> <strong>line 47</strong>)</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/bin/tar <span class="nt">-zxvf</span> <span class="nv">$tmpfile</span> <span class="nt">-C</span> <span class="nv">$check</span>
+</code></pre></div></div>
+
+<p><img src="/assets/TartarSauce/check-directory-created.jpg" alt="" /></p>
+
+<p><em>Having seen everything up close,</em> let’s prepare the <strong>SUID shell</strong></p>
+
+<p><img src="/assets/TartarSauce/killershell-c.jpg" alt="" /></p>
+
+<p>We compile it using <code class="language-plaintext highlighter-rouge">gcc</code> with the <code class="language-plaintext highlighter-rouge">-m32</code> flag to <strong>match the victim’s architecture</strong></p>
+
+<p><img src="/assets/TartarSauce/victim-arch.jpg" alt="" /></p>
+
+<p><em>Even though we got a warning,</em> it’s been successfully compiled</p>
+
+<p><img src="/assets/TartarSauce/compiling-killer-shell.jpg" alt="" /></p>
+
+<p>We make sure to <strong>add the SUID bit</strong> and <strong>create the same directory structure</strong> (<code class="language-plaintext highlighter-rouge">/var/www/html</code>) within the archive.</p>
+
+<p><img src="/assets/TartarSauce/crafting-killer-tar.jpg" alt="" /></p>
+
+<p>we then <strong>transfer it over</strong> and <strong>overwrite</strong> the <code class="language-plaintext highlighter-rouge">SHA1</code> file <strong><em>as soon as the file length stabilizes.</em></strong> (<em>to avoid interrupting the first backup</em>)</p>
+
+<p>we <strong>wait 30 seconds for the extraction</strong> to be done in the <code class="language-plaintext highlighter-rouge">check</code> directory.</p>
+
+<p><em>going into the extract,</em> a sweet <strong>SUID shell</strong> is there waiting for us :D</p>
+
+<p>it’s all in the image below:</p>
+
+<p><img src="/assets/TartarSauce/tar-ownage-for-root.jpg" alt="" /></p>
+
+<p><strong>Wicked!</strong></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Fuse</title><link href="http://localhost:4000/2022/08/19/Fuse.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Fuse" /><published>2022-08-19T00:00:00+02:00</published><updated>2022-08-19T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/19/Fuse</id><content type="html" xml:base="http://localhost:4000/2022/08/19/Fuse.html"><![CDATA[<p><img src="/assets/Fuse/Fuse.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -280,7 +677,7 @@ Completed after 24.97 seconds
 
 <p><strong>Awesome! every single one of them was valid!</strong></p>
 
-<p><em>Having a list of valid usernames and another with potential passwords,</em> we get to spraying..</p>
+<p><em>Having a list of</em> <strong><em>valid usernames</em></strong> <em>and another with</em> <strong><em>potential passwords,</em></strong> we get to spraying..</p>
 
 <p><img src="/assets/Fuse/likely-pass-list.jpg" alt="" /></p>
 
@@ -3146,352 +3543,4 @@ Host script results:
 
 <p><img src="/assets/Cascade/got-admin-at-last.jpg" alt="got-admin-at-last" /></p>
 
-<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Mantis</title><link href="http://localhost:4000/2022/05/06/Mantis.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Mantis" /><published>2022-05-06T00:00:00+02:00</published><updated>2022-05-06T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/06/Mantis</id><content type="html" xml:base="http://localhost:4000/2022/05/06/Mantis.html"><![CDATA[<p><img src="/assets/Mantis/Mantis.png" alt="Mantis" /></p>
-
-<h2 id="summary">Summary</h2>
-<ul>
-  <li>A <strong>Windows Domain Controller</strong> machine. We find a <em>hidden credentials file</em> when directory bruteforcing <strong>IIS</strong> on a <em>custom</em> port.</li>
-  <li>The file gives us information about the <strong>MSSQL database</strong> (the username and DB name) in plain text while the password is present in the file name as a <em>base-64 encoded hex</em> string.</li>
-  <li><em>Using the credentials found,</em> we gain access to the <strong>MSSQL database</strong> which contains the password for a user called <code class="language-plaintext highlighter-rouge">james</code> who is an AD user.</li>
-  <li><em>With</em> <code class="language-plaintext highlighter-rouge">james</code>’s <em>credentials,</em> we’re able to exploit <strong>Kerberos</strong> with a known <strong>CVE (MS14-068) a.k.a Pykek</strong> to <em>forge</em> a <strong>Domain Admin</strong> ticket.</li>
-  <li><em>Using the ticket with kerberos authentication,</em> we can execute commands on the box as a <strong>Domain Administrator</strong> to gain <strong>full access</strong>.</li>
-</ul>
-
-<hr />
-
-<h2 id="nmap">Nmap</h2>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE      VERSION
-53/tcp    open  domain       Microsoft DNS 6.1.7601 (1DB15CD4) (Windows Server 2008 R2 SP1)
-| dns-nsid: 
-|_  bind.version: Microsoft DNS 6.1.7601 (1DB15CD4)
-88/tcp    open  kerberos-sec Microsoft Windows Kerberos (server time: 2022-05-03 18:53:51Z)
-135/tcp   open  msrpc        Microsoft Windows RPC
-139/tcp   open  netbios-ssn  Microsoft Windows netbios-ssn
-389/tcp   open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
-445/tcp   open  microsoft-ds Windows Server 2008 R2 Standard 7601 Service Pack 1 microsoft-ds (workgroup: HTB)
-464/tcp   open  kpasswd5?
-593/tcp   open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
-636/tcp   open  tcpwrapped
-1337/tcp  open  http         Microsoft IIS httpd 7.5
-| http-methods: 
-|_  Potentially risky methods: TRACE
-|_http-server-header: Microsoft-IIS/7.5
-|_http-title: IIS7
-1433/tcp  open  ms-sql-s     Microsoft SQL Server 2014 12.00.2000.00; RTM
-| ssl-cert: Subject: commonName=SSL_Self_Signed_Fallback
-| Not valid before: 2022-05-03T18:51:03
-|_Not valid after:  2052-05-03T18:51:03
-|_ssl-date: 2022-05-03T18:55:01+00:00; 0s from scanner time.
-| ms-sql-ntlm-info: 
-|   Target_Name: HTB
-|   NetBIOS_Domain_Name: HTB
-|   NetBIOS_Computer_Name: MANTIS
-|   DNS_Domain_Name: htb.local
-|   DNS_Computer_Name: mantis.htb.local
-|   DNS_Tree_Name: htb.local
-|_  Product_Version: 6.1.7601
-3268/tcp  open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
-3269/tcp  open  tcpwrapped
-5722/tcp  open  msrpc        Microsoft Windows RPC
-8080/tcp  open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-|_http-server-header: Microsoft-IIS/7.5
-|_http-title: Tossed Salad - Blog
-|_http-open-proxy: Proxy might be redirecting requests
-9389/tcp  open  mc-nmf       .NET Message Framing
-47001/tcp open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-|_http-title: Not Found
-|_http-server-header: Microsoft-HTTPAPI/2.0
-49152/tcp open  msrpc        Microsoft Windows RPC
-49153/tcp open  msrpc        Microsoft Windows RPC
-49154/tcp open  msrpc        Microsoft Windows RPC
-49155/tcp open  msrpc        Microsoft Windows RPC
-49157/tcp open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
-49158/tcp open  msrpc        Microsoft Windows RPC
-49168/tcp open  msrpc        Microsoft Windows RPC
-49180/tcp open  msrpc        Microsoft Windows RPC
-49184/tcp open  msrpc        Microsoft Windows RPC
-50255/tcp open  ms-sql-s     Microsoft SQL Server 2014 12.00.2000
-|_ssl-date: 2022-05-03T18:55:01+00:00; 0s from scanner time.
-| ms-sql-ntlm-info: 
-|   Target_Name: HTB
-|   NetBIOS_Domain_Name: HTB
-|   NetBIOS_Computer_Name: MANTIS
-|   DNS_Domain_Name: htb.local
-|   DNS_Computer_Name: mantis.htb.local
-|   DNS_Tree_Name: htb.local
-|_  Product_Version: 6.1.7601
-| ssl-cert: Subject: commonName=SSL_Self_Signed_Fallback
-| Not valid before: 2022-05-03T18:51:03
-|_Not valid after:  2052-05-03T18:51:03
-Service Info: Host: MANTIS; OS: Windows; CPE: cpe:/o:microsoft:windows_server_2008:r2:sp1, cpe:/o:microsoft:windows
-
-Host script results:
-|_clock-skew: mean: 34m16s, deviation: 1h30m43s, median: 0s
-| ms-sql-info: 
-|   10.10.10.52:1433: 
-|     Version: 
-|       name: Microsoft SQL Server 2014 RTM
-|       number: 12.00.2000.00
-|       Product: Microsoft SQL Server 2014
-|       Service pack level: RTM
-|       Post-SP patches applied: false
-|_    TCP port: 1433
-| smb2-security-mode: 
-|   2.1: 
-|_    Message signing enabled and required
-| smb2-time: 
-|   date: 2022-05-03T18:54:52
-|_  start_date: 2022-05-03T18:49:33
-| smb-os-discovery: 
-|   OS: Windows Server 2008 R2 Standard 7601 Service Pack 1 (Windows Server 2008 R2 Standard 6.1)
-|   OS CPE: cpe:/o:microsoft:windows_server_2008::sp1
-|   Computer name: mantis
-|   NetBIOS computer name: MANTIS\x00
-|   Domain name: htb.local
-|   Forest name: htb.local
-|   FQDN: mantis.htb.local
-|_  System time: 2022-05-03T14:54:51-04:00
-| smb-security-mode: 
-|   account_used: &lt;blank&gt;
-|   authentication_level: user
-|   challenge_response: supported
-|_  message_signing: required
-</code></pre></div></div>
-
-<ul>
-  <li>A full port scan shows us a set ports indicative of a <strong>Domain Controller</strong> (DNS, Kerberos, LDAP, SMB, LDAP GC).</li>
-  <li>We notice the computer name is <code class="language-plaintext highlighter-rouge">Mantis</code></li>
-  <li>The domain name to be <code class="language-plaintext highlighter-rouge">htb.local</code></li>
-  <li>from the <code class="language-plaintext highlighter-rouge">nmap</code> <code class="language-plaintext highlighter-rouge">smb-os-discovery</code> script, the operating system of the machine is <strong>Windows Server 2008 R2</strong>.</li>
-  <li>We also see <strong>MSSQL</strong> on its standard port: 1443</li>
-  <li>We take note that <strong>IIS 7.5</strong> is running on both port 1337 (<em>which is interesting</em>) and on port 8080.</li>
-</ul>
-
-<h2 id="smb-enumeration">SMB Enumeration</h2>
-<p>We try enumerating <strong>SMB</strong> with <em>different authentication methods</em> using <code class="language-plaintext highlighter-rouge">crackmapexec</code>:</p>
-<ol>
-  <li>Null</li>
-  <li>Anonymous</li>
-  <li>Guest</li>
-</ol>
-
-<p><img src="/assets/Mantis/smb-enum.jpg" alt="smb-enum" /></p>
-
-<p>without success.</p>
-
-<h2 id="ldap-enumeration">LDAP Enumeration</h2>
-<p>Using <code class="language-plaintext highlighter-rouge">ldapsearch</code>, we don’t get much information either :/</p>
-
-<p><img src="/assets/Mantis/ldapsearch-output.jpg" alt="ldapsearch-output" /></p>
-
-<h2 id="kerberos-enumeration">Kerberos Enumeration</h2>
-<p>Enumerating kerberos with <code class="language-plaintext highlighter-rouge">kerbrute</code> gave us one user: <code class="language-plaintext highlighter-rouge">james</code></p>
-
-<p><img src="/assets/Mantis/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
-
-<h2 id="asreproasting-james">ASREPRoasting James</h2>
-<p><code class="language-plaintext highlighter-rouge">james</code> wasn’t asreproastable.</p>
-
-<p><img src="/assets/Mantis/james-not-asreproastable.jpg" alt="james-not-asreproastable" /></p>
-
-<h2 id="port-8080">Port 8080</h2>
-<p>Checking out port 8080 showed a <strong>CMS</strong> called <strong>Orchard CMS</strong>  as detected by <code class="language-plaintext highlighter-rouge">wappalyzer</code>.</p>
-
-<p><img src="/assets/Mantis/orchard-cms.jpg" alt="orchard-cms" /></p>
-
-<p><em>Testing for weak credentials</em> with both the <code class="language-plaintext highlighter-rouge">admin</code> and <code class="language-plaintext highlighter-rouge">james</code> users failed :/</p>
-
-<p><img src="/assets/Mantis/orchard-test-default-creds.jpg" alt="orchard-test-default-creds" /></p>
-
-<h2 id="port-1337">Port 1337</h2>
-<p>This port was interesting because of its number.</p>
-
-<p><em>And, since it was</em> <strong>IIS 7.5</strong>, I wanted to test out a certain vulnerability called the <strong>IIS Tilde Vulnerability</strong>.</p>
-
-<p><em>Briefly,</em> it can <em>disclose the first 6 characters of file/folder names</em> on this version of <strong>IIS.</strong></p>
-
-<p>I tried the <strong>MetaSploit</strong> module and it showed those results:</p>
-
-<p><img src="/assets/Mantis/iis-tilde-vuln.jpg" alt="iis-tilde-vuln" /></p>
-
-<p>The <code class="language-plaintext highlighter-rouge">secure*~</code> file/directory seemed interesting enough. So, I went ahead for directory bruteforcing using <code class="language-plaintext highlighter-rouge">gobuster</code> and the <code class="language-plaintext highlighter-rouge">directory-list-lowercase-2.3-medium.txt</code> wordlist.</p>
-
-<p>Note: I used the lowercase wordlist since we’re bruteforcing <strong>Windows</strong> which isn’t case sensitive like <strong>Linux.</strong></p>
-
-<p><img src="/assets/Mantis/gobuster-output-1337.jpg" alt="gobuster-output-1337" /></p>
-
-<p>The full name for the directory was <code class="language-plaintext highlighter-rouge">secure_notes</code>. It had the below contents:</p>
-
-<p><img src="/assets/Mantis/1337-secure-notes-contents.jpg" alt="1337-secure-notes-contents" /></p>
-
-<p>The <code class="language-plaintext highlighter-rouge">web.config</code> file didn’t exist.</p>
-
-<p>But both the name and contents of <code class="language-plaintext highlighter-rouge">dev_notes_NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx.txt.txt</code> were interesting:</p>
-
-<p><img src="/assets/Mantis/dev_notes_top.jpg" alt="dev_notes_top" /></p>
-
-<p>We could tell:</p>
-<ol>
-  <li>The username is <code class="language-plaintext highlighter-rouge">admin</code></li>
-  <li>The DB name is <code class="language-plaintext highlighter-rouge">orcharddb</code></li>
-</ol>
-
-<p>and…</p>
-
-<p><em>By taking a closer look at the file name,</em> the string <code class="language-plaintext highlighter-rouge">NmQyNDI0NzE2YzVmNTM0MDVmNTA0MDczNzM1NzMwNzI2NDIx</code> could be the <em>missing piece of the puzzle</em>: the password for the <code class="language-plaintext highlighter-rouge">orcharddb</code>’s <code class="language-plaintext highlighter-rouge">admin</code> user.</p>
-
-<h2 id="cyberchef-knew-the-recipe-d">CyberChef knew the recipe :D</h2>
-<p><code class="language-plaintext highlighter-rouge">CyberChef</code> is an amazing tool that is intelligent enough to discover if a string of text has undergone encryption/encoding.</p>
-
-<p>Using it revealed that the text was <strong>base64-encoded</strong> after being converted into <strong>hexadecimal</strong>:</p>
-
-<p><img src="/assets/Mantis/cyber-chef-magic-wand-1.jpg" alt="cyber-chef-magic-wand-1" /></p>
-
-<p><img src="/assets/Mantis/cyber-chef-magic-wand-2.jpg" alt="cyber-chef-magic-wand-2" /></p>
-
-<p><img src="/assets/Mantis/cyber-chef-awesomeness.jpg" alt="cyber-chef-awesomeness" /></p>
-
-<p>The password turned out to be <code class="language-plaintext highlighter-rouge">m$$ql_S@_P@ssW0rd!</code></p>
-
-<h2 id="interacting-with-mssql-and-db-enumeration">Interacting with MSSQL and DB Enumeration</h2>
-<p><em>Using another awesome</em> <strong>Impacket</strong> <em>python script:</em> <code class="language-plaintext highlighter-rouge">mssqlclient.py</code>, we are able to interact with the <strong>MSSQL DB</strong> command prompt from our Linux machine:</p>
-
-<p><img src="/assets/Mantis/mssql-client-py-help.jpg" alt="mssql-client-py-help" /></p>
-
-<p><img src="/assets/Mantis/mssql-client-py-connected.jpg" alt="mssql-client-py-connected" /></p>
-
-<p>We’re going to enumerate the tables in the <code class="language-plaintext highlighter-rouge">orcharddb</code> database first using: <code class="language-plaintext highlighter-rouge">SELECT * FROM orcharddb.INFORMATION_SCHEMA.TABLES</code></p>
-
-<p><img src="/assets/Mantis/orcharddb-tables.jpg" alt="orcharddb-tables" /></p>
-
-<p>The table <code class="language-plaintext highlighter-rouge">blog_Orchard_Users_UserPartRecord</code> seemed interesting. So, we did a select on it: <code class="language-plaintext highlighter-rouge">select * from blog_Orchard_Users_UserPartRecord</code></p>
-
-<p><img src="/assets/Mantis/james-password-db-cleartext.jpg" alt="james-password-db-cleartext" /></p>
-
-<p>and we’re greeted with a clear-text password for james :D</p>
-
-<h2 id="post-cred-checks">Post-Cred Checks</h2>
-<p><em>Having tested the creds from the</em> <code class="language-plaintext highlighter-rouge">james</code> <em>user,</em> and found them valid and we went on to more enumeration/attacks.</p>
-
-<p><img src="/assets/Mantis/james-creds-validated-cme.jpg" alt="james-creds-validated-cme" /></p>
-
-<ol>
-  <li>New <strong>SMB</strong> Access</li>
-  <li><strong>GPP</strong></li>
-  <li>Full AD user enumeration + Password Pattern Recognition &gt; Password Policy Enumeration &gt; Password Spraying</li>
-  <li>Full AD <strong>ASREPRoast</strong></li>
-  <li><strong>Kerberoast</strong></li>
-  <li><strong>BloodHound</strong></li>
-  <li><strong>MS14-068</strong></li>
-</ol>
-
-<p>Note: <em>we won’t be trying</em> <strong>PowerShell Remoting</strong> <em>since the</em> <strong>WinRM</strong> <em>port wasn’t open in our full nmap.</em></p>
-
-<p><em>We’re going to try everything that doesn’t require</em> <strong>code execution</strong> <em>on the box.</em></p>
-
-<ul class="task-list">
-  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />1. New <strong>SMB</strong> Access had the standard <code class="language-plaintext highlighter-rouge">READ</code> access on <code class="language-plaintext highlighter-rouge">SYSVOL</code> and <code class="language-plaintext highlighter-rouge">NETLOGON</code> shares.</li>
-</ul>
-
-<p><img src="/assets/Mantis/james-smb-access.jpg" alt="james-smb-access" /></p>
-
-<ul class="task-list">
-  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />2. <strong>GPP</strong></li>
-</ul>
-
-<p><img src="/assets/Mantis/gpp-enumeration.jpg" alt="gpp-enumeration" /></p>
-
-<ul class="task-list">
-  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />3. Full AD user enumeration + Password Pattern Recognition &gt; Password Policy Enumeration &gt; Password Spraying</li>
-</ul>
-
-<p><img src="/assets/Mantis/full-ad-userlist.jpg" alt="full-ad-userlist" /></p>
-
-<p>Going by the same pattern for the <code class="language-plaintext highlighter-rouge">james</code> user on his password <code class="language-plaintext highlighter-rouge">J@m3s_P@ssW0rd!</code>, the password for the <code class="language-plaintext highlighter-rouge">Administrator</code> should be something like:</p>
-<ul>
-  <li><code class="language-plaintext highlighter-rouge">Adm1n_P@ssw0rd!</code></li>
-  <li><code class="language-plaintext highlighter-rouge">@dm1n_P@ssw0rd!</code></li>
-  <li><code class="language-plaintext highlighter-rouge">Adm!n_P@ssw0rd!</code></li>
-  <li><code class="language-plaintext highlighter-rouge">@dm!n_P@ssw0rd!</code></li>
-  <li><code class="language-plaintext highlighter-rouge">Adm1n_P@$$w0rd!</code></li>
-  <li><code class="language-plaintext highlighter-rouge">@dm1n_P@$$w0rd!</code></li>
-  <li><code class="language-plaintext highlighter-rouge">Adm!n_P@$$w0rd!</code></li>
-  <li><code class="language-plaintext highlighter-rouge">@dm!n_P@$$w0rd!</code></li>
-</ul>
-
-<p><em>But before trying anything,</em> we’re going to enumerate the <strong>Password Policy</strong>:</p>
-
-<p><img src="/assets/Mantis/cme-pass-pol.jpg" alt="cme-pass-pol" /></p>
-
-<p>Seems alright to bruteforce the <code class="language-plaintext highlighter-rouge">Administrator</code> :D</p>
-
-<p><img src="/assets/Mantis/admin-brute-force.jpg" alt="admin-brute-force" /></p>
-
-<p>But no luck there I guess XD</p>
-
-<ul class="task-list">
-  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />4. Full AD <strong>ASREPRoast</strong></li>
-</ul>
-
-<p><img src="/assets/Mantis/full-ad-asreproast.jpg" alt="full-ad-asreproast" /></p>
-
-<ul class="task-list">
-  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />5. <strong>Kerberoast</strong></li>
-</ul>
-
-<p><img src="/assets/Mantis/kerberoast.jpg" alt="kerberoast" /></p>
-
-<ul class="task-list">
-  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />6. <strong>Bloodhound</strong></li>
-</ul>
-
-<p>All collection methods:</p>
-
-<p><img src="/assets/Mantis/bloodhound-py.jpg" alt="bloodhound-py" /></p>
-
-<p>Neo4j DB Initialization + BloodHound (–no-sandbox)</p>
-
-<p><img src="/assets/Mantis/bloodhound-initialization.jpg" alt="bloodhound-initialization" /></p>
-
-<p>We find nothing special there apart from <strong>RDP Privilege</strong> to the DC:</p>
-
-<p><img src="/assets/Mantis/james-can-rdp-the-dc.jpg" alt="james-can-rdp-the-dc" /></p>
-
-<h2 id="ms14-068-aka-pykek-the-kill-d">MS14-068 a.k.a Pykek (The Kill :D)</h2>
-<p><strong>MS14-068</strong> is a vulnerability that affects most Domain Controllers before Server 2016.</p>
-
-<p>In short, it gives us the ability to forge our own kerberos ticket allowing us to have group memberships in whatever high-privilege groups we want (<em>ex: Domain Admins, Enterprise Admins etc.</em>)</p>
-
-<ul>
-  <li>A full article on it here (https://adsecurity.org/?p=541)</li>
-  <li>The Microsoft Reference that details the affected versions there (https://docs.microsoft.com/en-us/security-updates/securitybulletins/2014/ms14-068)</li>
-</ul>
-
-<p><em>Looking at the GitHub PoC</em> (https://github.com/SecWiki/windows-kernel-exploits/tree/master/MS14-068/pykek), It only needs:</p>
-<ol>
-  <li>A valid AD user</li>
-  <li>His SID</li>
-</ol>
-
-<p><code class="language-plaintext highlighter-rouge">james</code> is a valid AD user, we just need to get his <strong>SID</strong>.</p>
-
-<p><em>With a handy</em> <strong>Impacket</strong> <em>script called</em> <code class="language-plaintext highlighter-rouge">lookupsid.py</code>, we can easily get that.</p>
-
-<p><img src="/assets/Mantis/james-sid-calculation.jpg" alt="james-sid-calculation" /></p>
-
-<p><em>Because like the picture above,</em> a user’s SID is formed of <code class="language-plaintext highlighter-rouge">&lt;DOMAIN_SID&gt;-&lt;USER_RID&gt;</code></p>
-
-<p>We’re going to run the exploit with the needed parameters.</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python2.7 ./ms14-068.py <span class="nt">-u</span> james@htb.local <span class="nt">-s</span> S-1-5-21-4220043660-4019079961-2895681657-1103 <span class="nt">-d</span> mantis.htb.local <span class="nt">-p</span> <span class="s1">'J@m3s_P@ssW0rd!'</span>
-</code></pre></div></div>
-
-<p><img src="/assets/Mantis/got-forged-ticket.jpg" alt="got-forged-ticket" /></p>
-
-<p>Looks like a success! :D</p>
-
-<p>we’re going to export this ticket to our shell environment’s <code class="language-plaintext highlighter-rouge">KRB5CCNAME</code> variable and use <code class="language-plaintext highlighter-rouge">psexec.py</code> to own this DC :D</p>
-
-<p><img src="/assets/Mantis/pykek-for-the-win.jpg" alt="pykek-for-the-win" /></p>
-
-<p>Sweeeet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>

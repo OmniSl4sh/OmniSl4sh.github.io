@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "HTB Writeup [Linux - Medium] - TartarSauce"
-published: false
+published: true
 ---
 
 ![](/assets/TartarSauce/TartarSauce.png)
@@ -11,13 +11,13 @@ published: false
 - *On the webroot*, the `robots.txt` file had entries for a **CMS** called **"Monstra"** where we could log on using **weak credentials.**
 - *Even though the* ***CMS had plenty of exploitable functionalities***, we **couldn't exploit** any **due to the restrictions in place**. so we looked elsewhere.
 - *After we do some* ***web directory brute forcing***, we discover a **WordPress instance** that had a **plugin vulnerable to RFI**.
-- We **successfully exploit the vulnerability** and get **Remote Code Execution**.
-- *With* `www-data`, we find that we have a `sudo` **privilege** to **run** the `tar` command as the `onuma` user. We **exploit that** for a shell as him/her/it.
+- We **successfully exploit the vulnerability** and get **Remote Code Execution** as `www-data`.
+- We find that we have a `sudo` **privilege** to **run** the `tar` command as the `onuma` user. We **exploit that** and get a shell.
 - Running `linpeas.sh` for **privilege escalation** shows us a **system timer** that **runs a script** (`backuperer`) every 5 minutes.
 - *Since that script ran as* `root`, we analyzed it to find that it **extracts an archive that we can control** *during execution.*
 - *By inserting an* **SUID shell** *into a* **tar archive** *of our own*, and then ***replacing the initial archive with it***. We take advantage of the script **extracting our SUID shell** and ***becoming its owner in the process***. Thus **giving us a root shell ;]**
 
-***That last part unclear? it will get its fair share of breakdown [below](#detecting-system-operations) :)***
+***That last part unclear? don't worry. it gets its fair share of breakdown [below](#detecting-system-operations) :)***
 
 ---
 
@@ -35,15 +35,11 @@ PORT   STATE SERVICE VERSION
 
 *Starting with* **nmap**, it gave it to us straight... only **port 80** here :D
 
-The home page shows *nothing special*. Just a bottle of **Tartar Sauce.**
+The home page shows *nothing special*. Just a **Text Art** bottle of **Tartar Sauce.**
 
 ![](/assets/TartarSauce/home-page-tartar-sauce.jpg)
 
-`robots.txt` shows us **a few urls to try**. So we whip up a ***quick and fancy*** **bash script** to check all 5 of them.
-
-```bash
-for url in `curl -s http://tartarsauce/robots.txt | tail -n 6 | sed 's/Disallow: /http:\/\/tartarsauce/g'`; do echo Curling $url; curl -I $url; done
-```
+`robots.txt` shows us **a few urls to try**. So we create a small list and feed it to `gobuster`.
 
 ![](/assets/TartarSauce/curling-robots-txt.jpg)
 
@@ -79,13 +75,13 @@ we could log in with `admin:admin`
 
 ![](/assets/TartarSauce/monstra-editing-themes-2.jpg)
 
-*After* ***all the exploits on ExploitDB failed,*** we decided **"Monstra was relatively secure"** and it was ***time to look elsewhere :D***
+*After* ***all the exploits on ExploitDB failed,*** we decided **Monstra was relatively secure** and it was ***time to look elsewhere :D***
 
 ![](/assets/TartarSauce/monstra-exploit-db-fail.jpg)
 
 ## Finding a Wordpress Instance
 
-*After running a quick* `gobuster`, we found ***another web directory:*** `wp`
+*After running another quick* `gobuster`, we found ***another web directory:*** `wp`
 
 ![](/assets/TartarSauce/finding-wordpress.jpg)
 
@@ -113,11 +109,11 @@ Here's the command:
 wpscan --url http://tartarsauce/webservices/wp/ -e ap,at,tt,cb,dbe,u --plugins-detection aggressive -t 50
 ```
 
-The output shows **a total of 3 plugins:**
+The output showed **a total of 3 plugins:**
 
 ![](/assets/TartarSauce/wordpress-plugins.jpg)
 
-the `Gwolle Guestbook` plugin turned out to have **a Remote File Inclusion vulnerability**
+*After searching,* the `Gwolle Guestbook` plugin turned out to have **a Remote File Inclusion vulnerability** on the URL highlighted below:
 
 ![](/assets/TartarSauce/wordpress-vuln-plugin.jpg)
 
@@ -126,7 +122,7 @@ the `Gwolle Guestbook` plugin turned out to have **a Remote File Inclusion vulne
 2. **Modify** the `ip` and `port` variables
 3. **Serve it** on a `python` webserver
 4. Start a `netcat` listener to **catch the connect back**
-5. `curl` the **vulnerable endpoint** placing a question mark `?` at the end. (This is because the plugin appends `wp-load.php` to the request. So we use the `?` to break the url off)
+5. `curl` the **vulnerable endpoint** while placing a question mark `?` at the end. (This is because the plugin appends `wp-load.php` to the request. So we use the `?` to break off the url at that point)
 
 ![](/assets/TartarSauce/RFI-2-shell.jpg)
 
@@ -145,7 +141,7 @@ A quick look on [GTFOBins](https://gtfobins.github.io/gtfobins/tar/) tells us th
 
 ![](/assets/TartarSauce/gtfobins-tar.jpg)
 
-Legit. we're now interacting as `onuma`
+It was legit. we're now interacting as `onuma`
 
 ![](/assets/TartarSauce/shell-as-onuma.jpg)
 
@@ -164,7 +160,7 @@ We do a quick *case-insensitive* `find` to search for **everything that has the 
 find / -type f -iname '*backup*' 2>/dev/null
 ```
 
-to find a `bash` script in `/usr/bin/backuperer`
+there was a `bash` script called `backuperer` in `/usr/bin`
 
 ![](/assets/TartarSauce/finding-backuperer-script.jpg)
 
@@ -234,7 +230,7 @@ fi
 *removing the excess lines and comments,* it's around **30 lines of code**. not too bad I guess :)
 
 ## Breaking down "Backuperer"
-Let's first tear down all the variables for **absolute paths**
+Let's first **break down all the variables** for **absolute paths**
 ```bash
 # Set Vars Here
 basedir=/var/www/html
@@ -249,6 +245,8 @@ check=/var/tmp/check
 ```
 
 all self-explanatory except for the `tmpfile` variable, which is just a `SHA1` value
+
+Here's what we get when run that line on its own:
 
 ![](/assets/TartarSauce/sha1sum.jpg)
 
@@ -295,12 +293,12 @@ integrity_chk()
 }
 ```
 
-here's a quick **example** of how a recurse diff works:
+here's a quick **example** of how a recursive diff works:
 
 ![](/assets/TartarSauce/recursive-diff-example.jpg)
 
 This function would make much more sense with the lines that follow:
-- creating the `check` directory (`/var/tmp/check`)
+- creating the `check` directory `/var/tmp/check`
 ```bash
 /bin/mkdir $check
 ```
@@ -309,7 +307,7 @@ This function would make much more sense with the lines that follow:
 /bin/tar -zxvf $tmpfile -C $check
 ```
 
-The **integrity check** is **validation** that **the backup** *exactly matches* the **backed up data.**
+The **integrity check** is **validation** that **the backup** *exactly matches* the **backed up data** and **no corruption has occured.**
 
 ```bash
 if [[ $(integrity_chk) ]]
