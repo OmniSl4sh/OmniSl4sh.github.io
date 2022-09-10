@@ -7,7 +7,19 @@ published: false
 ![](/assets/Tally/Tally.png)
 
 ## Summary
-- 
+- Tally is great box with multiple exploit paths for both initial access and privilege escalation.
+- We find a SharePoint site on port 80 which we enumerate to find a web page with a couple of interesting pieces of information.
+- One: being credentials for the listening FTP service. And, Two: being intel about an HTML document to be uploaded to the FTP share for review by another user.
+- After successfully logging into FTP, we find an installer for a specific version of Firefox which was vulnerable to an RCE vulnerability and exploitable with a malicious HTML.
+- Having confirmed that the victim was using that version, we plant a payload but fail to get code execution due to the inconsistency of the exploit. So we move along.
+- Going through the rest of the FTP share, we find a KeePass database file which we crack to gain access to an SMB share.
+- On that share, we find a custom binary that contained credentials for the MSSQL instance on the box as the `sa` user.
+- After we authenticated, we enabled the `xp_cmdshell` feature and were able to execute a reverse shell and get on the system.
+- Having gained access through MSSQL, we had the `SeImpersonatePrivilege` which we easily exploited using Juicy Potato to escalate our privileges to `NT AUTHORITY\System`.
+- There was another unintended path for privesc using a modifiable PowerShell script that was running as the `Administrator` user as part of a scheduled task.
+- We added a PowerShell reverse shell to that script and owned the box a second way.
+- A third path -which was the intended one- was to use CVE-2017-0213. We found the C++ code for it on GitHub but couldn't compile it due to an error.
+- We googled the error and were able to build the exploit binary. However, it only worked when we used the x86 version in an interactive process. We managed to provide the latter through a Metasploit meterpreter shell.
 
 ---
 
