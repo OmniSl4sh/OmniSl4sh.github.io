@@ -1,0 +1,20 @@
+---
+layout: post
+title:  "HTB Writeup [Linux - Medium] - Ready"
+published: false
+---
+
+![](/Assets/Box/Box.png)
+
+## Summary
+- Ready is a fun box where we find a Gitlab instance on port 5080.
+- On the main page, we register our own user which enables us to enumerate the version.
+- We find that it was vulnerable to an exploit chain of an SSRF, CRLF and Redis abuse leading to Remote Code Execution.
+- After some troubleshooting to get the exploit working, we gain access as the `git` user.
+- While checking the file system, we find a password inside the `/opt/backup` folder. which turned out to be for the `root` user.
+- However, since we were within a Docker instance, we had one more level up to go.
+- When we run `linpeas.sh`, it shows us we can mount the host's file system on our container. We do that and get the host's `root` user's private SSH key then use it remote over and own the box.
+
+---
+
+## NMAP

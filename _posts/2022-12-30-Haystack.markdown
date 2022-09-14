@@ -1,0 +1,21 @@
+---
+layout: post
+title:  "HTB Writeup [Linux - Easy] - Haystack"
+published: false
+---
+
+![](/Assets/Box/Box.png)
+
+## Summary
+- Haystack was quite a nice Linux box, it had an unprotected Elastic Search instance which let us enumerate all indeces (equivalent to database tables).
+- Hidden among the data, was a username and password encoded in base64. Those worked and got us on the box via SSH.
+- On the box, we detect a locally-listening Kibana interface which we expose to ourselves through an SSH tunnel.
+- After fingerprinting Kibana, we find the version vulnerable to Local File Inclusion.
+- Having access to file system, we place a Node.JS reverse shell and include it using the LFI to get code execution as the `kibana` user.
+- Noticing the logstash service running as `root`, we check if we can modify or abuse its filters to run command in a privileged context.
+- The filters weren't writable, but they extracted and ran commands from a directory where we had write access.
+- After placing a file with a matching name and inserting our command in the expected format, our code gets executed as `root` and we own the box.
+
+---
+
+## NMAP

