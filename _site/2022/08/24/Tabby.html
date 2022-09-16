@@ -68,9 +68,9 @@
 <ul>
   <li><strong>Tabby</strong> is a <strong>linux</strong> machine hosting both <strong>Apache web server</strong> and <strong>Tomcat</strong>.</li>
   <li>The website on port 80 had a <strong>Directory Traversal vulnerability</strong> which enabled us to <strong>read a Tomcat configuration file</strong> which <strong>contained valid credentials.</strong></li>
-  <li><em>Using those,</em> we <strong>get a user with enough privileges to upload a WAR file containing a reverse shell</strong>. <em>And, with that</em>, we <strong>access the box</strong> as the <code class="language-plaintext highlighter-rouge">tomcat</code> user.</li>
+  <li><em>Using those,</em> we <strong>get a user with enough privileges to upload a WAR file containing a reverse shell</strong>. <em>And, with it</em>, we <strong>access the box</strong> as the <code class="language-plaintext highlighter-rouge">tomcat</code> user.</li>
   <li>We find an <strong>encrypted backup archive in the webroot</strong>. We <strong>crack it</strong> with <code class="language-plaintext highlighter-rouge">john</code> to <strong>get a password.</strong></li>
-  <li>The password was <em>being reused</em> by another user on the box (<code class="language-plaintext highlighter-rouge">ash</code>). And, he happened to be <strong>a member of the <code class="language-plaintext highlighter-rouge">lxd</code> group.</strong></li>
+  <li>The password was <em>being reused</em> by another user on the box (<code class="language-plaintext highlighter-rouge">ash</code>) who happened to be <strong>a member of the <code class="language-plaintext highlighter-rouge">lxd</code> group.</strong></li>
   <li>We <strong>escalate our privileges</strong> to <code class="language-plaintext highlighter-rouge">root</code> by <strong>creating a specially-configured container</strong>.</li>
 </ul>
 
@@ -90,7 +90,12 @@
 |_http-title: Apache Tomcat
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 </code></pre></div></div>
-<p><code class="language-plaintext highlighter-rouge">nmap</code> gives us areas to check: the <strong>website on port 80</strong> and the <strong>Tomcat instance on port 8080</strong></p>
+<p><code class="language-plaintext highlighter-rouge">nmap</code> gives us areas to check:</p>
+<ul>
+  <li>the <strong>website on port 80</strong></li>
+  <li>and the <strong>Tomcat instance on port 8080</strong></li>
+  <li><strong>SSH</strong> would come in handy if we get any creds</li>
+</ul>
 
 <h2 id="port-80">Port 80</h2>
 <p>The home page here was mostly <strong>static content</strong>.</p>
@@ -103,7 +108,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Tabby/virtual-host-routing.jpg" alt="" /></p>
 
-<p>an entry in our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> should take care of this <strong>Virtual Host Routing</strong></p>
+<p>an entry in our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> will take care of this <strong>Virtual Host Routing</strong></p>
 
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>10.10.10.194 megahosting.htb
 </code></pre></div></div>
@@ -118,7 +123,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Tabby/lfi-confirmed.jpg" alt="" /></p>
 
-<p><em>after a couple of tries to get the path right,</em> we are able to <strong>retrieve the source code</strong> of the <code class="language-plaintext highlighter-rouge">news.php</code> file:</p>
+<p><em>after a couple of tries to get the path right,</em> we are able to <strong>get the source code</strong> of the <code class="language-plaintext highlighter-rouge">news.php</code> file:</p>
 
 <p><img src="/assets/Tabby/news-php-src-code.jpg" alt="" /></p>
 
@@ -129,9 +134,9 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 <p><strong><em>Knowing this bit spares us the effort of trying to get code execution by including PHP.</em></strong></p>
 
 <h2 id="reading-sensitive-files">Reading Sensitive Files</h2>
-<p><em>As a quick check,</em> I try to read the <code class="language-plaintext highlighter-rouge">ash</code> user’s <strong>private SSH key</strong> (<code class="language-plaintext highlighter-rouge">/home/ash/.ssh/id_rsa</code>). But it’s <em>not that easy</em> :)</p>
+<p><em>As a quick check,</em> we try to read the <code class="language-plaintext highlighter-rouge">ash</code> user’s <strong>private SSH key</strong> (<code class="language-plaintext highlighter-rouge">/home/ash/.ssh/id_rsa</code>). But it’s <em>not that easy</em> :)</p>
 
-<p>I then think “maybe I should check out the tomcat to avoid any rabbit holes”. In case there’s something to be found there.</p>
+<p>We then think “maybe we should take a look at tomcat before diving any deeper here”. Just in case..</p>
 
 <p><img src="/assets/Tabby/tomcat-homepage.jpg" alt="" /></p>
 

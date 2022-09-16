@@ -9,9 +9,9 @@ published: true
 ## Summary
 - **Tabby** is a **linux** machine hosting both **Apache web server** and **Tomcat**.
 - The website on port 80 had a **Directory Traversal vulnerability** which enabled us to **read a Tomcat configuration file** which **contained valid credentials.**
-- *Using those,* we **get a user with enough privileges to upload a WAR file containing a reverse shell**. *And, with that*, we **access the box** as the `tomcat` user.
+- *Using those,* we **get a user with enough privileges to upload a WAR file containing a reverse shell**. *And, with it*, we **access the box** as the `tomcat` user.
 - We find an **encrypted backup archive in the webroot**. We **crack it** with `john` to **get a password.**
-- The password was *being reused* by another user on the box (`ash`). And, he happened to be **a member of the `lxd` group.**
+- The password was *being reused* by another user on the box (`ash`) who happened to be **a member of the `lxd` group.**
 - We **escalate our privileges** to `root` by **creating a specially-configured container**.
 
 ---
@@ -31,7 +31,10 @@ PORT     STATE SERVICE VERSION
 |_http-title: Apache Tomcat
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 ```
-`nmap` gives us areas to check: the **website on port 80** and the **Tomcat instance on port 8080**
+`nmap` gives us areas to check:
+- the **website on port 80**
+- and the **Tomcat instance on port 8080**
+- **SSH** would come in handy if we get any creds
 
 ## Port 80
 The home page here was mostly **static content**.
@@ -44,7 +47,7 @@ note: *on the link below*, notice *how the host name changed* to **"megahosting.
 
 ![](/assets/Tabby/virtual-host-routing.jpg)
 
-an entry in our `/etc/hosts` should take care of this **Virtual Host Routing**
+an entry in our `/etc/hosts` will take care of this **Virtual Host Routing**
 
 ```
 10.10.10.194 megahosting.htb
@@ -60,7 +63,7 @@ but going **4 directories back** with `../../../../` gets us the **confirmation*
 
 ![](/assets/Tabby/lfi-confirmed.jpg)
 
-*after a couple of tries to get the path right,* we are able to **retrieve the source code** of the `news.php` file:
+*after a couple of tries to get the path right,* we are able to **get the source code** of the `news.php` file:
 
 ![](/assets/Tabby/news-php-src-code.jpg)
 
@@ -71,9 +74,9 @@ that's because `fopen` just **reads a file's contents**. it **doesn't evaluate P
 ***Knowing this bit spares us the effort of trying to get code execution by including PHP.***
 
 ## Reading Sensitive Files
-*As a quick check,* I try to read the `ash` user's **private SSH key** (`/home/ash/.ssh/id_rsa`). But it's *not that easy* :)
+*As a quick check,* we try to read the `ash` user's **private SSH key** (`/home/ash/.ssh/id_rsa`). But it's *not that easy* :)
 
-I then think "maybe I should check out the tomcat to avoid any rabbit holes". In case there's something to be found there.
+We then think "maybe we should take a look at tomcat before diving any deeper here". Just in case..
 
 ![](/assets/Tabby/tomcat-homepage.jpg)
 
