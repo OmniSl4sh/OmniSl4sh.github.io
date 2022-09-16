@@ -197,7 +197,7 @@ chmod +s /mnt/root/bin/bash
 
 ## Cleaning Up
 
-*To clear away remnants,* we have to **stop the container**, **delete it** along with **the image we imported.**
+*To clear away remnants,* we have to **stop the container** and **delete it** along with **the image we imported.**
 
 ```bash
 lxc stop mycontainer
