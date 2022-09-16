@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-16T14:45:10+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Tabby</title><link href="http://localhost:4000/2022/08/24/Tabby.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Tabby" /><published>2022-08-24T00:00:00+02:00</published><updated>2022-08-24T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/24/Tabby</id><content type="html" xml:base="http://localhost:4000/2022/08/24/Tabby.html"><![CDATA[<p><img src="/assets/Tabby/Tabby.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-16T14:45:49+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Tabby</title><link href="http://localhost:4000/2022/08/24/Tabby.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Tabby" /><published>2022-08-24T00:00:00+02:00</published><updated>2022-08-24T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/24/Tabby</id><content type="html" xml:base="http://localhost:4000/2022/08/24/Tabby.html"><![CDATA[<p><img src="/assets/Tabby/Tabby.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -145,7 +145,7 @@ nc tabby 5000 <span class="o">&gt;</span> ash_backup.zip
 
 <p><em>But, since we now had a password,</em> we tried it against <code class="language-plaintext highlighter-rouge">ash</code> and <code class="language-plaintext highlighter-rouge">root</code></p>
 
-<p>didn’t work with <code class="language-plaintext highlighter-rouge">root</code>, but <strong>did</strong> with <code class="language-plaintext highlighter-rouge">ash</code> :)</p>
+<p>it didn’t work with <code class="language-plaintext highlighter-rouge">root</code>, but <strong>did</strong> with <code class="language-plaintext highlighter-rouge">ash</code> :)</p>
 
 <p><img src="/assets/Tabby/logged-in-as-ash.jpg" alt="" /></p>
 

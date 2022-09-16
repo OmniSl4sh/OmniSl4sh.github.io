@@ -154,7 +154,7 @@ the files were practically ***the same as the original ones.***
 
 *But, since we now had a password,* we tried it against `ash` and `root`
 
-didn't work with `root`, but **did** with `ash` :)
+it didn't work with `root`, but **did** with `ash` :)
 
 ![](/assets/Tabby/logged-in-as-ash.jpg)
 
