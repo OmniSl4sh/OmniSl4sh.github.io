@@ -121,7 +121,7 @@ curl http://tabby:8080/shell
 
 we're in as `tomcat` :)
 
-## Pivoting with Password Reuse
+## Pivoting via Password Reuse
 
 *Right after improving our shell,* we start with **checking the files** in `/var/www/html`
 
