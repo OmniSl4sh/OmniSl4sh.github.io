@@ -250,11 +250,9 @@ Let's first **run the script** to see *if it asks for a password or not.*
 
 It ran ***without prompting us for authentication.***
 
-this means that the command `/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service` is available for `david` without him needing to provide a password.
+That's good. the command `/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service` is available for `david` without him needing to provide a password.
 
-*To exploit this,* we run the command.
-
-***But because the output is too small,*** **the pager isn't called.**
+*To exploit this,* we run the command. ***But because the output is too small,*** **the pager isn't called.**
 
 ![](/assets/Traverxec/no-pager-invoked.jpg)
 

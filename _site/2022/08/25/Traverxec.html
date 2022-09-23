@@ -307,11 +307,9 @@ This is done by <strong>getting the size of rows of the terminal</strong> and <s
 
 <p>It ran <strong><em>without prompting us for authentication.</em></strong></p>
 
-<p>this means that the command <code class="language-plaintext highlighter-rouge">/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service</code> is available for <code class="language-plaintext highlighter-rouge">david</code> without him needing to provide a password.</p>
+<p>That’s good. the command <code class="language-plaintext highlighter-rouge">/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service</code> is available for <code class="language-plaintext highlighter-rouge">david</code> without him needing to provide a password.</p>
 
-<p><em>To exploit this,</em> we run the command.</p>
-
-<p><strong><em>But because the output is too small,</em></strong> <strong>the pager isn’t called.</strong></p>
+<p><em>To exploit this,</em> we run the command. <strong><em>But because the output is too small,</em></strong> <strong>the pager isn’t called.</strong></p>
 
 <p><img src="/assets/Traverxec/no-pager-invoked.jpg" alt="" /></p>
 

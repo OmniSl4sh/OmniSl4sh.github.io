@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-23T13:49:43+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Traverxec</title><link href="http://localhost:4000/2022/08/25/Traverxec.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Traverxec" /><published>2022-08-25T00:00:00+02:00</published><updated>2022-08-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/25/Traverxec</id><content type="html" xml:base="http://localhost:4000/2022/08/25/Traverxec.html"><![CDATA[<p><img src="/assets/Traverxec/Traverxec.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-23T14:04:17+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Traverxec</title><link href="http://localhost:4000/2022/08/25/Traverxec.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Traverxec" /><published>2022-08-25T00:00:00+02:00</published><updated>2022-08-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/25/Traverxec</id><content type="html" xml:base="http://localhost:4000/2022/08/25/Traverxec.html"><![CDATA[<p><img src="/assets/Traverxec/Traverxec.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -243,11 +243,9 @@ This is done by <strong>getting the size of rows of the terminal</strong> and <s
 
 <p>It ran <strong><em>without prompting us for authentication.</em></strong></p>
 
-<p>this means that the command <code class="language-plaintext highlighter-rouge">/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service</code> is available for <code class="language-plaintext highlighter-rouge">david</code> without him needing to provide a password.</p>
+<p>That’s good. the command <code class="language-plaintext highlighter-rouge">/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service</code> is available for <code class="language-plaintext highlighter-rouge">david</code> without him needing to provide a password.</p>
 
-<p><em>To exploit this,</em> we run the command.</p>
-
-<p><strong><em>But because the output is too small,</em></strong> <strong>the pager isn’t called.</strong></p>
+<p><em>To exploit this,</em> we run the command. <strong><em>But because the output is too small,</em></strong> <strong>the pager isn’t called.</strong></p>
 
 <p><img src="/assets/Traverxec/no-pager-invoked.jpg" alt="" /></p>
 
