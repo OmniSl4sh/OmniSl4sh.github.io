@@ -1,19 +1,19 @@
 ---
 layout: post
 title:  "HTB Writeup [Linux - Easy] - Traverxec"
-published: false
+published: true
 ---
 
 ![](/assets/Traverxec/Traverxec.png)
 
 ## Summary
 - **Traverxec** is a **Linux** machine hosting a **web server** called **Nostromo** and has **SSH** port open.
-- The **response headers** from the webserver **reveal its version** which happens to be **vulnerable to a Remote Code Execution vulnerability.**
+- The **response headers** from the webserver **reveal its name and version** which happens to be **vulnerable to a Remote Code Execution vulnerability.**
 - *After troubleshooting the exploit and making a few modifications,* we get **a shell** as the `www-data` user.
-- *One the box, when going through the files* ***in the webroot,*** we find **Nostromo's configuration file.**
-- It reveals **an accessible area** within the `david` user's **home directory**. We find a **passphrase-protected private SSH key** there.
-- We manage to **crack it** using `john` and are able to **login using SSH.**
-- *In* `david`*'s home path*, we find a **folder containing a Bash script** that issues a `journalctl` command with `sudo` **privileges**. We **exploit that to get a shell** as `root`.
+- *One the box, when going through the files* ***in the webroot,*** we find the **Nostromo server's configuration file.**
+- It reveals that there's **an accessible area** within the `david` user's **home directory**. There, we find a **private SSH key** which was **protected by a passphrase.**
+- We manage to **crack it** using `john` and are able to **login via SSH.**
+- *In* `david`*'s home path*, we find a **folder containing a Bash script** that issues a `journalctl` command with `sudo` **privileges** without requiring a password. We **exploit that to get a shell** as `root`.
 
 ---
 
@@ -31,9 +31,9 @@ PORT   STATE SERVICE VERSION
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 ```
 
-*from* `nmap`*'s output,* we notice that the web server is **Nostromo version 1.9.6.**
+*from* `nmap`*'s output,* we notice from the `http-server-header` script that the web server is **Nostromo version 1.9.6.**
 
-*but before we check for exploits,* we'll first take a look at the website.
+*but before we check for exploits,* we'll first **take a look at the website** to see what's there.
 
 ## The website
 ![](/assets/Traverxec/website-home-page.jpg)
@@ -45,9 +45,7 @@ using `searchsploit` gets us **two identical matches.**
 
 ![](/assets/Traverxec/searchsploit.jpg)
 
-*to go manual,* we look at the exploit code:
-
-note: I took away the text art for a more concise view
+*to go manual,* we pick the **2nd Python script** and **look at the exploit code** *(after removing the text art for clarity)*
 
 ```python
 #!/usr/bin/env python
@@ -93,13 +91,13 @@ seems straightforward. Just a **POST request**. Let's give it a try:
 
 ![](/assets/Traverxec/exploit-error.jpg)
 
-we get a python error. who should worry when we've got **Google**? :)
+we get an error :/ But we shouldn't worry when we've got **Google** :)
 
-we search to find this answer on **Stack Overflow**:
+we search to find this answer on [Stack Overflow](https://stackoverflow.com/questions/33054527/typeerror-a-bytes-like-object-is-required-not-str-when-writing-to-a-file-in):
 
 ![](/assets/Traverxec/stack-overflow-answer.jpg)
 
-*following that,* we **modify the code**
+*following that,* we **modify the code** accordingly
 
 ```python
 def cve(target, port, cmd):
@@ -111,7 +109,7 @@ def cve(target, port, cmd):
     print(receive)
 ```
 
-then rerun the exploit:
+then **rerun the exploit**
 
 ![](/assets/Traverxec/no-feedback-exploit.jpg)
 
@@ -123,13 +121,14 @@ then rerun the exploit:
 
 ![](/assets/Traverxec/code-execution-verified.jpg)
 
-**we're good :D** let's get in with a **reverse shell.**
+**we're good :D** let's get in with a **netcat reverse shell.**
 
 ![](/assets/Traverxec/got-shell.jpg)
 
 *before going any further, since we're on Linux,* it's nice to **improve our shell**. it's done in the below steps:
 
 ```bash
+# With whatever Python version you find, import the pty module and spawn a bash pty
 python -c 'import pty; pty.spawn("/bin/bash")' || python3 -c 'import pty; pty.spawn("/bin/bash")'
 # Press CTRL + Z
 stty raw -echo
@@ -141,16 +140,16 @@ stty rows 51 columns 228
 ```
 
 ## The Nostromo config file
-*Right after logging in,* we go into `/var/nostromo`. there was a **configuration file** in the `conf` folder.
+*Right after logging in,* we go into `/var/nostromo` and find a **configuration file** in the `conf` folder.
 
 ![](/assets/Traverxec/nostromo-conf.jpg)
 
-A couple of interesting things show up:
+A **couple of interesting things** show up:
 - a username: `david`
 - an `.htpasswd` file
 - and a section on `HOMEDIRS`
 
-`david` was a local user on the system
+`david` was a **local user** on the system
 
 ![](/assets/Traverxec/david-passwd.jpg)
 
@@ -162,14 +161,14 @@ But that password *didn't work* for either `root` or `david`.
 
 ![](/assets/Traverxec/no-cred-reuse-for-htpassword.jpg)
 
-we keep it around just in case..
+so we keep it around just in case..
 
 ## Understanding the HOMEDIRS feature
 *previously,* we attempted to list the contents of `david`'s profile but got denied access.
 
 ![](/assets/Traverxec/david-perm-denied.jpg)
 
-*since the* `HOMEDIRS` *feature would give us access into* `david`*'s directory,* we take **a quick look** at the online [documentation](https://www.nazgul.ch/dev/nostromo_man.html) to understand how to use it:
+*since the* `HOMEDIRS` *feature would give us access into* `david`*'s directory,* we take **a quick look** at the [online documentation](https://www.nazgul.ch/dev/nostromo_man.html) to understand how to use it:
 
 note: *to make the page clearer for reading,* you may **edit the CSS** for the man page using the **Chrome Dev Tools.**
 
@@ -185,15 +184,15 @@ we saw that one in `nhttpd.conf`
 
 ![](/assets/Traverxec/public_www.jpg)
 
-let's first check the home directory from the outside
+let's first check the home directory ***from the outside***
 
 ![](/assets/Traverxec/home-dir-website.jpg)
 
-there's nothing in both the web page or the source code.
+there's nothing in both the **web page** and the **source code.**
 
 a `gobuster` **brute force** didn't get us anything new either.
 
-*Since the* `public_www` *folder* **must be** *in* `david`*'s home directory,* we tried to change into it blindly.
+*Since the* `public_www` *folder* **should be** *in* `david`*'s home directory,* we tried to ***blindly*** change into it.
 
 ![](/assets/Traverxec/public_www-violated.jpg)
 
@@ -207,14 +206,14 @@ we first **convert** it to a hash using `ssh2john` and **crack it** using `john`
 
 ![](/assets/Traverxec/id_rsa_cracked.jpg)
 
-we **change the permissions** on the SSH key (`chmod 600 <KEY_FILE>`) and use it to access the machine as `david`
+we then **changed the permissions** on the SSH key (`chmod 600 <KEY_FILE>`) and used it to access the machine as `david`
 
 ![](/assets/Traverxec/ssh-as-david.jpg)
 
 ## Exploiting SUDO journalctl for Privesc
 *Right after logging in,* we see **a folder that sticks out**: `bin`
 
-it had a script `server-status.sh` and a file called `server-stats.head`
+it had a script `server-status.sh` and another file called `server-stats.head`
 
 ![](/assets/Traverxec/bin-folder-plus-script.jpg)
 
@@ -222,9 +221,9 @@ looking at their contents:
 
 ![](/assets/Traverxec/bin-files-breakdown.jpg)
 
-the `server-stats.head` is just ASCII art
+the `server-stats.head` was just ASCII art.
 
-within `server-status.sh` are all **commands for checking the status of the Nostromo server** (*as we would expect xD*)
+But, within `server-status.sh` are all **commands for checking the status of the Nostromo server** *just like the name says*
 
 the **exploitable part** here is the `sudo` command:
 
@@ -238,7 +237,12 @@ A quick look on [GTFOBins](https://gtfobins.github.io/gtfobins/journalctl/#sudo)
 
 ![](/assets/Traverxec/gtfo-bins-journalctl.jpg)
 
-that's because it "invokes the default pager". It can be `less`, `more`, `nano` or `vim`. which are all escapable :]
+the trick is that it ***"invokes the default pager".***
+
+A pager is a **program** that **helps the user view the output of a command** ***one page at a time***.
+This is done by **getting the size of rows of the terminal** and **only displaying that many lines.**
+
+Paging tools you're probably familiar with are `more` and `less`. Both of which can be ***escaped for a shell*** ;]
 
 Let's first **run the script** to see *if it asks for a password or not.*
 
@@ -248,11 +252,13 @@ It ran ***without prompting us for authentication.***
 
 this means that the command `/usr/bin/sudo /usr/bin/journalctl -n5 -unostromo.service` is available for `david` without him needing to provide a password.
 
-But we won't get a pager in such a wide terminal:
+*To exploit this,* we run the command.
+
+***But because the output is too small,*** **the pager isn't called.**
 
 ![](/assets/Traverxec/no-pager-invoked.jpg)
 
-*But when we make it smaller with* `stty` ;)
+We use `stty` as a quick-and-dirty trick to **shrink our tty.**
 
 ```bash
 stty rows 20 columns 20
@@ -260,7 +266,7 @@ stty rows 20 columns 20
 
 ![](/assets/Traverxec/pager-invoked.jpg)
 
-we get a `less` pager which we can be turned into a bash shell with `!/bin/bash`
+*From the highlighted line,* we know **we have a pager** which can be **turned into a bash shell** with `!/bin/bash`
 
 ![](/assets/Traverxec/rooted.jpg)
 
