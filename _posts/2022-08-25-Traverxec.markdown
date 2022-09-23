@@ -192,13 +192,13 @@ there's nothing in both the **web page** and the **source code.**
 
 a `gobuster` **brute force** didn't get us anything new either.
 
-*Since the* `public_www` *folder* **should be** *in* `david`*'s home directory,* we tried to ***blindly*** change into it.
+*Locally on the file system, since the* `public_www` *folder* **should be** *in* `david`*'s home directory,* we tried to ***blindly*** change into it.
 
 ![](/assets/Traverxec/public_www-violated.jpg)
 
-And **it worked!** plus we found something that could give us access.
+**it worked!** plus we found something that could give us access.
 
-we **copy the archive** to `/tmp` where we **extract** it. Inside, we find a **protected** `id_rsa` that we need to crack:
+we **copied the archive** to `/tmp` where we **extracted** it. *Inside,* we found a **protected** `id_rsa` that we need to crack:
 
 ![](/assets/Traverxec/id_rsa_found.jpg)
 
@@ -206,7 +206,7 @@ we first **convert** it to a hash using `ssh2john` and **crack it** using `john`
 
 ![](/assets/Traverxec/id_rsa_cracked.jpg)
 
-we then **changed the permissions** on the SSH key (`chmod 600 <KEY_FILE>`) and used it to access the machine as `david`
+we later **change the permissions** on the SSH key (`chmod 600 <KEY_FILE>`) and use it to access the machine as `david`
 
 ![](/assets/Traverxec/ssh-as-david.jpg)
 
@@ -221,7 +221,7 @@ looking at their contents:
 
 ![](/assets/Traverxec/bin-files-breakdown.jpg)
 
-the `server-stats.head` was just ASCII art.
+the `server-stats.head` was just **ASCII art.**
 
 But, within `server-status.sh` are all **commands for checking the status of the Nostromo server** *just like the name says*
 

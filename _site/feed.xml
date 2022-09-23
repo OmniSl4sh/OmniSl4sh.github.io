@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-23T13:43:14+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Traverxec</title><link href="http://localhost:4000/2022/08/25/Traverxec.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Traverxec" /><published>2022-08-25T00:00:00+02:00</published><updated>2022-08-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/25/Traverxec</id><content type="html" xml:base="http://localhost:4000/2022/08/25/Traverxec.html"><![CDATA[<p><img src="/assets/Traverxec/Traverxec.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-23T13:49:43+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Traverxec</title><link href="http://localhost:4000/2022/08/25/Traverxec.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Traverxec" /><published>2022-08-25T00:00:00+02:00</published><updated>2022-08-25T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/25/Traverxec</id><content type="html" xml:base="http://localhost:4000/2022/08/25/Traverxec.html"><![CDATA[<p><img src="/assets/Traverxec/Traverxec.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -186,13 +186,13 @@ python <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/
 
 <p>a <code class="language-plaintext highlighter-rouge">gobuster</code> <strong>brute force</strong> didn’t get us anything new either.</p>
 
-<p><em>Since the</em> <code class="language-plaintext highlighter-rouge">public_www</code> <em>folder</em> <strong>should be</strong> <em>in</em> <code class="language-plaintext highlighter-rouge">david</code><em>’s home directory,</em> we tried to <strong><em>blindly</em></strong> change into it.</p>
+<p><em>Locally on the file system, since the</em> <code class="language-plaintext highlighter-rouge">public_www</code> <em>folder</em> <strong>should be</strong> <em>in</em> <code class="language-plaintext highlighter-rouge">david</code><em>’s home directory,</em> we tried to <strong><em>blindly</em></strong> change into it.</p>
 
 <p><img src="/assets/Traverxec/public_www-violated.jpg" alt="" /></p>
 
-<p>And <strong>it worked!</strong> plus we found something that could give us access.</p>
+<p><strong>it worked!</strong> plus we found something that could give us access.</p>
 
-<p>we <strong>copy the archive</strong> to <code class="language-plaintext highlighter-rouge">/tmp</code> where we <strong>extract</strong> it. Inside, we find a <strong>protected</strong> <code class="language-plaintext highlighter-rouge">id_rsa</code> that we need to crack:</p>
+<p>we <strong>copied the archive</strong> to <code class="language-plaintext highlighter-rouge">/tmp</code> where we <strong>extracted</strong> it. <em>Inside,</em> we found a <strong>protected</strong> <code class="language-plaintext highlighter-rouge">id_rsa</code> that we need to crack:</p>
 
 <p><img src="/assets/Traverxec/id_rsa_found.jpg" alt="" /></p>
 
@@ -200,7 +200,7 @@ python <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/
 
 <p><img src="/assets/Traverxec/id_rsa_cracked.jpg" alt="" /></p>
 
-<p>we then <strong>changed the permissions</strong> on the SSH key (<code class="language-plaintext highlighter-rouge">chmod 600 &lt;KEY_FILE&gt;</code>) and used it to access the machine as <code class="language-plaintext highlighter-rouge">david</code></p>
+<p>we later <strong>change the permissions</strong> on the SSH key (<code class="language-plaintext highlighter-rouge">chmod 600 &lt;KEY_FILE&gt;</code>) and use it to access the machine as <code class="language-plaintext highlighter-rouge">david</code></p>
 
 <p><img src="/assets/Traverxec/ssh-as-david.jpg" alt="" /></p>
 
@@ -215,7 +215,7 @@ python <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/
 
 <p><img src="/assets/Traverxec/bin-files-breakdown.jpg" alt="" /></p>
 
-<p>the <code class="language-plaintext highlighter-rouge">server-stats.head</code> was just ASCII art.</p>
+<p>the <code class="language-plaintext highlighter-rouge">server-stats.head</code> was just <strong>ASCII art.</strong></p>
 
 <p>But, within <code class="language-plaintext highlighter-rouge">server-status.sh</code> are all <strong>commands for checking the status of the Nostromo server</strong> <em>just like the name says</em></p>
 
