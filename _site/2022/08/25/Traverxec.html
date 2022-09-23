@@ -219,7 +219,7 @@ python <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/
 
 <p><img src="/assets/Traverxec/no-cred-reuse-for-htpassword.jpg" alt="" /></p>
 
-<p>so we keep it around just in case..</p>
+<p>we keep it around just in case..</p>
 
 <h2 id="understanding-the-homedirs-feature">Understanding the HOMEDIRS feature</h2>
 <p><em>previously,</em> we attempted to list the contents of <code class="language-plaintext highlighter-rouge">david</code>’s profile but got denied access.</p>
@@ -228,11 +228,11 @@ python <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/
 
 <p><em>since the</em> <code class="language-plaintext highlighter-rouge">HOMEDIRS</code> <em>feature would give us access into</em> <code class="language-plaintext highlighter-rouge">david</code><em>’s directory,</em> we take <strong>a quick look</strong> at the <a href="https://www.nazgul.ch/dev/nostromo_man.html">online documentation</a> to understand how to use it:</p>
 
-<p>note: <em>to make the page clearer for reading,</em> you may <strong>edit the CSS</strong> for the man page using the <strong>Chrome Dev Tools.</strong></p>
+<p><strong>note:</strong> <em>to make the page clearer for reading,</em> you may <strong>edit the CSS</strong> for the man page using the <strong>Chrome Dev Tools.</strong></p>
 
 <p><img src="/assets/Traverxec/editing-site-css-for-clarity.jpg" alt="" /></p>
 
-<p>We find that <strong>we can access a user’s folder over HTTP</strong> using the <code class="language-plaintext highlighter-rouge">~</code> followed by the <code class="language-plaintext highlighter-rouge">username</code>.</p>
+<p><em>Scrolling down to the</em> <code class="language-plaintext highlighter-rouge">HOMEDIRS</code> <em>section,</em> we find an example showing that <strong>we can access a user’s folder over HTTP</strong> using the <code class="language-plaintext highlighter-rouge">~</code> followed by the <code class="language-plaintext highlighter-rouge">username</code>.</p>
 
 <p>another thing is: users <strong>can define a certain directory to be shared</strong> through the <code class="language-plaintext highlighter-rouge">homedirs_public</code> option.</p>
 

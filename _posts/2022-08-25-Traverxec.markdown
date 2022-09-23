@@ -161,7 +161,7 @@ But that password *didn't work* for either `root` or `david`.
 
 ![](/assets/Traverxec/no-cred-reuse-for-htpassword.jpg)
 
-so we keep it around just in case..
+we keep it around just in case..
 
 ## Understanding the HOMEDIRS feature
 *previously,* we attempted to list the contents of `david`'s profile but got denied access.
@@ -170,11 +170,11 @@ so we keep it around just in case..
 
 *since the* `HOMEDIRS` *feature would give us access into* `david`*'s directory,* we take **a quick look** at the [online documentation](https://www.nazgul.ch/dev/nostromo_man.html) to understand how to use it:
 
-note: *to make the page clearer for reading,* you may **edit the CSS** for the man page using the **Chrome Dev Tools.**
+**note:** *to make the page clearer for reading,* you may **edit the CSS** for the man page using the **Chrome Dev Tools.**
 
 ![](/assets/Traverxec/editing-site-css-for-clarity.jpg)
 
-We find that **we can access a user's folder over HTTP** using the `~` followed by the `username`.
+*Scrolling down to the* `HOMEDIRS` *section,* we find an example showing that **we can access a user's folder over HTTP** using the `~` followed by the `username`.
 
 another thing is: users **can define a certain directory to be shared** through the `homedirs_public` option.
 
