@@ -11,8 +11,8 @@ published: true
 - The **response headers** from the webserver **reveal its name and version** which happens to be **vulnerable to a Remote Code Execution vulnerability.**
 - *After troubleshooting the exploit and making a few modifications,* we get **a shell** as the `www-data` user.
 - *One the box, when going through the files* ***in the webroot,*** we find the **Nostromo server's configuration file.**
-- It reveals that there's **an accessible area** within the `david` user's **home directory**. There, we find a **private SSH key** which was **protected by a passphrase.**
-- We manage to **crack it** using `john` and are able to **login via SSH.**
+- It reveals that there's **an accessible area** within the `david` user's **home directory**. *There,* we find a **private SSH key** which was **protected by a passphrase.**
+- We manage to **crack it** using `john` and are able to **login as** `david`.
 - *In* `david`*'s home path*, we find a **folder containing a Bash script** that issues a `journalctl` command with `sudo` **privileges** without requiring a password. We **exploit that to get a shell** as `root`.
 
 ---
@@ -87,13 +87,13 @@ if __name__ == "__main__":
         print(help_menu)
 ```
 
-seems straightforward. Just a **POST request**. Let's give it a try:
+it seems straightforward. Just a **TCP connection** and a **POST request**. Let's give it a try:
 
 ![](/assets/Traverxec/exploit-error.jpg)
 
-we get an error :/ But we shouldn't worry when we've got **Google** :)
+we get **an error** when running the code :/ But we *shouldn't worry* when we've got **Google** :)
 
-we search to find this answer on [Stack Overflow](https://stackoverflow.com/questions/33054527/typeerror-a-bytes-like-object-is-required-not-str-when-writing-to-a-file-in):
+we search **using the error message as a query**. To find this answer on [Stack Overflow](https://stackoverflow.com/questions/33054527/typeerror-a-bytes-like-object-is-required-not-str-when-writing-to-a-file-in):
 
 ![](/assets/Traverxec/stack-overflow-answer.jpg)
 
@@ -125,7 +125,7 @@ then **rerun the exploit**
 
 ![](/assets/Traverxec/got-shell.jpg)
 
-*before going any further, since we're on Linux,* it's nice to **improve our shell**. it's done in the below steps:
+*before going any further,* it's nice to **improve our shell**. it's done in the below steps:
 
 ```bash
 # With whatever Python version you find, import the pty module and spawn a bash pty

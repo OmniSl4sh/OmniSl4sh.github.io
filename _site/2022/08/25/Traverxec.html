@@ -70,8 +70,8 @@
   <li>The <strong>response headers</strong> from the webserver <strong>reveal its name and version</strong> which happens to be <strong>vulnerable to a Remote Code Execution vulnerability.</strong></li>
   <li><em>After troubleshooting the exploit and making a few modifications,</em> we get <strong>a shell</strong> as the <code class="language-plaintext highlighter-rouge">www-data</code> user.</li>
   <li><em>One the box, when going through the files</em> <strong><em>in the webroot,</em></strong> we find the <strong>Nostromo server’s configuration file.</strong></li>
-  <li>It reveals that there’s <strong>an accessible area</strong> within the <code class="language-plaintext highlighter-rouge">david</code> user’s <strong>home directory</strong>. There, we find a <strong>private SSH key</strong> which was <strong>protected by a passphrase.</strong></li>
-  <li>We manage to <strong>crack it</strong> using <code class="language-plaintext highlighter-rouge">john</code> and are able to <strong>login via SSH.</strong></li>
+  <li>It reveals that there’s <strong>an accessible area</strong> within the <code class="language-plaintext highlighter-rouge">david</code> user’s <strong>home directory</strong>. <em>There,</em> we find a <strong>private SSH key</strong> which was <strong>protected by a passphrase.</strong></li>
+  <li>We manage to <strong>crack it</strong> using <code class="language-plaintext highlighter-rouge">john</code> and are able to <strong>login as</strong> <code class="language-plaintext highlighter-rouge">david</code>.</li>
   <li><em>In</em> <code class="language-plaintext highlighter-rouge">david</code><em>’s home path</em>, we find a <strong>folder containing a Bash script</strong> that issues a <code class="language-plaintext highlighter-rouge">journalctl</code> command with <code class="language-plaintext highlighter-rouge">sudo</code> <strong>privileges</strong> without requiring a password. We <strong>exploit that to get a shell</strong> as <code class="language-plaintext highlighter-rouge">root</code>.</li>
 </ul>
 
@@ -145,13 +145,13 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
         <span class="k">print</span><span class="p">(</span><span class="n">help_menu</span><span class="p">)</span>
 </code></pre></div></div>
 
-<p>seems straightforward. Just a <strong>POST request</strong>. Let’s give it a try:</p>
+<p>it seems straightforward. Just a <strong>TCP connection</strong> and a <strong>POST request</strong>. Let’s give it a try:</p>
 
 <p><img src="/assets/Traverxec/exploit-error.jpg" alt="" /></p>
 
-<p>we get an error :/ But we shouldn’t worry when we’ve got <strong>Google</strong> :)</p>
+<p>we get <strong>an error</strong> when running the code :/ But we <em>shouldn’t worry</em> when we’ve got <strong>Google</strong> :)</p>
 
-<p>we search to find this answer on <a href="https://stackoverflow.com/questions/33054527/typeerror-a-bytes-like-object-is-required-not-str-when-writing-to-a-file-in">Stack Overflow</a>:</p>
+<p>we search <strong>using the error message as a query</strong>. To find this answer on <a href="https://stackoverflow.com/questions/33054527/typeerror-a-bytes-like-object-is-required-not-str-when-writing-to-a-file-in">Stack Overflow</a>:</p>
 
 <p><img src="/assets/Traverxec/stack-overflow-answer.jpg" alt="" /></p>
 
@@ -182,7 +182,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Traverxec/got-shell.jpg" alt="" /></p>
 
-<p><em>before going any further, since we’re on Linux,</em> it’s nice to <strong>improve our shell</strong>. it’s done in the below steps:</p>
+<p><em>before going any further,</em> it’s nice to <strong>improve our shell</strong>. it’s done in the below steps:</p>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># With whatever Python version you find, import the pty module and spawn a bash pty</span>
 python <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/bash")'</span> <span class="o">||</span> python3 <span class="nt">-c</span> <span class="s1">'import pty; pty.spawn("/bin/bash")'</span>
