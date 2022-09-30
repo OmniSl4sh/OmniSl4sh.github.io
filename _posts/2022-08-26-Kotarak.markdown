@@ -60,7 +60,7 @@ We first want to **test for default credentials** in the **Tomcat manager interf
 
 ![](/assets/Kotarak/tomcat-manager-login.jpg)
 
-It's there. that **pop-up** indicates **HTTP basic authentication**. we can use `hydra` to brute-force that.
+It's there. that **pop-up** indicates **HTTP basic authentication**. we can use `hydra` to **brute-force** that.
 
 we're going to use **Metasploit's default user/password list:**
 
@@ -265,7 +265,7 @@ the hash that cracked belonged to the `administrator` user.
 
 ![](/assets/Kotarak/knowing-which-hash-was-cracked.jpg)
 
-*However, just to be sure,* we're going to try it with both `root` and `atanas`. since we didn't find other users locally with a proper shell.
+*Just to be sure,* we're going to try it with both `root` and `atanas`. since we didn't find other users locally with a proper shell.
 
 ![](/assets/Kotarak/finding-local-linux-users.jpg)
 
@@ -292,7 +292,7 @@ we own files in `/root`?
 3. it was **using an older version** of `wget` (1.16)
 
 we make **a couple of checks** to see what's going on:
-- **searching the file system** for that `archive.tar.gz` and check if we can see its contents.
+- **searching the file system** for that `archive.tar.gz` and checking if we can see its contents.
 - **pinging 10.0.3.133** to see if it's there.
 
 ![](/assets/Kotarak/understanding-app-log.jpg)
@@ -305,7 +305,7 @@ we look up **exploit-db** for that version of `wget` before moving on
 
 there was actually an exploit for `wget`!
 
-## Elaborate Client Exploitation and Privilege Escalation
+## Elaborate Client-Side Exploitation and Privilege Escalation
 **Client-Side attacks** aren't new. *But for some odd reason,* **exploiting a command-line tool** felt weird :D
 
 *Anyway,* we **check out exploit's details** on [Exploit-db](https://www.exploit-db.com/exploits/40064)
@@ -314,7 +314,7 @@ It was a very interesting read. *To sum it up,* the scenario is:
 - if a victim is using `wget` 1.16 to download a file **from a server that we control.**
 - *and* `wget` *was used* ***without an output being specified*** *(using the* `-O` *flag)*, it would **save in the current working directory**. which could potentially be ***the user's home folder.***
 - *to exploit a situation like that,* we have to **set up a web server** that **will respond with a redirect to an FTP server serving a malicious** `.wgetrc` file.
-- that file would then be **saved to the victim's home folder** becoming `wget`'s main configuration. since it would search for it there first.
+- that file would then be **saved to the victim's home folder** becoming `wget`'s main configuration. since `wget` would search for it there first.
 - It would **specify that upcoming downloads** should have `/etc/cron.d/wget-root-shell` as their output location.
 - that configuration would also have the client issue **POST** requests containing his `/etc/shadow`.
 - *If everything works, on the second request to our server,* the victim's `/etc/shadow` would be there in the request body.

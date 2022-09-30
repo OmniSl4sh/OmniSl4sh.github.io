@@ -119,7 +119,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Kotarak/tomcat-manager-login.jpg" alt="" /></p>
 
-<p>It’s there. that <strong>pop-up</strong> indicates <strong>HTTP basic authentication</strong>. we can use <code class="language-plaintext highlighter-rouge">hydra</code> to brute-force that.</p>
+<p>It’s there. that <strong>pop-up</strong> indicates <strong>HTTP basic authentication</strong>. we can use <code class="language-plaintext highlighter-rouge">hydra</code> to <strong>brute-force</strong> that.</p>
 
 <p>we’re going to use <strong>Metasploit’s default user/password list:</strong></p>
 
@@ -320,7 +320,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p><img src="/assets/Kotarak/knowing-which-hash-was-cracked.jpg" alt="" /></p>
 
-<p><em>However, just to be sure,</em> we’re going to try it with both <code class="language-plaintext highlighter-rouge">root</code> and <code class="language-plaintext highlighter-rouge">atanas</code>. since we didn’t find other users locally with a proper shell.</p>
+<p><em>Just to be sure,</em> we’re going to try it with both <code class="language-plaintext highlighter-rouge">root</code> and <code class="language-plaintext highlighter-rouge">atanas</code>. since we didn’t find other users locally with a proper shell.</p>
 
 <p><img src="/assets/Kotarak/finding-local-linux-users.jpg" alt="" /></p>
 
@@ -352,7 +352,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p>we make <strong>a couple of checks</strong> to see what’s going on:</p>
 <ul>
-  <li><strong>searching the file system</strong> for that <code class="language-plaintext highlighter-rouge">archive.tar.gz</code> and check if we can see its contents.</li>
+  <li><strong>searching the file system</strong> for that <code class="language-plaintext highlighter-rouge">archive.tar.gz</code> and checking if we can see its contents.</li>
   <li><strong>pinging 10.0.3.133</strong> to see if it’s there.</li>
 </ul>
 
@@ -366,7 +366,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 
 <p>there was actually an exploit for <code class="language-plaintext highlighter-rouge">wget</code>!</p>
 
-<h2 id="elaborate-client-exploitation-and-privilege-escalation">Elaborate Client Exploitation and Privilege Escalation</h2>
+<h2 id="elaborate-client-side-exploitation-and-privilege-escalation">Elaborate Client-Side Exploitation and Privilege Escalation</h2>
 <p><strong>Client-Side attacks</strong> aren’t new. <em>But for some odd reason,</em> <strong>exploiting a command-line tool</strong> felt weird :D</p>
 
 <p><em>Anyway,</em> we <strong>check out exploit’s details</strong> on <a href="https://www.exploit-db.com/exploits/40064">Exploit-db</a></p>
@@ -376,7 +376,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
   <li>if a victim is using <code class="language-plaintext highlighter-rouge">wget</code> 1.16 to download a file <strong>from a server that we control.</strong></li>
   <li><em>and</em> <code class="language-plaintext highlighter-rouge">wget</code> <em>was used</em> <strong><em>without an output being specified</em></strong> <em>(using the</em> <code class="language-plaintext highlighter-rouge">-O</code> <em>flag)</em>, it would <strong>save in the current working directory</strong>. which could potentially be <strong><em>the user’s home folder.</em></strong></li>
   <li><em>to exploit a situation like that,</em> we have to <strong>set up a web server</strong> that <strong>will respond with a redirect to an FTP server serving a malicious</strong> <code class="language-plaintext highlighter-rouge">.wgetrc</code> file.</li>
-  <li>that file would then be <strong>saved to the victim’s home folder</strong> becoming <code class="language-plaintext highlighter-rouge">wget</code>’s main configuration. since it would search for it there first.</li>
+  <li>that file would then be <strong>saved to the victim’s home folder</strong> becoming <code class="language-plaintext highlighter-rouge">wget</code>’s main configuration. since <code class="language-plaintext highlighter-rouge">wget</code> would search for it there first.</li>
   <li>It would <strong>specify that upcoming downloads</strong> should have <code class="language-plaintext highlighter-rouge">/etc/cron.d/wget-root-shell</code> as their output location.</li>
   <li>that configuration would also have the client issue <strong>POST</strong> requests containing his <code class="language-plaintext highlighter-rouge">/etc/shadow</code>.</li>
   <li><em>If everything works, on the second request to our server,</em> the victim’s <code class="language-plaintext highlighter-rouge">/etc/shadow</code> would be there in the request body.</li>
