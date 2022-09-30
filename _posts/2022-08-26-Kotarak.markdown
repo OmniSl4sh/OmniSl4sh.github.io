@@ -387,7 +387,7 @@ ROOT_CRON = "* * * * * root /usr/bin/id > /root/hacked-via-wget \n"
 - The same **wouldn't work for the FTP server**. because the victim **must have our machine's IP in the redirection** to reach it.
 - *Finally,* we need to switch up the `/usr/bin/id > /root/hacked-via-wget` cron job command to something more serious ***a.k.a. a reverse shell :D***
 
-*After modificatiom,* it should look like this:
+*After modification,* it should look like this:
 
 ```python
 HTTP_LISTEN_IP = '0.0.0.0'
@@ -416,7 +416,7 @@ and **we're making the 10.10.10.55 machine catch the shell** because **we're not
 
 That's enough proof that our victim is the `root` user. *or at least one who can read the shadow file*
 
-The exploit now **served the** `cron` **containing our reverse shell** and **it was downloaded by the victim** to their `/etc/cron.d`
+The exploit now **served the** `cron` **containing our reverse shell** and **it was downloaded by the victim** to their `/etc/cron.d` directory.
 
 ![](/assets/Kotarak/receiving-the-shadow-file-and-deploying-cron.jpg)
 

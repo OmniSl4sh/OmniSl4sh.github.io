@@ -450,7 +450,7 @@ set -g default-terminal "xterm-256color"
   <li><em>Finally,</em> we need to switch up the <code class="language-plaintext highlighter-rouge">/usr/bin/id &gt; /root/hacked-via-wget</code> cron job command to something more serious <strong><em>a.k.a. a reverse shell :D</em></strong></li>
 </ul>
 
-<p><em>After modificatiom,</em> it should look like this:</p>
+<p><em>After modification,</em> it should look like this:</p>
 
 <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">HTTP_LISTEN_IP</span> <span class="o">=</span> <span class="s">'0.0.0.0'</span>
 <span class="n">HTTP_LISTEN_PORT</span> <span class="o">=</span> <span class="mi">80</span>
@@ -478,7 +478,7 @@ set -g default-terminal "xterm-256color"
 
 <p>That’s enough proof that our victim is the <code class="language-plaintext highlighter-rouge">root</code> user. <em>or at least one who can read the shadow file</em></p>
 
-<p>The exploit now <strong>served the</strong> <code class="language-plaintext highlighter-rouge">cron</code> <strong>containing our reverse shell</strong> and <strong>it was downloaded by the victim</strong> to their <code class="language-plaintext highlighter-rouge">/etc/cron.d</code></p>
+<p>The exploit now <strong>served the</strong> <code class="language-plaintext highlighter-rouge">cron</code> <strong>containing our reverse shell</strong> and <strong>it was downloaded by the victim</strong> to their <code class="language-plaintext highlighter-rouge">/etc/cron.d</code> directory.</p>
 
 <p><img src="/assets/Kotarak/receiving-the-shadow-file-and-deploying-cron.jpg" alt="" /></p>
 
