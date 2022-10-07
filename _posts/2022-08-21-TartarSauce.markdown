@@ -145,7 +145,7 @@ It was legit. we're now interacting as `onuma`
 
 ![](/assets/TartarSauce/shell-as-onuma.jpg)
 
-## Detecting system operations
+## Detecting System Operations
 *When running a quick* [linpeas.sh](https://github.com/carlospolop/PEASS-ng), we spot a **unique system timer:**
 
 ![](/assets/TartarSauce/system-timers.jpg)
