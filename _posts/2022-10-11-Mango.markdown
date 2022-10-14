@@ -1,21 +1,21 @@
 ---
 layout: post
 title:  "HTB Writeup [Linux - Medium] - Mango"
-published: false
+published: true
 ---
 
 ![](/assets/Mango/Mango.png)
 
 ## Summary
 - **Mango** is a **Linux box** where both **HTTP and HTTPS websites** are hosted.
-- *While inspecting it,* the site's **SSL certificate** revealed another **virtual host.**
-- That **vhost** had a **login page** on the **home page of its HTTP port** which happened to **vulnerable to NoSQL injection.**
-- *After logging in with* ***an authentication bypass,*** we found the site ***still under construction.***
-- *Without any functionality to abuse,* we turn to **NoSQL's built-in regex capability** to **enumerate the usernames and passwords** on the web app ***in hopes of reusing them with SSH.***
+- *While inspecting the site's* ***SSL certificate***, we notice another **virtual host.**
+- That **vhost** had a **login page** on HTTP which happened to **vulnerable to NoSQL injection.**
+- *After logging in with an* ***Authentication Bypass,*** we found the site ***still under construction.***
+- *Without any functionality to abuse,* we turned to **NoSQL's built-in regex capability** to **enumerate the usernames and passwords** on the web app ***in hopes of reusing them with SSH.***
 - *Since* ***retrieving passwords manually*** *was time consuming,* we **wrote a Python script** to **automate the process** and **further developed it** for **multi-threading support** ***(it ran 9X faster.)***
 - We were able to get **credentials for two usernames**: `admin` and `mango`. The `mango` user had **SSH access** which we leveraged to access the box.
-- *From inside,* we could **pivot** to the `admin` user using `su` because ***the password was the same.***
-- *While trying to* ***escalate our privileges***, we found an **SUID binary** called `jjs` which we **exploited** with the help of [GTFOBins](https://gtfobins.github.io/) to become `root`.
+- *From inside,* we could **pivot** to the `admin` user using `su` because ***had the same password.***
+- *While trying to* ***escalate our privileges***, we found an **SUID binary** called `jjs` which we **exploited** with the help of [GTFOBins](https://gtfobins.github.io/) *-and some minor tweaks-* to become `root`.
 
 ---
 
@@ -48,15 +48,15 @@ But we also notice that the `ssl-cert` script shows a **virtual host**: `staging
 
 ![](/assets/Mango/etc-hosts.jpg)
 
-visting `mango.htb` only gets us a **valid page** on the **HTTPS site**. *as we've seen from* `nmap`*'s output,* the **HTTP** one gives back a **403 forbidden response.**
+visting `mango.htb` only gets us a **valid page** on the **HTTPS site**. The **HTTP** one gives back a **403 forbidden response** *as we've seen from* `nmap`*'s output.*
 
 ![](/assets/Mango/mango-htb-sites.jpg)
 
-The **search function** suggests testing for **SQL Injection**. *To do so,* we **intercept the request** and **save it to a file**
+The **search function** suggests testing for **SQL Injection**. *To do so,* we **intercept the request** and **save it to a file.**
 
 ![](/assets/Mango/search-sqli-request.jpg)
 
-then pass it to `sqlmap` using the `-r` flag as well as the `--force-ssl` flag to **target the HTTPS URL.**
+then pass it to `sqlmap` using the `-r` flag as well as the `--force-ssl` flag to **target HTTPS.**
 
 ![](/assets/Mango/sqlmap-search.jpg)
 
@@ -74,19 +74,19 @@ Doing this ***doesn't yield back any results :/***
 
 *After intercepting the request,* we attempted injecting **common SQL Injection payloads** but they *didn't work.*
 
-*So intead,* we tried **NoSQL authentication bypasses** using the not equal (`$ne`) directive.
+*So intead,* we tried **NoSQL methods for bypassing authentication** like using the not equal (`$ne`) directive.
 
 *By setting* ***both the username and password*** *to* ***values we're sure don't exist in the database*** *(ex: test/test),* the check **should evaluate to** `true` and let us log in.
 
 ![](/assets/Mango/nosqli-auth-bypass.jpg)
 
-**It worked!** and we got a **302 response.** which we followed to get **redirected to this page:**
+**It worked!** and we got a **302 response.** we **followed the redirection** to get this page:
 
 ![](/assets/Mango/login-success-page.jpg)
 
 we get a **potential username** here: `admin`
 
-*other than that, there was nothing to played with on this page.*
+*other than that,* there was **nothing here to played with.**
 
 ## Exploiting NoSQL Injection to Get Credentials
 
@@ -94,7 +94,7 @@ we get a **potential username** here: `admin`
 
 Our plan here is to **obtain creds** and **try them with SSH** to **exploit any reuse.**
 
-*To check the* ***first character*** *of the* `admin` *user's password,* we can **supply a regular expression** like:
+*To check the* ***first character*** *of the* `admin` *user's password,* we can **supply a regular expression** like below:
 
 ```
 username=admin&password[$regex]=^a
@@ -102,20 +102,20 @@ username=admin&password[$regex]=^a
 
 The above regex would ***be evaluated*** to see if the **password starts** with the letter "a" or not.
 
-- ***if the condition is true,*** we would get the **302 redirect** and **get authenticated.**
-- ***if false,*** we should get a ***different response.***
+- ***if the pattern matches,*** we would get the **302 redirect** and **get authenticated.**
+- ***if not,*** we should get a ***different response.***
 
 Let's **give it a try** using **Burp**
 
 ![](/assets/Mango/nosql-enum-incorrect-first-letter.jpg)
 
-we get a **200 OK**. this likely means that **the password doesn't start with the letter "a".**
+we get a **200 OK**. this means that **the password doesn't start with the letter "a".**
 
 ***But, when trying different letters...***
 
 ![](/assets/Mango/nosql-enum-correct-first-letter.jpg)
 
-the response is a **302 redirect** when we put the first letter as "t". which means it's **the first character** of the `admin` user's password.
+the response is a **302 redirect** when we **put the first letter as "t"**. which means it's **the first character** of the `admin` user's password.
 
 Doing this process ***manually*** can take a lot of time. That's **especially true with passwords** since we have to **test all uppercase/lowercase letters in addition to all digits and symbols.**
 
@@ -311,7 +311,7 @@ which is a **huge improvement** from the **single-threaded version** which **nee
 
 ![](/assets/Mango/ssh-as-mango.jpg)
 
-*From inside,* we could **pivot** to the `admin` user with `su`.
+*From inside,* we could **pivot** to the `admin` user with `su` since ***he was using the same password*** we found.
 
 ![](/assets/Mango/pivot-to-admin-user.jpg)
 

